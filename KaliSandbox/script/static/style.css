@@ -1,0 +1,19 @@
+:root{--bg:#0b0f12;--panel:#0f1720;--text:#dbe6ef;--muted:#9fb0c3;--accent:#4fd1c5}
+*{box-sizing:border-box}
+body{font-family:Inter,ui-sans-serif,system-ui,Segoe UI,Roboto,Helvetica,Arial;color:var(--text);background:linear-gradient(180deg,#061017 0%,#071422 100%);padding:24px}
+.container{max-width:900px;margin:0 auto}
+h1{margin:0 0 12px;font-size:20px}
+.status{padding:8px;border-radius:6px;margin:8px 0;background:rgba(255,255,255,0.03);color:var(--muted);display:inline-block}
+.status-ok{border:1px solid rgba(79,209,197,0.12);color:var(--accent)}
+.status-error{border:1px solid rgba(255,90,90,0.12);color:#ff8080}
+.terminal{background:linear-gradient(180deg,#08131a,#07101a);padding:12px;border-radius:8px;min-height:240px;max-height:480px;overflow:auto;border:1px solid rgba(255,255,255,0.03);margin-top:12px;font-family:monospace;font-size:13px}
+.terminal div{white-space:pre-wrap;margin:0 0 6px}
+.cmd{color:#94a3b8}
+.stdout{color:#dbe6ef}
+.stderr{color:#ffb4b4}
+.meta{color:var(--muted);font-size:12px}
+.cmd-form{display:flex;gap:8px;margin-top:12px}
+.cmd-input{flex:1;padding:10px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:var(--text);outline:none}
+.btn{padding:10px 14px;border-radius:6px;background:var(--accent);color:#032125;border:none;cursor:pointer}
+.btn-cancel{padding:10px 14px;border-radius:6px;background:#ff5a5a;color:white;border:none;cursor:pointer}
+.help{color:var(--muted);font-size:12px;margin-top:8px}

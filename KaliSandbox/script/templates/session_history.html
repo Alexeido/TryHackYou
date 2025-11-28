@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Historial - {{ session_id }}</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+      .back-btn {
+        padding: 8px 16px;
+        border-radius: 6px;
+        background: rgba(255,255,255,0.08);
+        color: var(--text);
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        margin-bottom: 20px;
+        text-decoration: none;
+        display: inline-block;
+      }
+      .back-btn:hover {
+        background: rgba(255,255,255,0.12);
+      }
+      .session-info {
+        background: rgba(255,255,255,0.03);
+        padding: 16px;
+        border-radius: 8px;
+        margin: 20px 0;
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+      .session-info strong {
+        color: var(--accent);
+      }
+      .timeline {
+        position: relative;
+        padding-left: 40px;
+        margin-top: 30px;
+      }
+      .timeline::before {
+        content: '';
+        position: absolute;
+        left: 15px;
+        top: 0;
+        bottom: 0;
+        width: 2px;
+        background: rgba(79,209,197,0.2);
+      }
+      .timeline-item {
+        position: relative;
+        margin-bottom: 30px;
+        background: rgba(255,255,255,0.02);
+        padding: 16px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.05);
+      }
+      .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -30px;
+        top: 20px;
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+        background: var(--accent);
+        border: 3px solid var(--bg);
+      }
+      .timeline-item.success::before {
+        background: #4fd1c5;
+      }
+      .timeline-item.error::before {
+        background: #ff5a5a;
+      }
+      .cmd-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 12px;
+      }
+      .cmd-text {
+        font-family: monospace;
+        font-size: 14px;
+        color: var(--text);
+        background: rgba(0,0,0,0.3);
+        padding: 8px 12px;
+        border-radius: 4px;
+        flex: 1;
+      }
+      .cmd-timestamp {
+        color: var(--muted);
+        font-size: 12px;
+        margin-left: 12px;
+      }
+      .cmd-cwd {
+        color: var(--muted);
+        font-size: 12px;
+        margin-bottom: 8px;
+      }
+      .cmd-output {
+        margin-top: 12px;
+        font-family: monospace;
+        font-size: 13px;
+        background: rgba(0,0,0,0.4);
+        padding: 12px;
+        border-radius: 4px;
+        max-height: 300px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+      .cmd-output.stdout {
+        border-left: 3px solid #4fd1c5;
+      }
+      .cmd-output.stderr {
+        border-left: 3px solid #ff5a5a;
+        color: #ffb4b4;
+      }
+      .return-code {
+        display: inline-block;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+        margin-top: 8px;
+      }
+      .return-code.success {
+        background: rgba(79,209,197,0.15);
+        color: var(--accent);
+      }
+      .return-code.error {
+        background: rgba(255,90,90,0.15);
+        color: #ff8080;
+      }
+      .empty-state {
+        text-align: center;
+        padding: 60px 20px;
+        color: var(--muted);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <a href="/admin" class="back-btn">← Volver al Admin</a>
+
+      <h1>📜 Historial de Sesión</h1>
+
+      <div class="session-info">
+        <strong>Session ID:</strong> {{ session_id }}<br>
+        <strong>Directorio actual:</strong> <code>{{ current_cwd }}</code>
+      </div>
+
+      {% if history %}
+      <div class="timeline">
+        {% for entry in history %}
+        <div class="timeline-item {% if entry.return_code == 0 %}success{% elif entry.return_code %}error{% endif %}">
+          <div class="cmd-header">
+            <div class="cmd-text">$ {{ entry.command }}</div>
+            <div class="cmd-timestamp">{{ entry.timestamp }}</div>
+          </div>
+          
+          <div class="cmd-cwd">📁 {{ entry.cwd }}</div>
+
+          {% if entry.stdout %}
+          <div class="cmd-output stdout">{{ entry.stdout }}</div>
+          {% endif %}
+
+          {% if entry.stderr %}
+          <div class="cmd-output stderr">{{ entry.stderr }}</div>
+          {% endif %}
+
+          {% if entry.return_code is not none %}
+          <span class="return-code {% if entry.return_code == 0 %}success{% else %}error{% endif %}">
+            Exit Code: {{ entry.return_code }}
+          </span>
+          {% else %}
+          <span class="return-code" style="background: rgba(255,255,255,0.08); color: var(--muted);">
+            En ejecución...
+          </span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <div class="empty-state">
+        <p>No hay comandos en el historial de esta sesión.</p>
+      </div>
+      {% endif %}
+
+    </div>
+  </body>
+</html>

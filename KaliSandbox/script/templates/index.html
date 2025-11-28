@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Agent Terminal</title>
+    <link rel="stylesheet" href="/static/style.css">
+  </head>
+  <body>
+    <div class="container">
+      <h1>Agent Terminal</h1>
+
+      <div id="status" class="status">Conectando...</div>
+
+      <div id="terminal" class="terminal" aria-live="polite"></div>
+
+      <form id="cmdForm" class="cmd-form" onsubmit="return false;">
+        <input id="cmdInput" class="cmd-input" placeholder="Escribe un comando, p.ej. whoami" autocomplete="off" />
+        <button id="sendBtn" class="btn">Enviar</button>
+        <button id="cancelBtn" class="btn btn-cancel" style="display: none;">Cancelar</button>
+      </form>
+
+      <div class="help">Entrada vacía no se enviará. Pulsar Enter para enviar.</div>
+    </div>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
