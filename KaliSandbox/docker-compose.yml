@@ -46,6 +46,9 @@ services:
         ipv4_address: 10.5.0.4
     # No exponemos puertos al host. Es una caja negra para el agente.
     restart: always
+    # --- AÑADE ESTAS DOS LÍNEAS ---
+    tty: true          # Simula una terminal para que no se cierre
+    stdin_open: true   # Mantiene la entrada estándar abierta
 
   # -------------------------------------------------------
   # VÍCTIMA 3: WEB MODERNA (JUICE SHOP) - IP: 10.5.0.5

@@ -164,7 +164,7 @@
         </thead>
         <tbody>
           {% for job in jobs %}
-          <tr>
+          <tr data-job-start="{{ job.start_time }}" data-job-running="{{ 'true' if job.status == 'running' else 'false' }}">
             <td class="job-id">{{ job.job_id[:8] }}...</td>
             <td><code>{{ job.command }}</code></td>
             <td>{{ job.session_id }}</td>
@@ -175,15 +175,25 @@
             </td>
             <td>{{ job.return_code if job.return_code is not none else '-' }}</td>
             <td>{{ job.started_at }}</td>
-            <td>{{ job.elapsed }}s</td>
+            <td class="elapsed-time">{{ job.elapsed }}s</td>
             <td>
               <button 
                 class="stop-btn" 
                 onclick="stopJob('{{ job.job_id }}')"
                 {% if job.status == 'finished' %}disabled{% endif %}
+                style="margin-right: 4px;"
               >
                 Stop
               </button>
+              {% if job.status == 'running' %}
+              <button 
+                class="stop-btn" 
+                onclick="viewLogs('{{ job.job_id }}')"
+                style="background:#4fd1c5;color:#032125;"
+              >
+                Ver Logs
+              </button>
+              {% endif %}
             </td>
           </tr>
           {% endfor %}
@@ -196,6 +206,8 @@
     </div>
 
     <script>
+      let updateInterval = null;
+
       async function stopJob(jobId) {
         if (!confirm('¿Seguro que quieres detener este job?')) return;
         
@@ -208,6 +220,67 @@
           alert('Error al detener el job: ' + e.message);
         }
       }
+
+      async function viewLogs(jobId) {
+        try {
+          const res = await fetch(`/status/${jobId}`);
+          const data = await res.json();
+          
+          const output = (data.stdout || '') + (data.stderr || '');
+          if (!output) {
+            alert('No hay logs disponibles a\u00fan.');
+            return;
+          }
+          
+          // Crear modal para mostrar logs
+          const modal = document.createElement('div');
+          modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+          
+          const content = document.createElement('div');
+          content.style.cssText = 'background:#0f1720;border-radius:8px;padding:20px;max-width:900px;width:100%;max-height:80vh;overflow:auto;position:relative;';
+          
+          const header = document.createElement('div');
+          header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;';
+          header.innerHTML = `<h3 style="margin:0;color:#4fd1c5;">Logs - Job ${jobId.substring(0,8)}...</h3><button onclick="this.parentElement.parentElement.parentElement.remove()" style="background:#ff5a5a;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;">Cerrar</button>`;
+          
+          const pre = document.createElement('pre');
+          pre.style.cssText = 'background:rgba(0,0,0,0.4);padding:12px;border-radius:4px;color:#dbe6ef;font-family:monospace;font-size:13px;white-space:pre-wrap;word-wrap:break-word;margin:0;';
+          pre.textContent = output;
+          
+          content.appendChild(header);
+          content.appendChild(pre);
+          modal.appendChild(content);
+          document.body.appendChild(modal);
+          
+          modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+          });
+        } catch (e) {
+          alert('Error al cargar logs: ' + e.message);
+        }
+      }
+
+      function updateElapsedTimes() {
+        const rows = document.querySelectorAll('[data-job-start]');
+        const now = Date.now() / 1000;
+        
+        rows.forEach(row => {
+          const startTime = parseFloat(row.dataset.jobStart);
+          const isRunning = row.dataset.jobRunning === 'true';
+          
+          if (isRunning) {
+            const elapsed = (now - startTime).toFixed(1);
+            const cell = row.querySelector('.elapsed-time');
+            if (cell) cell.textContent = elapsed + 's';
+          }
+        });
+      }
+
+      // Actualizar tiempos cada segundo
+      updateInterval = setInterval(updateElapsedTimes, 100);
+      
+      // Actualizar al cargar
+      updateElapsedTimes();
     </script>
   </body>
 </html>
