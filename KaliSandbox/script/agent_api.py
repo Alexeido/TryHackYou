@@ -449,6 +449,7 @@ def admin_panel():
             "status": "running" if is_running else "finished",
             "return_code": proc.poll(),
             "started_at": time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(job["start_time"])),
+            "start_time": job["start_time"],
             "elapsed": round(time.time() - job["start_time"], 1)
         })
     
