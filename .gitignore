@@ -1,1 +1,7 @@
 KaliSandbox/script/__pycache__/*
+*.aux
+*.log
+*.toc
+*.fls
+*.synctex.gz
+*.fdb_latexmk
