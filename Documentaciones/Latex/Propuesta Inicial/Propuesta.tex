@@ -1,0 +1,74 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{enumitem}
+
+\geometry{margin=2.5cm}
+
+\title{\textbf{Propuesta de TFG}\\[0.5em]
+\large Diseño y análisis de un agente LLM autónomo para auditorías de ciberseguridad en entornos aislados}
+\author{Alejandro Barrena Millán}
+\date{\today}
+
+\begin{document}
+
+\maketitle
+
+\section{Idea del Proyecto}
+
+Desarrollar una aplicación que integre un chatbot basado en un LLM con acceso autónomo a herramientas de ciberseguridad en terminal. El usuario le pide hacer una auditoría y el LLM decide qué comandos ejecutar, interpreta resultados y genera un informe.
+
+\section{Motivación}
+
+Los LLMs actuales son potentes pero están limitados a responder preguntas. Darles acceso a herramientas reales de pentesting abre posibilidades interesantes:
+\begin{itemize}[leftmargin=*]
+    \item Democratizar auditorías básicas para personas sin conocimientos profundos
+    \item Automatización inteligente que se adapta según los resultados
+    \item Asistente para acelerar tareas repetitivas en ciberseguridad
+\end{itemize}
+
+Pero también tiene riesgos que hacen el proyecto interesante: ¿qué pasa con prompt injection? ¿Puede manipularse para ejecutar comandos peligrosos? ¿Puedes manipular el resultado de una auditoría si al analizar algún archivo el LLM encuentra algún intento de prompt Injection?
+
+\section{Objetivos}
+
+\subsection{Objetivos principales (alcanzables)}
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Desarrollo de la aplicación}: Sistema que conecte el LLM con terminal/sandbox, integración de herramientas de ciberseguridad (nmap, nikto, sqlmap, etc.)
+    
+    \item \textbf{Validación funcional}: Montar entornos de prueba con vulnerabilidades conocidas (DVWA, Metasploitable, etc.) y evaluar si el LLM detecta y reporta correctamente
+\end{enumerate}
+
+\subsection{Objetivos secundarios (si da tiempo)}
+
+\begin{enumerate}[leftmargin=*]
+    \item \textbf{Análisis contra prompt injection}: Diseñar ataques para manipular al LLM e implementar contramedidas
+    
+    \item \textbf{Prevención de escalada de privilegios}: Asegurar que no ejecute comandos peligrosos y probar ataques que intenten engañar al sistema
+    
+    \item \textbf{Evaluación adversarial}: Batería de prompts maliciosos y estudio de robustez
+\end{enumerate}
+
+\section{Stack Tecnológica Propuesta}
+
+\begin{itemize}[leftmargin=*]
+    \item \textbf{LLM}: Posiblemente Gemini o OpenRouter (API) o Llama/Mistral (local) o intentar montar LLM en el supercomputador
+    \item \textbf{Terminal Sandbox}: Docker para aislar ejecución
+    \item \textbf{Herramientas}: Kali Linux toolkit
+\end{itemize}
+
+\section{Resultados Esperados}
+
+\begin{enumerate}[leftmargin=*]
+    \item Aplicación funcional que demuestre el concepto
+    \item Pruebas que validen la utilidad práctica del sistema
+    \item Análisis de limitaciones, especialmente en seguridad
+    \item Si da tiempo: estudio sobre prompt injection y contramedidas
+\end{enumerate}
+
+\vspace{1cm}
+
+
+\end{document}
