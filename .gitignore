@@ -3,5 +3,6 @@ KaliSandbox/script/__pycache__/*
 *.log
 *.toc
 *.fls
+*.out
 *.synctex.gz
 *.fdb_latexmk

@@ -1,0 +1,102 @@
+\documentclass[11pt,a4paper]{article}
+
+% ------------------ PAQUETES ------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish]{babel}
+\usepackage{geometry}
+\usepackage{pgfgantt}
+\usepackage{float}
+\usepackage{array}
+\usepackage{colortbl} % Para colorear celdas
+\usepackage{xcolor}
+
+\geometry{margin=2cm} % Márgenes más estrechos para aprovechar espacio
+
+% ------------------ ESTILOS ------------------
+\definecolor{headergray}{gray}{0.9}
+\renewcommand{\arraystretch}{1.4}
+
+\begin{document}
+
+% ------------------ CABECERA SIMPLIFICADA ------------------
+\begin{center}
+    {\Large \textbf{Planificación TFG: Resumen concentrado}}\\[5pt]
+    {\large Agente LLM autónomo para auditorías de ciberseguridad}
+    
+    \vspace{0.5cm}
+    \textbf{Alumno:} Alejandro Barrena Millán \quad | \quad \textbf{Inicio:} 17 Nov 2025 \quad | \quad \textbf{Fin:} Feb 2026
+\end{center}
+
+\hrule
+\vspace{0.5cm}
+
+% ============================================================
+\section*{1. Objetivo y Metodología}
+
+\begin{itemize}
+    \item \textbf{Objetivo:} Desarrollar un prototipo funcional de agente basado en LLM capaz de ejecutar comandos de auditoría en un entorno aislado.
+    \item \textbf{Metodología:} Scrum adaptado (Ciclos incrementales de 1 a 3 semanas).
+\end{itemize}
+
+% ============================================================
+\section*{2. Hoja de Ruta y Entregables (Roadmap)}
+
+Resumen de hitos clave y fechas de calendario real.
+
+\begin{table}[H]
+\centering
+\begin{tabular}{|c|l|p{8.5cm}|}
+\hline
+\rowcolor{headergray} 
+\textbf{Sprint} & \textbf{Fechas (Inicio)} & \textbf{Entregable Principal / Objetivo} \\ \hline
+
+\textbf{S1} & 17 Nov & \textbf{Definición:} Requisitos, GitHub configurado y estado del arte. \\ \hline
+
+\textbf{S2} & 24 Nov - 07 Dic & \textbf{Infraestructura:} Sandbox (Docker) operativo y API de control lista. \\ \hline
+
+\textbf{S3} & 08 Dic - 28 Dic & \textbf{Integración IA:} El LLM se conecta al entorno y ejecuta comandos simples. \\ \hline
+
+\textbf{S4} & 29 Dic - 11 Ene & \textbf{MVP:} Agente autónomo realizando auditorías básicas (puertos/servicios). \\ \hline
+
+\textbf{S5} & 12 Ene - 18 Ene & \textbf{Validación:} Pruebas end-to-end, corrección de errores y métricas. \\ \hline
+
+\textbf{S6} & 19 Ene - 01 Feb & \textbf{Memoria:} Redacción completa del documento académico. \\ \hline
+
+\textbf{S7} & 02 Feb & \textbf{Defensa:} Entrega final y preparación de presentación. \\ \hline
+\end{tabular}
+\end{table}
+
+% ============================================================
+\section*{3. Cronograma Visual}
+
+Vista rápida de la carga de trabajo por semanas.
+
+\begin{figure}[H]
+\centering
+\begin{ganttchart}[
+    hgrid,
+    vgrid,
+    x unit=1.2cm,
+    y unit chart=0.5cm,
+    bar/.append style={fill=blue!40, draw=none},
+    bar height=0.6,
+    title label font=\bfseries\footnotesize,
+    bar label font=\footnotesize
+]{1}{12}
+
+\gantttitle{Semanas (Nov 2025 - Feb 2026)}{12} \\
+\gantttitlelist{1,...,12}{1} \\
+
+\ganttbar{S1: Requisitos}{1}{1} \\
+\ganttbar{S2: Entorno}{2}{3} \\
+\ganttbar{S3: Integración LLM}{4}{6} \\ 
+\ganttbar{S4: MVP Agente}{7}{8} \\
+\ganttbar{S5: Pruebas}{9}{9} \\
+\ganttbar{S6: Memoria}{10}{11} \\
+\ganttbar{S7: Defensa}{12}{12}      
+
+\end{ganttchart}
+\end{figure}
+
+\end{document}
