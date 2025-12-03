@@ -31,7 +31,7 @@ Esta semana se consiguió con creces implementar y validar un contenedor Docker 
 
 Aquí tienes la versión resumida y directa para tu bitácora:
 
-## Lunes, 1 de diciembre
+## L **01/12/2025**
 
 Se ha completado la orquestación del laboratorio de pruebas, evolucionando de un contenedor aislado a una infraestructura de red completa.
 
@@ -40,3 +40,32 @@ Se ha completado la orquestación del laboratorio de pruebas, evolucionando de u
 * **Validación:** Ejecución exitosa de un ataque **SQL Injection** contra DVWA, logrando automatizar el login y la evasión de tokens CSRF mediante scripts.
 
 **Estado:** Sprint 2 cerrado. Infraestructura validada y lista para la integración del LLM (Sprint 3).
+
+## M **02/12/2025**
+
+Jornada dedicada a la consolidación y preparación del entorno de desarrollo:
+
+* **Corrección de bugs:** Revisión y corrección de errores identificados durante las pruebas del día anterior en la integración del laboratorio con Docker Compose.
+* **Pruebas de validación:** Verificación exhaustiva del correcto funcionamiento de la comunicación entre el agente y los distintos contenedores vulnerables.
+* **Instalación de LaTeX local:** Configuración del compilador LaTeX en el entorno local para facilitar la generación y edición de la documentación técnica del proyecto sin dependencias externas.
+
+**Estado:** Entorno estabilizado y preparado para la siguiente fase del proyecto.
+
+## X **03/12/2025**
+
+Objetivos para hoy:
+
+- **Selección de LLMs locales:** Evaluar modelos locales según disponibilidad de VRAM preparar una lista corta de opciones según VRAM.
+- **Reunión con Computaex:** Presentar lista y ver que recursos nos ponen a disposición.
+- **Relleno de anexos del TFG:** Preguntar si tengo que hacer algo en docs o simplemente memoria.
+- **Análisis de requisitos para el siguiente sprint (integración LLM):** Definir las interfaces API necesarias, estructura de datos y flujos de comunicación entre el agente y el modelo LLM.
+- **Creación de tareas y estimaciones:** Desglosar el trabajo en issues/tareas con prioridad y estimaciones de esfuerzo para el próximo sprint.
+
+Criterios de éxito:
+
+- Quitarnos de encima el computaex.
+- Lista corta de modelos LLM candidatos con notas sobre compatibilidad por VRAM.
+- Anexos del TFG rellenados.
+- Backlog inicial del siguiente sprint con tareas claras y estimaciones.
+
+**Estado actual:** En progreso
