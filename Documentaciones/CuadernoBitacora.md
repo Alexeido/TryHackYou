@@ -56,7 +56,7 @@ Jornada dedicada a la consolidación y preparación del entorno de desarrollo:
 Objetivos para hoy:
 
 - **Selección de LLMs locales:** Evaluar modelos locales según disponibilidad de VRAM preparar una lista corta de opciones según VRAM.
-- **Reunión con Computaex:** Presentar lista y ver que recursos nos ponen a disposición.
+- **Reunión con Computaex:** ~~Presentar lista y ver que recursos nos ponen a disposición.~~
 - **Relleno de anexos del TFG:** Preguntar si tengo que hacer algo en docs o simplemente memoria.
 - **Análisis de requisitos para el siguiente sprint (integración LLM):** Definir las interfaces API necesarias, estructura de datos y flujos de comunicación entre el agente y el modelo LLM.
 - **Creación de tareas y estimaciones:** Desglosar el trabajo en issues/tareas con prioridad y estimaciones de esfuerzo para el próximo sprint.
