@@ -1,5 +1,20 @@
 # Cuaderno de Bitácora
 
+# Indice
+- [Cuaderno de Bitácora](#cuaderno-de-bitácora)
+- [Indice](#indice)
+- [Sprint 2 - Sandbox Terminal](#sprint-2---sandbox-terminal)
+    - [Objetivos del Sprint](#objetivos-del-sprint)
+    - [Resumen de la semana del 24 Noviembre](#resumen-de-la-semana-del-24-noviembre)
+        - [Logros](#logros)
+        - [Pruebas realizadas](#pruebas-realizadas)
+    - [L 01/12/2025](#l-01122025)
+    - [M 02/12/2025](#m-02122025)
+- [Sprint 3 - Integración LLM](#sprint-3---integración-llm)
+    - [X 03/12/2025](#x-03122025)
+    - [J 04/12/2025](#j-04122025)
+    - [V 05/12/2025](#v-05122025)
+
 # Sprint 2 - Sandbox Terminal
 
 ## Objetivos del Sprint
@@ -66,16 +81,29 @@ Hoy se avanzó en la preparación para el siguiente sprint:
 
 ## J **04/12/2025**
 
-Objetivos para hoy:
+Hoy se completaron varias tareas importantes relacionadas con la planificación y documentación del proyecto:
 
-- ~~**Selección de LLMs locales:** Evaluar modelos locales según disponibilidad de VRAM preparar una lista corta de opciones según VRAM.~~
-- ~~**Relleno de anexos del TFG:** Preguntar si tengo que hacer algo en docs o simplemente memoria.~~
-- **Análisis de requisitos para el siguiente sprint (integración LLM):** Definir las interfaces API necesarias, estructura de datos y flujos de comunicación entre el agente y el modelo LLM.
+* **Selección de LLMs locales:** Se finalizó la lista de modelos compatibles con 32GB y 64GB de VRAM, incluyendo notas detalladas sobre su rendimiento esperado.
+* **Relleno de anexos del TFG:** Se completaron los anexos requeridos, asegurando que toda la documentación esté alineada con los objetivos del proyecto.
+* **Descarga de la plantilla de Latex de la memoria:** Se descargó y configuró la plantilla de LaTeX para la memoria del TFG, facilitando la redacción y formateo del documento final.
+* **Creacion de ramas acorde a las tareas:** Se organizaron las ramas del repositorio Git para reflejar las tareas planificadas, facilitando el seguimiento del progreso y la colaboración futura.
 
-Criterios de éxito:
+**Estado:** Todo completado con éxito.
 
-- Lista de modelos LLM candidatos con notas sobre compatibilidad por VRAM.
-- Anexos del TFG rellenados.
-- Backlog inicial del siguiente sprint con tareas claras y estimaciones.
+
+## V **05/12/2025**
+
+### Objetivos para hoy:
+
+- Diseñar las interfaces API necesarias para la comunicación entre el agente y el modelo LLM.
+- Definir la estructura de datos y los flujos de comunicación requeridos.
+- Crear un mini frontend de pruebas para validar la funcionalidad de la API.
+- Documentar la API utilizando OpenAPI/Swagger para facilitar su uso y comprensión.
+
+### Criterios de éxito:
+
+- API básica funcionando.
+- Documentación de la API creada y usable con OpenAPI/Swagger.
+- Mini frontend de pruebas (NO DEFINITIVO NI INTEGRADO, SOLO PARA TESTEO).
 
 **Estado actual:** En progreso
