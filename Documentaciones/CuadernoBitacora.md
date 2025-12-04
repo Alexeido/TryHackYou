@@ -51,15 +51,26 @@ Jornada dedicada a la consolidación y preparación del entorno de desarrollo:
 
 **Estado:** Entorno estabilizado y preparado para la siguiente fase del proyecto.
 
+# Sprint 3 - Integración LLM
+
 ## X **03/12/2025**
+
+Hoy se avanzó en la preparación para el siguiente sprint:
+
+* **Reunión con Computaex:** Tuve una reunion con Daniel Flores para consultar la disponibilidad de GPUs y recursos para el desarrollo del proyecto.
+* **Análisis de requisitos para el siguiente sprint:** Se definieron las interfaces API necesarias, la estructura de datos y los flujos de comunicación entre el agente y el modelo LLM.
+* **Creación de tareas y estimaciones:** Se desglosaron las tareas en issues con prioridades y estimaciones de esfuerzo.
+
+**Estado:** Tareas definidas, credenciales de maquinas en Computaex recibidas, correo mandado para ajustar recursos.
+
+
+## J **04/12/2025**
 
 Objetivos para hoy:
 
-- **Selección de LLMs locales:** Evaluar modelos locales según disponibilidad de VRAM preparar una lista corta de opciones según VRAM.
-- **Reunión con Computaex:** ~~Presentar lista y ver que recursos nos ponen a disposición.~~
-- **Relleno de anexos del TFG:** Preguntar si tengo que hacer algo en docs o simplemente memoria.
+- ~~**Selección de LLMs locales:** Evaluar modelos locales según disponibilidad de VRAM preparar una lista corta de opciones según VRAM.~~
+- ~~**Relleno de anexos del TFG:** Preguntar si tengo que hacer algo en docs o simplemente memoria.~~
 - **Análisis de requisitos para el siguiente sprint (integración LLM):** Definir las interfaces API necesarias, estructura de datos y flujos de comunicación entre el agente y el modelo LLM.
-- **Creación de tareas y estimaciones:** Desglosar el trabajo en issues/tareas con prioridad y estimaciones de esfuerzo para el próximo sprint.
 
 Criterios de éxito:
 
