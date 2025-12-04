@@ -74,8 +74,7 @@ Objetivos para hoy:
 
 Criterios de éxito:
 
-- Quitarnos de encima el computaex.
-- Lista corta de modelos LLM candidatos con notas sobre compatibilidad por VRAM.
+- Lista de modelos LLM candidatos con notas sobre compatibilidad por VRAM.
 - Anexos del TFG rellenados.
 - Backlog inicial del siguiente sprint con tareas claras y estimaciones.
 
