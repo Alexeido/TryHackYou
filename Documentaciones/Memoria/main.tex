@@ -1,0 +1,148 @@
+\documentclass[minitoc, hidelinks, headlogo, framedcover]{tfeEPCC}
+\usepackage[spanish, es-tabla]{babel} % Comentar si se va a realizar en inglés
+%\usepackage{parskip} % Quitar comentario si se quieren distinguir los párrafos con saltos y quitar las sangrías
+
+\usepackage{lipsum} % Este paquete es para poner texto genérico en los capítulos, quitar cuando ya se hayan redactado
+
+% Rellenar con los datos del estudiante y el trabajo
+\estudiante{Alejandro Barrena Millán}{Grado}{Grado en Ingeniería Informática en Ingeniería del Software}
+\title{Diseño y análisis de un agente LLM autónomo para auditorías de ciberseguridad en entornos aislados}
+\keywords{Palabras más importantes o descriptivas\and separadas por comas\and para facilitar la búsqueda si se deposita en repositorio}
+
+\begin{document}
+\sloppy 
+\pagebreak 
+
+%%%%%%%%%%%%% PORTADA %%%%%%%%%%%%%
+% Poner convocatoria y año de presentación
+\portadaTFE{Febrero, 2025}
+
+\pagestyle{empty}
+
+
+%%%%%%%%%% CONTRAPORTADA %%%%%%%%%%
+% Campos, separar con comas si se ponen varios: {
+% studentGender
+% tutor (obligatorio)
+% tutorGender
+% cotutor
+% cotutorGender }
+% Especificar un co-tutor lo añade a la contraportada
+% Poner la letra f en cualquier campo de género añade una 'a' al título correspondiente (por ejemplo, studentGender = f hace que se muestre Autora)
+\contraportadaTFE{tutor = Pablo García Rodríguez, cotutor = Alberto Fernández Isabel (URJC)}
+
+
+%%%% CAPÍTULOS INTRODUCTORIOS %%%%
+\pagenumbering{gobble}
+%\chapter*{Agradecimientos} % Apartado opcional, descomentar si se quiere añadir
+% Dedicatorias del trabajo, pueden ser en español o inglés dependiendo de lo que se considere más apropiado
+
+\chapter*{Resumen}
+EL RESUMEN EN ESPAÑOL
+
+\noindent\textbf{Palabras clave}: \printkeywords.
+
+\chapter*{Abstract}
+EL RESUMEN EN INGLÉS
+
+\noindent\textbf{Keywords}: Most important or descriptive words, separated by commas.
+
+% Índices con enlaces de las secciones, tablas y figuras
+\newpage
+\pagestyle{plain}
+\pagenumbering{Roman}
+\setcounter{page}{1}
+\tableofcontents
+%\pagebreak
+\newpage
+\listoftables
+\newpage
+\listoffigures
+\newpage
+
+
+%%%%%%% ESTRUCTURA DEL TFG %%%%%%%%%%%%%%
+% A.PORTADA (según la estructura indicada a continuación) 
+% B.CONTRAPORTADA (según la estructura indicada a continuación) 
+% C.ÍNDICE GENERAL DE CONTENIDOS  
+% D.ÍNDICE DE TABLAS  
+% E.ÍNDICE DE FIGURAS 
+% F.RESUMEN (Podrá incluirse también en inglés, si así lo indica el Tutor1) 
+% G.CUERPO DEL TRABAJO (según la estr
+% uctura indicada a continuación) 
+% H.REFERENCIAS BIBLIOGRÁFICAS 
+% (Según norma ISO690)
+% I.ANEXOS, si los hubiera
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%% Cuerpo del trabajo
+% 1.INTRODUCCIÓN 
+% 2.OBJETIVOS 
+% 3.ANTECEDENTES / ESTADO DEL ARTE 
+% 4.MÉTODOLOGÍA 
+% 5.IMPLEMENTACIÓN Y DESARROLLO (Cuando proceda) 
+% 6.RESULTADOS Y DISCUSIÓN 
+% 7.CONCLUSIONES 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Tamaño: Normalizado UNE A-4, salvo planos. 
+% Tipo y tamaño de letra del texto: Times New Roman 12 pt, Arial 12 pt o similar. 
+% Interlineado del texto: 1,5 líneas. 
+% Márgenes del texto: Superior, Inferior y Derecha, 2,5 cm; Izquierda, 4 cm. 
+% Numeración de páginas en margen inferior derecha y tamaño 8 pt. 
+% Las  figuras  serán  numeradas  y  tituladas  debajo  de  las  mismas  (indicando  su  fuente  si  no  son  de  elaboración  
+% propia). 
+% Las  tablas  serán  numeradas  y  tituladas  encima  de  las  mismas  (indicando  su  fuente  si  no  son  de  elaboración  
+% propia). 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\pagenumbering{arabic}
+\pagestyle{fancy}
+\setcounter{page}{1}
+
+%%%%%%%% INTRODUCCIÓN %%%%%%%%
+\import{chapters}{01_introduccion.tex}
+
+%%%%%%%% OBJETIVOS %%%%%%%%
+\import{chapters}{02_objetivos.tex}
+
+%%%%%%%% ESTADO DEL ARTE %%%%%%%%
+\import{chapters}{03_estado_del_arte.tex}
+
+%%%%%%%% METODOLOGÍA %%%%%%%%
+\import{chapters}{04_metodologia.tex}
+
+%%%%%%%% IMPLEMENTACIÓN Y DESARROLLO %%%%%%%%
+\import{chapters}{05_implementacion_y_desarrollo.tex}
+
+%%%%%%%% RESULTADOS %%%%%%%%
+\import{chapters}{06_resultados.tex}
+
+%%%%%%%% CONCLUSIONES Y TRABAJOS FUTUROS %%%%%%%%
+\import{chapters}{07_conclusiones_y_trabajos_futuros.tex}
+
+
+% Si no se van a incorporar anexos, comentar el comando '\startappendices' junto a todos los imports de la carpeta 'appendices'
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%% ANEXOS %%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\startappendices
+
+%%%%%%%% ANEXO 1 %%%%%%%%
+\import{appendices}{01_ejemplo_de_anexo.tex}
+
+\pagebreak
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%% AL FINAL %%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\pagestyle{empty}
+%%%% https://en.wikibooks.org/wiki/LaTeX/Bibliography_Management
+%%%% https://www.bibtex.com
+%%%%%%%% BIBLIOGRAFÍA %%%%%%%%
+% Se puede cambiar el estilo de la bibliografía, por defecto es 'unsrturl'
+% Por ejemplo: \makebibliography{alphaurl}
+\makebibliography
+\end{document}
