@@ -13,7 +13,8 @@
 - [Sprint 3 - Integración LLM](#sprint-3---integración-llm)
     - [X 03/12/2025](#x-03122025)
     - [J 04/12/2025](#j-04122025)
-    - [V 05/12/2025](#v-05122025)
+    - [Días 05 - 11/12/2025](#días-05---11122025)
+    - [V 12/12/2025](#v-12122025)
 
 # Sprint 2 - Sandbox Terminal
 
@@ -91,7 +92,15 @@ Hoy se completaron varias tareas importantes relacionadas con la planificación 
 **Estado:** Todo completado con éxito.
 
 
-## V **05/12/2025**
+
+## **Días 05 - 11/12/2025**
+
+Jornadas dedicadas íntegramente al **proyecto de la asignatura PBD**. No hubo avances en el TFG para priorizar la entrega/gestión de dicha asignatura.
+
+**Estado:** Sin avances en TFG por PBD.
+
+
+## V **12/12/2025**
 
 ### Objetivos para hoy:
 
@@ -107,3 +116,5 @@ Hoy se completaron varias tareas importantes relacionadas con la planificación 
 - Mini frontend de pruebas (NO DEFINITIVO NI INTEGRADO, SOLO PARA TESTEO).
 
 **Estado actual:** En progreso
+
+

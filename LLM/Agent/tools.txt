@@ -1,0 +1,94 @@
+tools_schema = [
+    # -------------------------------------------------------------------------
+    # HERRAMIENTA 1: EJECUCIÓN (Lanza el proceso)
+    # -------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "execute_command",
+            "description": (
+                "Executes a Linux shell command in the isolated sandbox (Root Access).\n"
+                "INSTALLED ARSENAL:\n"
+                "- Recon: nmap, netcat, ping, dig, curl, httpie\n"
+                "- Web: sqlmap, nikto, ffuf, whatweb, nuclei, LinkFinder (python3 /opt/linkfinder/linkfinder.py)\n"
+                "- Brute-force: hydra\n"
+                "- Utils: jq, python3, unzip, tldr (use 'tldr <tool>' for help)\n"
+                "\n"
+                "ASYNC BEHAVIOR:\n"
+                "For slow commands (like full port scans), use 'wait_time' to peek at the output. "
+                "If the response status is 'running', you will get a 'job_id'. "
+                "You must then use 'check_job_status' to poll for completion."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "command": {
+                        "type": "string",
+                        "description": "Bash command. NO interactive inputs. Ex: 'nmap -sV 10.5.0.4', 'nuclei -u http://target'."
+                    },
+                    "wait_time": {
+                        "type": "integer",
+                        "description": "Seconds to wait for initial output. Recommended: 3 for fast cmds, 5-10 for slow cmds. If command takes longer, it returns 'running' status.",
+                        "default": 5
+                    },
+                    "exit_time": {
+                        "type": "integer",
+                        "description": "Safety timeout (Kill Switch). The process will be FORCE KILLED after these seconds. Default 0 (no limit). Set this to 300 (5 mins) for heavy scans to prevent hangs.",
+                        "default": 0
+                    }
+                },
+                "required": ["command"]
+            }
+        }
+    },
+
+    # -------------------------------------------------------------------------
+    # HERRAMIENTA 2: MONITORIZACIÓN (Consulta el estado)
+    # -------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "check_job_status",
+            "description": (
+                "Retrieves the latest output (stdout/stderr) of a running background job. "
+                "Use this loop until status is 'finished'."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "The UUID received from a previous 'execute_command' call."
+                    },
+                    "wait": {
+                        "type": "integer",
+                        "description": "Long-polling wait time in seconds. Recommended: 5.",
+                        "default": 5
+                    }
+                },
+                "required": ["job_id"]
+            }
+        }
+    },
+
+    # -------------------------------------------------------------------------
+    # HERRAMIENTA 3: CANCELACIÓN (Mata el proceso)
+    # -------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "stop_job",
+            "description": "Forcefully stops (SIGINT/SIGKILL) a running job if it is stuck or taking too long.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "job_id": {
+                        "type": "string",
+                        "description": "The UUID of the job to kill."
+                    }
+                },
+                "required": ["job_id"]
+            }
+        }
+    }
+]
