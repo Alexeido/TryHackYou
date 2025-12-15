@@ -60,13 +60,13 @@ def guardar_sesion_txt(history, modelo):
                     f.write("TOOL REQUEST:\n")
                     for tc in tool_calls:
                         if hasattr(tc, 'function'):
-                            fn_name = tc.function.name
-                            fn_args = tc.function.arguments
-                            fn_id = tc.id
+                            fn_name = str(tc.function.name)
+                            fn_args = str(tc.function.arguments)
+                            fn_id = str(tc.id)
                         else:
-                            fn_name = tc['function']['name']
-                            fn_args = tc['function']['arguments']
-                            fn_id = tc['id']
+                            fn_name = str(tc['function']['name'])
+                            fn_args = str(tc['function']['arguments'])
+                            fn_id = str(tc['id'])
 
                         f.write(f"Function: {fn_name}\n")
                         f.write(f"ID: {fn_id}\n")
@@ -81,8 +81,66 @@ def guardar_sesion_txt(history, modelo):
             f.write("-" * 80 + "\n\n")
 
     print(Fore.GREEN + "✅ Sesión guardada en TXT correctamente.")
+  
+# --- FUNCION PARA GUARDAR LOG RAW (CORREGIDA) ---
+def guardar_sesion_raw(history, modelo):
+    timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    filename = f"sesion_raw_{timestamp}.json"
+    
+    print(Fore.YELLOW + f"\n💾 Guardando sesión RAW en {filename}...")
 
+    serializable_history = []
+    
+    for msg in history:
+        if isinstance(msg, dict):
+            # Si ya es un dict (mensajes del usuario o tools manuales), lo guardamos tal cual
+            serializable_history.append(msg)
+        else:
+            # Si es un objeto de OpenAI, usamos model_dump() si existe (v1+)
+            # o __dict__ como fallback, asegurando que sea serializable
+            try:
+                if hasattr(msg, 'model_dump'):
+                    msg_dict = msg.model_dump()
+                else:
+                    msg_dict = msg.__dict__.copy()
+                
+                # Limpieza extra: Convertir tool_calls si son objetos dentro del dict
+                if msg_dict.get('tool_calls'):
+                    tool_calls_clean = []
+                    for tc in msg_dict['tool_calls']:
+                        if hasattr(tc, 'model_dump'):
+                            tool_calls_clean.append(tc.model_dump())
+                        elif hasattr(tc, '__dict__'):
+                            # Caso manual si falla model_dump
+                            tc_data = {
+                                "id": getattr(tc, 'id', None),
+                                "type": getattr(tc, 'type', 'function'),
+                                "function": {
+                                    "name": tc.function.name,
+                                    "arguments": tc.function.arguments
+                                }
+                            }
+                            tool_calls_clean.append(tc_data)
+                        else:
+                            tool_calls_clean.append(tc)
+                    msg_dict['tool_calls'] = tool_calls_clean
+                
+                serializable_history.append(msg_dict)
+            except Exception as e:
+                print(Fore.RED + f"⚠️ Error serializando mensaje: {e}")
+                serializable_history.append({"role": "error", "content": str(msg)})
 
+    try:
+        with open(filename, "w", encoding="utf-8") as f:
+            json.dump({
+                "fecha": str(datetime.datetime.now()),
+                "modelo": modelo,
+                "historial": serializable_history
+            }, f, indent=4, ensure_ascii=False)
+        print(Fore.GREEN + "✅ Sesión guardada en RAW correctamente.")
+    except Exception as e:
+        print(Fore.RED + f"❌ Error final escribiendo JSON: {e}")
+        
 # --- FUNCIÓN PARA GUARDAR LOG EN MARKDOWN ---
 def guardar_sesion_md(history, modelo):
     timestamp = datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
@@ -131,13 +189,13 @@ def guardar_sesion_md(history, modelo):
                     for tc in tool_calls:
                         # Manejo de si tc es objeto o dict
                         if hasattr(tc, 'function'):
-                            fn_name = tc.function.name
-                            fn_args = tc.function.arguments
-                            fn_id = tc.id
+                            fn_name = str(tc.function.name)
+                            fn_args = str(tc.function.arguments)
+                            fn_id = str(tc.id)
                         else:
-                            fn_name = tc['function']['name']
-                            fn_args = tc['function']['arguments']
-                            fn_id = tc['id']
+                            fn_name = str(tc['function']['name'])
+                            fn_args = str(tc['function']['arguments'])
+                            fn_id = str(tc['id'])
 
                         f.write("```json\n")
                         f.write(f"Function: {fn_name}\n")
@@ -212,6 +270,7 @@ def chat_loop():
         if prompt.lower() in ['salir', 'exit']:
             guardar_sesion_md(history, modelo)
             guardar_sesion_txt(history, modelo)
+            guardar_sesion_raw(history, modelo)
             break
 
         # RESPUESTA DE TOOL MANUAL

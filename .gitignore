@@ -1,3 +1,6 @@
 KaliSandbox/script/__pycache__/*
 .venv
 
+LLM/backend/__pycache__/*
+*.pyc
+LLM/backend/keys.txt
