@@ -7,29 +7,44 @@ import pandas as pd
 import io
 from colorama import Fore
 from thefuzz import process
+from pathlib import Path
 
 # URL del CSV de fboulnois (actualizado periódicamente)
 LMARENA_CSV_URL = "https://raw.githubusercontent.com/fboulnois/llm-leaderboard-csv/main/csv/lmarena_text.csv"
 
+# Ruta al CSV de fallback local (relativo al proyecto)
+FALLBACK_CSV_PATH = Path(__file__).parent.parent.parent / "fallbackRank.csv"
+
 
 # ---------------------------------------------------------
-# 1. FALLBACK (EL "INVENT" DE SEGURIDAD)
+# 1. FALLBACK LOCAL (CSV DESCARGADO)
 # ---------------------------------------------------------
-# Se usa SOLO si falla la conexión a internet o GitHub se cae.
-FALLBACK_SCORES = {
-    "gpt-4o": 1287,
-    "gemini-1.5-pro": 1261,
-    "claude-3-5-sonnet": 1258,
-    "gpt-4-turbo": 1255,
-    "gpt-4": 1248,
-    "claude-3-opus": 1246,
-    "llama-3-70b": 1200,
-    "deepseek-coder": 1230,
-    "deepseek-chat": 1180,
-    "mistral-large": 1159,
-    "gpt-3.5-turbo": 1105,
-    "gemini-flash": 1100,
-}
+def _load_fallback_csv() -> dict:
+    """Carga el CSV de fallback local y devuelve un diccionario de scores."""
+    fallback_scores = {}
+    
+    if not FALLBACK_CSV_PATH.exists():
+        print(Fore.YELLOW + f"⚠️ Fallback CSV no encontrado en: {FALLBACK_CSV_PATH}")
+        return fallback_scores
+    
+    try:
+        df = pd.read_csv(FALLBACK_CSV_PATH)
+        col_model = next((c for c in df.columns if c.lower() == 'model'), None)
+        col_score = next((c for c in df.columns if 'arena' in c.lower() and 'score' in c.lower()), None)
+        
+        if col_model and col_score:
+            for _, row in df.iterrows():
+                try:
+                    name = str(row[col_model]).lower().strip()
+                    score = int(float(row[col_score]))
+                    fallback_scores[name] = score
+                except:
+                    continue
+            print(Fore.YELLOW + f"📂 Fallback local cargado: {len(fallback_scores)} modelos desde {FALLBACK_CSV_PATH.name}")
+    except Exception as e:
+        print(Fore.RED + f"❌ Error leyendo fallback CSV: {e}")
+    
+    return fallback_scores
 
 # ---------------------------------------------------------
 # 2. HERENCIA DE MODELOS NUEVOS (NO EN CSV)
@@ -57,11 +72,12 @@ MODEL_INHERITANCE = {
 
 # Variable global que guardará las notas
 LIVE_SCORES = {}
+FALLBACK_SCORES = {}  # Se carga desde CSV local
 
 
 def update_scores_from_internet():
     """Descarga el CSV de fboulnois/llm-leaderboard-csv y parsea los scores."""
-    global LIVE_SCORES
+    global LIVE_SCORES, FALLBACK_SCORES
     print(Fore.CYAN + "📡 Conectando con LMArena Leaderboard (fboulnois/llm-leaderboard-csv)...")
 
     try:
@@ -88,13 +104,16 @@ def update_scores_from_internet():
                 print(Fore.GREEN + f"✅ Base de datos actualizada: {len(LIVE_SCORES)} modelos cargados.")
             else:
                 print(Fore.YELLOW + f"⚠️ No se encontraron columnas esperadas. Columnas: {list(df.columns)}")
+                FALLBACK_SCORES = _load_fallback_csv()
                 LIVE_SCORES = FALLBACK_SCORES
         else:
             print(Fore.RED + f"❌ Fallo HTTP ({response.status_code}): {response.reason}")
+            FALLBACK_SCORES = _load_fallback_csv()
             LIVE_SCORES = FALLBACK_SCORES
     
     except Exception as e:
         print(Fore.RED + f"❌ Error de conexión: {e}")
+        FALLBACK_SCORES = _load_fallback_csv()
         LIVE_SCORES = FALLBACK_SCORES
 
 
@@ -149,7 +168,6 @@ def _check_inheritance(clean_name: str, db: dict) -> int | None:
             family_score = _find_family_match(parent.lower(), db)
             if family_score:
                 return family_score + bonus
-    
     return None
 
 
@@ -163,9 +181,15 @@ def assign_score(model_name: str) -> int:
     5. Fuzzy match (umbral alto, >85%)
     6. Return 0 si no hay match
     """
+    global FALLBACK_SCORES
+    
     # Lazy loading
     if not LIVE_SCORES:
         update_scores_from_internet()
+    
+    # Si sigue vacío, cargar fallback local
+    if not LIVE_SCORES and not FALLBACK_SCORES:
+        FALLBACK_SCORES = _load_fallback_csv()
         
     db = LIVE_SCORES if LIVE_SCORES else FALLBACK_SCORES
     
