@@ -15,6 +15,8 @@
     - [J 04/12/2025](#j-04122025)
     - [Días 05 - 11/12/2025](#días-05---11122025)
     - [V 12/12/2025](#v-12122025)
+    - [L 15/12/2025](#l-15122025)
+    - [M 16/12/2025](#m-16122025)
 
 # Sprint 2 - Sandbox Terminal
 
@@ -30,7 +32,7 @@ El enfoque de este sprint es construir los cimientos técnicos del proyecto, est
 
 ---
 
-## Resumen de la semana del 24 Noviembre
+## Resumen de la semana del 24 Noviembre (No hice bitácora diaria)
 Esta semana se consiguió con creces implementar y validar un contenedor Docker que incluye la API para interactuar con un sandbox de Linux. El entregable principal está operativo y permite comunicación básica con el entorno aislado.
 
 ### Logros
@@ -102,19 +104,46 @@ Jornadas dedicadas íntegramente al **proyecto de la asignatura PBD**. No hubo a
 
 ## V **12/12/2025**
 
-### Objetivos para hoy:
+Jornada dedicada al análisis profundo de la arquitectura de comunicación con LLMs:
 
-- Diseñar las interfaces API necesarias para la comunicación entre el agente y el modelo LLM.
-- Definir la estructura de datos y los flujos de comunicación requeridos.
-- Crear un mini frontend de pruebas para validar la funcionalidad de la API.
-- Documentar la API utilizando OpenAPI/Swagger para facilitar su uso y comprensión.
+* **Estudio del lenguaje interno de LLMs:** Se analizó cómo los modelos procesan y generan respuestas, incluyendo el formato de mensajes (roles: system, user, assistant) y el contexto conversacional.
+* **Investigación de Tool Calling:** Se estudió el mecanismo de llamadas a herramientas (function calling), incluyendo la estructura de esquemas JSON, parámetros y flujo de respuestas.
+* **Tests de APIs:** Se realizaron pruebas exhaustivas con distintas APIs (OpenAI, Google Gemini, OpenRouter, DeepSeek) para entender sus diferencias en implementación, formato de respuestas y manejo de herramientas.
+* **Diseño de interfaz universal:** Se definió una capa de abstracción que permitirá usar múltiples proveedores de LLM de forma transparente.
 
-### Criterios de éxito:
+**Estado:** Base teórica sólida establecida para el desarrollo del backend.
 
-- API básica funcionando.
-- Documentación de la API creada y usable con OpenAPI/Swagger.
-- Mini frontend de pruebas (NO DEFINITIVO NI INTEGRADO, SOLO PARA TESTEO).
+## L **15/12/2025**
 
-**Estado actual:** En progreso
+Día de desarrollo intensivo del backend y herramientas de prueba:
+
+* **Desarrollo de la API Backend:** Se implementó el servidor FastAPI con endpoints para:
+  - `/models/discover`: Descubrimiento dinámico de modelos de múltiples proveedores en paralelo.
+  - `/chat`: Endpoint universal de chat compatible con tool calling.
+* **Sistema de ranking automático:** Se integró un sistema de puntuación ELO basado en el LMArena Leaderboard, con fallback local y fuzzy matching inteligente.
+* **Documentación Swagger:** Se generó documentación automática interactiva en `/docs` para facilitar las pruebas.
+* **Frontend de pruebas (Tkinter):** Se creó una interfaz gráfica para:
+  - Listar y filtrar modelos disponibles según proveedor, puntuación y características.
+  - Ordenar modelos por ranking, contexto o proveedor.
+  - Filtrar por opciones específicas (solo gratuitos, snapshots, etc.).
+* **Integración multi-proveedor:** Soporte funcional para OpenAI, Google Gemini, DeepSeek, OpenRouter y Anthropic.
+
+**Estado:** API completamente funcional con documentación y herramientas de testing operativas.
+
+## M **16/12/2025**
+
+Inicio del desarrollo del frontend web definitivo:
+
+* **Elección de frameworks:** Se evaluaron y compararon diferentes opciones para el stack frontend:
+  - **React** vs **Vue** vs **Svelte** para la capa de UI.
+  - Estudio de librerías de componentes (Material-UI, Tailwind, etc.).
+  - Análisis de requisitos para chat en tiempo real y gestión de estado.
+* **Investigación de arquitectura:** Se estudió cómo estructurar la comunicación con el backend, manejo de sesiones y persistencia de conversaciones.
+* **Prototipo inicial:** Se creó una versión muy básica sin funcionalidad real, estableciendo:
+  - Estructura de carpetas y configuración del proyecto.
+  - Componentes placeholder para chat, selector de modelos y panel de configuración.
+  - Esquema de rutas y navegación básica.
+
+**Estado:** Estructura del proyecto frontend inicializada, pendiente de implementación de funcionalidades.
 
 
