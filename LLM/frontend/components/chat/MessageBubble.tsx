@@ -27,9 +27,10 @@ interface MessageBubbleProps {
   isStreaming?: boolean;
   streamContent?: string;
   onEdit?: (messageId: number, newContent: string) => void;
+  onRegenerate?: (messageId: number) => void;
 }
 
-export function MessageBubble({ message, isStreaming, streamContent, onEdit }: MessageBubbleProps) {
+export function MessageBubble({ message, isStreaming, streamContent, onEdit, onRegenerate }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content || '');
@@ -338,11 +339,12 @@ export function MessageBubble({ message, isStreaming, streamContent, onEdit }: M
               </Button>
             )}
             
-            {!isUser && (
+            {!isUser && onRegenerate && (
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-7 px-2 text-xs text-muted-foreground"
+                onClick={() => onRegenerate(message.id)}
               >
                 <RotateCcw className="h-3 w-3 mr-1" />
                 Regenerar
