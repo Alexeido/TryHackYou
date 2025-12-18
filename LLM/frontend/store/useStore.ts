@@ -118,7 +118,7 @@ export const useConfigStore = create<ConfigState>()(
       
       theme: 'dark',
       systemPrompt: "Eres un experto en Ciberseguridad ofensiva y defensiva. Ayuda al usuario con escaneos, análisis de logs y scripts de pentesting ético. Responde siempre en español.",
-      backendUrl: 'http://localhost:8000',
+      backendUrl: 'http://localhost:5000',
       
       setApiKey: (provider, key) => set((state) => ({
         apiKeys: { ...state.apiKeys, [provider]: key },
