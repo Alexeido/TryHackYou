@@ -244,12 +244,23 @@ interface ModelsFilters {
   onlyFree: boolean;        // Se envía al backend (openrouter_free)
 }
 
+// Parámetros avanzados para LLMs
+export interface AdvancedParams {
+  temperature: number | null;  // null = usar default del proveedor
+  top_p: number | null;
+  max_tokens: number | null;
+}
+
 interface ModelsState {
   models: Model[];
   selectedModel: Model | null;
   favorites: string[]; // IDs de modelos favoritos
   isLoadingModels: boolean;
   filters: ModelsFilters;
+  
+  // Parámetros avanzados
+  advancedParams: AdvancedParams;
+  modelsUsingDefaults: string[];  // IDs de modelos que ignoran params avanzados
   
   setModels: (models: Model[]) => void;
   setSelectedModel: (model: Model | null) => void;
@@ -258,6 +269,11 @@ interface ModelsState {
   setSorting: (sorting: BackendSorting) => void;
   setGroupBy: (group: GroupOption) => void;
   setOnlyFree: (onlyFree: boolean) => void;
+  
+  // Parámetros avanzados
+  setAdvancedParams: (params: Partial<AdvancedParams>) => void;
+  toggleModelDefaults: (modelId: string) => void;
+  addModelToDefaults: (modelId: string) => void;
 }
 
 export const useModelsStore = create<ModelsState>()(
@@ -272,6 +288,12 @@ export const useModelsStore = create<ModelsState>()(
         groupBy: 'none',
         onlyFree: false,
       },
+      advancedParams: {
+        temperature: 0.1,  // Default para ciberseguridad (preciso)
+        top_p: null,
+        max_tokens: null,
+      },
+      modelsUsingDefaults: ['gpt-5-nano'],  // Modelos conocidos con restricciones
       
       setModels: (models) => set({ models }),
       setSelectedModel: (model) => set({ selectedModel: model }),
@@ -290,6 +312,19 @@ export const useModelsStore = create<ModelsState>()(
       setOnlyFree: (onlyFree) => set((state) => ({
         filters: { ...state.filters, onlyFree }
       })),
+      setAdvancedParams: (params) => set((state) => ({
+        advancedParams: { ...state.advancedParams, ...params }
+      })),
+      toggleModelDefaults: (modelId) => set((state) => ({
+        modelsUsingDefaults: state.modelsUsingDefaults.includes(modelId)
+          ? state.modelsUsingDefaults.filter(id => id !== modelId)
+          : [...state.modelsUsingDefaults, modelId]
+      })),
+      addModelToDefaults: (modelId) => set((state) => ({
+        modelsUsingDefaults: state.modelsUsingDefaults.includes(modelId)
+          ? state.modelsUsingDefaults
+          : [...state.modelsUsingDefaults, modelId]
+      })),
     }),
     {
       name: 'cerebro-models',
@@ -297,6 +332,8 @@ export const useModelsStore = create<ModelsState>()(
         favorites: state.favorites,
         selectedModel: state.selectedModel,
         filters: state.filters,
+        advancedParams: state.advancedParams,
+        modelsUsingDefaults: state.modelsUsingDefaults,
       }),
     }
   )
