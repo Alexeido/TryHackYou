@@ -87,17 +87,24 @@ async def chat_completion(req: ChatRequest):
         parent_id = db.get_last_message_id(conversation_id)
     
     # ==========================================================================
-    # 3. GUARDAR MENSAJE DEL USUARIO
+    # 3. GUARDAR MENSAJE DEL USUARIO (o usar existente si es regeneración)
     # ==========================================================================
     
-    user_msg_id = db.add_message(
-        conversation_id=conversation_id,
-        role="user",
-        content=req.user_message,
-        parent_id=parent_id
-    )
+    print(f"🔍 DEBUG - regenerate={req.regenerate}, parent_message_id={req.parent_message_id}")
     
-    print(f"💬 Mensaje de usuario guardado: {user_msg_id}")
+    if req.regenerate and req.parent_message_id:
+        # Regeneración: usar el mensaje de usuario existente como padre
+        user_msg_id = req.parent_message_id
+        print(f"🔄 Regenerando respuesta para mensaje: {user_msg_id}")
+    else:
+        # Nuevo mensaje: guardar mensaje del usuario
+        user_msg_id = db.add_message(
+            conversation_id=conversation_id,
+            role="user",
+            content=req.user_message,
+            parent_id=parent_id
+        )
+        print(f"💬 Mensaje de usuario guardado: {user_msg_id}")
     
     # ==========================================================================
     # 4. RECONSTRUIR CONTEXTO PARA EL LLM
@@ -123,7 +130,10 @@ async def chat_completion(req: ChatRequest):
                     messages=messages_for_llm,
                     tools=req.tools,
                     conversation_id=conversation_id,
-                    user_msg_id=user_msg_id
+                    user_msg_id=user_msg_id,
+                    temperature=req.temperature,
+                    top_p=req.top_p,
+                    max_tokens=req.max_tokens
                 ),
                 media_type="text/event-stream",
                 headers={
@@ -140,7 +150,10 @@ async def chat_completion(req: ChatRequest):
                 messages=messages_for_llm,
                 tools=req.tools,
                 conversation_id=conversation_id,
-                user_msg_id=user_msg_id
+                user_msg_id=user_msg_id,
+                temperature=req.temperature,
+                top_p=req.top_p,
+                max_tokens=req.max_tokens
             )
     
     except Exception as e:
@@ -176,18 +189,30 @@ async def normal_chat_response(
     messages: List[Dict],
     tools: Optional[List[Dict]],
     conversation_id: str,
-    user_msg_id: int
+    user_msg_id: int,
+    temperature: Optional[float] = None,
+    top_p: Optional[float] = None,
+    max_tokens: Optional[int] = None
 ) -> ChatResponse:
     """
     Procesa la respuesta del LLM en modo normal (sin streaming).
     """
-    response = await client.chat.completions.create(
-        model=model_id,
-        messages=messages,
-        tools=tools if tools else None,
-        tool_choice="auto" if tools else None,
-        temperature=0.1
-    )
+    params = {
+        "model": model_id,
+        "messages": messages,
+        "tools": tools if tools else None,
+        "tool_choice": "auto" if tools else None,
+    }
+    
+    # Añadir parámetros opcionales solo si se especifican
+    if temperature is not None:
+        params["temperature"] = temperature
+    if top_p is not None:
+        params["top_p"] = top_p
+    if max_tokens is not None:
+        params["max_tokens"] = max_tokens
+    
+    response = await client.chat.completions.create(**params)
     
     msg = response.choices[0].message
     finish_reason = response.choices[0].finish_reason
@@ -230,7 +255,10 @@ async def stream_chat_response(
     messages: List[Dict],
     tools: Optional[List[Dict]],
     conversation_id: str,
-    user_msg_id: int
+    user_msg_id: int,
+    temperature: Optional[float] = None,
+    top_p: Optional[float] = None,
+    max_tokens: Optional[int] = None
 ):
     """
     Generador asíncrono para streaming con Server-Sent Events (SSE).
@@ -240,14 +268,23 @@ async def stream_chat_response(
     finish_reason = "stop"
     
     try:
-        stream = await client.chat.completions.create(
-            model=model_id,
-            messages=messages,
-            tools=tools if tools else None,
-            tool_choice="auto" if tools else None,
-            temperature=0.1,
-            stream=True
-        )
+        params = {
+            "model": model_id,
+            "messages": messages,
+            "tools": tools if tools else None,
+            "tool_choice": "auto" if tools else None,
+            "stream": True
+        }
+        
+        # Añadir parámetros opcionales solo si se especifican
+        if temperature is not None:
+            params["temperature"] = temperature
+        if top_p is not None:
+            params["top_p"] = top_p
+        if max_tokens is not None:
+            params["max_tokens"] = max_tokens
+        
+        stream = await client.chat.completions.create(**params)
         
         async for chunk in stream:
             if not chunk.choices:
