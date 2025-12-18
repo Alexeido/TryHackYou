@@ -199,6 +199,14 @@ class ChatRequest(BaseModel):
     # Mensaje del usuario
     user_message: str
     
+    # Regeneración
+    regenerate: bool = False  # Si True, no crea nuevo mensaje de usuario
+    
+    # Parámetros avanzados opcionales (None = usar default del proveedor)
+    temperature: Optional[float] = None
+    top_p: Optional[float] = None
+    max_tokens: Optional[int] = None
+    
     # Configuración
     tools: Optional[List[Dict[str, Any]]] = None
     stream: bool = False  # Parámetro clave para streaming

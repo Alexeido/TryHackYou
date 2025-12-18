@@ -28,9 +28,60 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// Función para hacer los mensajes de error más legibles
+function parseErrorMessage(error: string): string {
+  // OpenRouter - No endpoints / Data policy
+  if (error.includes('No endpoints found') || error.includes('data policy')) {
+    return '⚠️ Este modelo requiere configuración adicional en OpenRouter. Configura tu política de datos en https://openrouter.ai/settings/privacy o prueba con otro modelo.';
+  }
+  
+  // Rate limit
+  if (error.includes('429') || error.includes('rate') || error.includes('Rate')) {
+    return '⏳ Has alcanzado el límite de peticiones. Espera unos segundos antes de intentarlo de nuevo.';
+  }
+  
+  // API key inválida
+  if (error.includes('401') || error.includes('Invalid') || error.includes('invalid') || error.includes('API key')) {
+    return '🔑 API key inválida o expirada. Verifica tu configuración en el panel de ajustes.';
+  }
+  
+  // Sin créditos
+  if (error.includes('402') || error.includes('credit') || error.includes('quota') || error.includes('billing')) {
+    return '💳 Sin créditos disponibles. Recarga tu cuenta del proveedor para continuar.';
+  }
+  
+  // Modelo no disponible
+  if (error.includes('404') || error.includes('not found') || error.includes('Not Found')) {
+    return '🚫 Modelo no disponible. Puede estar en mantenimiento o haber sido descontinuado. Prueba con otro modelo.';
+  }
+  
+  // Error de contexto
+  if (error.includes('context') || error.includes('token') || error.includes('length')) {
+    return '📏 El mensaje es demasiado largo para este modelo. Intenta con un mensaje más corto o un modelo con mayor contexto.';
+  }
+  
+  // Timeout
+  if (error.includes('timeout') || error.includes('Timeout')) {
+    return '⏱️ La petición tardó demasiado. Intenta de nuevo.';
+  }
+  
+  // Error genérico con el mensaje original
+  return `❌ Error: ${error}`;
+}
+
+// Detectar si el error es por parámetros no soportados
+function isUnsupportedParamError(error: string): boolean {
+  return error.includes('Unsupported value') || 
+         error.includes('does not support') ||
+         error.includes('temperature') ||
+         error.includes('top_p') ||
+         error.includes('max_tokens');
+}
+
 export function ChatArea() {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [paramErrorModel, setParamErrorModel] = useState<string | null>(null);  // Modelo que falló por params
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<(() => void) | null>(null);
@@ -54,7 +105,7 @@ export function ChatArea() {
   } = useChatStore();
   
   const { apiKeys, systemPrompt, backendUrl } = useConfigStore();
-  const { selectedModel } = useModelsStore();
+  const { selectedModel, advancedParams, modelsUsingDefaults, addModelToDefaults } = useModelsStore();
   const { setTerminalOpen } = useUIStore();
   const { addConversation, updateConversation } = useConversationsStore();
 
@@ -78,6 +129,21 @@ export function ChatArea() {
     const provider = selectedModel.provider;
     return apiKeys[provider] || null;
   }, [selectedModel, apiKeys]);
+
+  // Obtener parámetros avanzados para el modelo actual
+  const getAdvancedParamsForModel = useCallback(() => {
+    if (!selectedModel) return {};
+    // Si el modelo está en la lista de defaults, no enviar parámetros
+    if (modelsUsingDefaults.includes(selectedModel.id)) {
+      return {};
+    }
+    // Si no, enviar los parámetros configurados
+    return {
+      temperature: advancedParams.temperature,
+      top_p: advancedParams.top_p,
+      max_tokens: advancedParams.max_tokens,
+    };
+  }, [selectedModel, advancedParams, modelsUsingDefaults]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading || isStreaming) return;
@@ -159,6 +225,7 @@ export function ChatArea() {
       };
       addMessage(tempAssistantMsg);
 
+      const advParams = getAdvancedParamsForModel();
       const abort = sendMessageStream(
         {
           provider: selectedModel.provider,
@@ -168,6 +235,7 @@ export function ChatArea() {
           parent_message_id: activeLeafId || undefined,
           user_message: userMessage,
           stream: true,
+          ...advParams,
         },
         {
           onMessage: (chunk) => {
@@ -200,7 +268,15 @@ export function ChatArea() {
           onError: (err) => {
             setStreaming(false);
             clearChunk();
-            setError(err);
+            
+            // Detectar si es error de parámetros no soportados
+            if (isUnsupportedParamError(err) && selectedModel) {
+              setParamErrorModel(selectedModel.id);
+            }
+            
+            // Parsear mensaje de error para hacerlo más legible
+            const errorMsg = parseErrorMessage(err);
+            setError(errorMsg);
             // Remover mensajes temporales
             setMessages(messages);
           },
@@ -212,7 +288,8 @@ export function ChatArea() {
     } catch (err) {
       setLoading(false);
       setStreaming(false);
-      setError(err instanceof Error ? err.message : "Error desconocido");
+      const errorMsg = err instanceof Error ? err.message : "Error desconocido";
+      setError(parseErrorMessage(errorMsg));
     }
   };
 
@@ -223,6 +300,97 @@ export function ChatArea() {
     }
     setStreaming(false);
     clearChunk();
+  };
+
+  // Handler para regenerar respuesta del asistente
+  const handleRegenerateMessage = async (assistantMessageId: number) => {
+    const apiKey = getApiKey();
+    if (!apiKey || !selectedModel || !conversationId) return;
+
+    // Encontrar el mensaje assistant para obtener su parent (el mensaje user)
+    const assistantMessage = messages.find(m => m.id === assistantMessageId);
+    if (!assistantMessage || assistantMessage.role !== 'assistant') return;
+
+    // Encontrar el mensaje user padre
+    const userMessage = messages.find(m => m.id === assistantMessage.parent_id);
+    if (!userMessage || !userMessage.content) return;
+
+    setError(null);
+    
+    try {
+      // Enviar el mismo mensaje user de nuevo (crea nueva branch en assistant)
+      setStreaming(true);
+      clearChunk();
+      
+      // Agregar mensaje vacío del asistente para streaming
+      const tempAssistantMsg: Message = {
+        id: Date.now(),
+        conversation_id: conversationId,
+        parent_id: userMessage.id, // Mismo parent = nueva rama de respuesta
+        role: 'assistant',
+        content: '',
+        created_at: new Date().toISOString(),
+      };
+      addMessage(tempAssistantMsg);
+
+      const advParams = getAdvancedParamsForModel();
+      const abort = sendMessageStream(
+        {
+          provider: selectedModel.provider,
+          api_key: apiKey,
+          model_id: selectedModel.id,
+          conversation_id: conversationId,
+          parent_message_id: userMessage.id,
+          user_message: userMessage.content,
+          regenerate: true,  // No crear nuevo mensaje de usuario
+          stream: true,
+          ...advParams,
+        },
+        {
+          onMessage: (chunk) => {
+            appendChunk(chunk);
+          },
+          onToolCall: (toolCall) => {
+            setTerminalOpen(true);
+            console.log("Tool call:", toolCall);
+          },
+          onDone: async (data) => {
+            setStreaming(false);
+            clearChunk();
+            
+            // Recargar el thread real desde el backend
+            const thread = await getConversationThread(conversationId!);
+            setMessages(thread.messages);
+            setActiveLeafId(thread.active_leaf_id);
+            
+            // Actualizar árbol
+            const tree = await getConversationTree(conversationId!);
+            setFullTree(tree.nodes);
+            
+            // Actualizar conversación en la lista
+            updateConversation(conversationId!, {
+              updated_at: new Date().toISOString(),
+              message_count: thread.messages.length,
+            });
+          },
+          onError: (err) => {
+            setStreaming(false);
+            clearChunk();
+            const errorMsg = parseErrorMessage(err);
+            setError(errorMsg);
+            // Remover mensaje temporal
+            setMessages(messages);
+          },
+        }
+      );
+      
+      abortRef.current = abort;
+
+    } catch (err) {
+      setStreaming(false);
+      const errorMsg = err instanceof Error ? err.message : "Error desconocido";
+      setError(parseErrorMessage(errorMsg));
+    }
   };
 
   // Handler para editar un mensaje del usuario (crea una nueva branch)
@@ -357,6 +525,7 @@ export function ChatArea() {
               isStreaming={streamingMessage?.id === message.id}
               streamContent={streamingMessage?.id === message.id ? currentChunk : undefined}
               onEdit={handleEditMessage}
+              onRegenerate={handleRegenerateMessage}
             />
           ))}
           
@@ -368,20 +537,76 @@ export function ChatArea() {
         </div>
       </div>
 
-      {/* Barra de error */}
+      {/* Barra de error mejorada */}
       {error && (
-        <div className="px-4 py-2 bg-destructive/10 border-t border-destructive/20">
-          <div className="max-w-3xl mx-auto flex items-center gap-2 text-sm text-destructive">
-            <AlertCircle className="h-4 w-4 shrink-0" />
-            <span>{error}</span>
-            <Button 
-              variant="ghost" 
-              size="sm" 
-              className="ml-auto h-6 text-xs"
-              onClick={() => setError(null)}
-            >
-              Cerrar
-            </Button>
+        <div className="px-4 py-3 bg-destructive/10 border-t border-destructive/20">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-start gap-3 text-sm">
+              <AlertCircle className="h-5 w-5 shrink-0 text-destructive mt-0.5" />
+              <div className="flex-1 space-y-2">
+                <p className="text-destructive font-medium">{error}</p>
+                <p className="text-muted-foreground text-xs">
+                  Cambia de modelo y pulsa &quot;Regenerar&quot; en el mensaje del asistente para reintentar.
+                </p>
+              </div>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                className="shrink-0 h-7 text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => setError(null)}
+              >
+                Cerrar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Diálogo de parámetros no soportados */}
+      {paramErrorModel && (
+        <div className="px-4 py-3 bg-amber-500/10 border-t border-amber-500/30">
+          <div className="max-w-3xl mx-auto">
+            <div className="flex items-center gap-3 text-sm">
+              <span className="text-lg">⚠️</span>
+              <div className="flex-1">
+                <p className="text-amber-600 dark:text-amber-400 font-medium">
+                  Este modelo no soporta parámetros avanzados personalizados
+                </p>
+                <p className="text-muted-foreground text-xs">
+                  ¿Usar valores por defecto del proveedor para este modelo?
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  className="h-7 text-xs"
+                  onClick={() => {
+                    addModelToDefaults(paramErrorModel);
+                    setParamErrorModel(null);
+                    setError(null);
+                  }}
+                >
+                  Sí, siempre
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  className="h-7 text-xs text-muted-foreground"
+                  onClick={() => setParamErrorModel(null)}
+                >
+                  Solo esta vez
+                </Button>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-7 w-7 text-muted-foreground"
+                  onClick={() => setParamErrorModel(null)}
+                >
+                  ×
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

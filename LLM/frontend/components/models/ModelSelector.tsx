@@ -49,7 +49,9 @@ import {
   ArrowUpDown,
   Layers,
   Fish,
-  Gift
+  Gift,
+  Lock,
+  Settings2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -97,13 +99,15 @@ export function ModelSelector() {
     favorites, 
     isLoadingModels,
     filters,
+    modelsUsingDefaults,
     setModels, 
     setSelectedModel, 
     toggleFavorite,
     setLoadingModels,
     setSorting,
     setGroupBy,
-    setOnlyFree
+    setOnlyFree,
+    toggleModelDefaults
   } = useModelsStore();
   
   const { apiKeys } = useConfigStore();
@@ -248,79 +252,114 @@ export function ModelSelector() {
     return model.pricing_input === 0 && model.pricing_output === 0;
   };
 
-  const renderModelCard = (model: Model) => (
-    <button
-      key={model.id}
-      onClick={() => handleSelectModel(model)}
-      className={cn(
-        "w-full text-left p-3 rounded-lg border transition-all",
-        "hover:bg-muted/50 hover:border-primary/50",
-        selectedModel?.id === model.id && "border-primary bg-primary/5"
-      )}
-    >
-      <div className="flex items-center gap-3">
-        <div className={cn(
-          "w-10 h-10 rounded-lg flex items-center justify-center",
-          "bg-muted"
-        )}>
-          <span className={PROVIDER_INFO[model.provider]?.color}>
-            {PROVIDER_INFO[model.provider]?.icon}
-          </span>
+  const renderModelCard = (model: Model) => {
+    const usesDefaults = modelsUsingDefaults.includes(model.id);
+    
+    return (
+      <div
+        key={model.id}
+        role="button"
+        tabIndex={0}
+        onClick={() => handleSelectModel(model)}
+        onKeyDown={(e) => e.key === 'Enter' && handleSelectModel(model)}
+        className={cn(
+          "w-full text-left p-3 rounded-lg border transition-all cursor-pointer",
+          "hover:bg-muted/50 hover:border-primary/50",
+          selectedModel?.id === model.id && "border-primary bg-primary/5"
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <div className={cn(
+            "w-10 h-10 rounded-lg flex items-center justify-center",
+            "bg-muted"
+          )}>
+            <span className={PROVIDER_INFO[model.provider]?.color}>
+              {PROVIDER_INFO[model.provider]?.icon}
+            </span>
+          </div>
+          
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-medium truncate">
+                {model.name}
+              </span>
+              {model.elo_score > 0 && (
+                <Badge variant="outline" className="shrink-0">
+                  ELO: {model.elo_score}
+                </Badge>
+              )}
+              {isModelFree(model) && model.provider === 'openrouter' && (
+                <Badge variant="secondary" className="shrink-0 text-xs bg-green-500/20 text-green-500">
+                  <Gift className="h-3 w-3 mr-1" />
+                  Gratis
+                </Badge>
+              )}
+              {/* Badge de modo por defecto */}
+              {usesDefaults && (
+                <Badge variant="secondary" className="shrink-0 text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400">
+                  <Lock className="h-3 w-3 mr-1" />
+                  Default
+                </Badge>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground truncate">
+              {model.id}
+            </p>
+          </div>
+          
+          {/* Toggle para usar defaults */}
+          <Button
+            variant="ghost"
+            size="icon"
+            className={cn(
+              "shrink-0",
+              usesDefaults ? "text-amber-500" : "text-muted-foreground"
+            )}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleModelDefaults(model.id);
+            }}
+            title={usesDefaults ? "Usar parámetros avanzados" : "Usar valores por defecto"}
+          >
+            {usesDefaults ? (
+              <Lock className="h-4 w-4" />
+            ) : (
+              <Settings2 className="h-4 w-4" />
+            )}
+          </Button>
+          
+          <Button
+            variant="ghost"
+            size="icon"
+            className="shrink-0"
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleFavorite(model.id);
+            }}
+          >
+            <Star className={cn(
+              "h-4 w-4",
+              favorites.includes(model.id) 
+                ? "fill-yellow-500 text-yellow-500" 
+                : "text-muted-foreground"
+            )} />
+          </Button>
         </div>
         
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium truncate">
-              {model.name}
-            </span>
-            {model.elo_score > 0 && (
-              <Badge variant="outline" className="shrink-0">
-                ELO: {model.elo_score}
-              </Badge>
+        {/* Solo mostrar info adicional si hay datos válidos */}
+        {((model.context_window ?? 0) > 0 || (model.pricing_input !== undefined && model.pricing_input > 0)) && (
+          <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
+            {(model.context_window ?? 0) > 0 && (
+              <span>Contexto: {((model.context_window ?? 0) / 1000).toFixed(0)}K tokens</span>
             )}
-            {isModelFree(model) && model.provider === 'openrouter' && (
-              <Badge variant="secondary" className="shrink-0 text-xs bg-green-500/20 text-green-500">
-                <Gift className="h-3 w-3 mr-1" />
-                Gratis
-              </Badge>
+            {model.pricing_input !== undefined && model.pricing_input > 0 && (
+              <span>${model.pricing_input.toFixed(2)}/1M in</span>
             )}
           </div>
-          <p className="text-sm text-muted-foreground truncate">
-            {model.id}
-          </p>
-        </div>
-        
-        <Button
-          variant="ghost"
-          size="icon"
-          className="shrink-0"
-          onClick={(e) => {
-            e.stopPropagation();
-            toggleFavorite(model.id);
-          }}
-        >
-          <Star className={cn(
-            "h-4 w-4",
-            favorites.includes(model.id) 
-              ? "fill-yellow-500 text-yellow-500" 
-              : "text-muted-foreground"
-          )} />
-        </Button>
+        )}
       </div>
-      
-      {/* Solo mostrar info adicional si hay datos válidos */}
-      {(model.context_window > 0 || (model.pricing_input !== undefined && model.pricing_input > 0)) && (
-        <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground">
-          {model.context_window > 0 && (
-            <span>Contexto: {(model.context_window / 1000).toFixed(0)}K tokens</span>
-          )}
-          {model.pricing_input !== undefined && model.pricing_input > 0 && (
-            <span>${model.pricing_input.toFixed(2)}/1M in</span>
-          )}
-        </div>
-      )}
-    </button>
-  );
+    );
+  };
 
   return (
     <>
