@@ -187,6 +187,11 @@ export interface ChatRequest {
   conversation_id?: string;
   parent_message_id?: number;
   user_message: string;
+  regenerate?: boolean;  // Si true, no crea nuevo mensaje de usuario
+  // Parámetros avanzados opcionales
+  temperature?: number | null;
+  top_p?: number | null;
+  max_tokens?: number | null;
   tools?: Record<string, unknown>[];
   stream?: boolean;
   system_prompt?: string;
@@ -284,8 +289,10 @@ export function sendMessageStream(
                 callbacks.onToolCall(data.tool_call);
               } else if (data.conversation_id && data.assistant_message_id) {
                 callbacks.onDone(data);
-              } else if (data.error) {
-                callbacks.onError(data.error);
+              } else if (data.type === 'error' || data.error) {
+                // Manejar errores del backend (type: error, message: ...)
+                const errorMsg = data.message || data.error || 'Error desconocido del servidor';
+                callbacks.onError(errorMsg);
               }
             } catch {
               // Ignorar errores de parse en chunks parciales
