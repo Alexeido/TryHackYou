@@ -18,21 +18,26 @@ import {
   useConfigStore, 
   useUIStore, 
   useModelsStore,
-  Provider 
+  Provider,
+  AdvancedParams
 } from "@/store/useStore";
 import { validateApiKeys } from "@/services/api";
+import { Slider } from "@/components/ui/slider";
 import { 
   Key, 
-  Palette, 
   FileText, 
   Server,
+  Settings,
   CheckCircle2, 
   XCircle, 
   Loader2,
   Eye,
   EyeOff,
   Shield,
-  Sparkles
+  Sparkles,
+  Sun,
+  Moon,
+  Monitor
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -103,7 +108,7 @@ export function ConfigModal() {
     setBackendUrl
   } = useConfigStore();
   
-  const { filters, setOnlyFree } = useModelsStore();
+  const { filters, setOnlyFree, advancedParams, setAdvancedParams, modelsUsingDefaults } = useModelsStore();
   
   const [showKeys, setShowKeys] = useState<Record<Provider, boolean>>({
     openai: false,
@@ -256,12 +261,54 @@ export function ConfigModal() {
 
   return (
     <Dialog open={isConfigModalOpen} onOpenChange={setConfigModalOpen}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
         <DialogHeader className="pb-2">
-          <DialogTitle className="flex items-center gap-2 text-xl">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Configuración
-          </DialogTitle>
+          <div className="flex items-center justify-between">
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Configuración
+            </DialogTitle>
+            
+            {/* Theme Switcher compacto */}
+            <div className="flex items-center gap-1 p-1 rounded-lg bg-muted/50 border mr-6">
+              <button
+                onClick={() => setTheme('light')}
+                className={cn(
+                  "p-1.5 rounded-md transition-all",
+                  theme === 'light' 
+                    ? "bg-primary text-primary-foreground" 
+                    : "hover:bg-muted text-muted-foreground"
+                )}
+                title="Tema claro"
+              >
+                <Sun className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setTheme('system')}
+                className={cn(
+                  "p-1.5 rounded-md transition-all",
+                  theme === 'system' 
+                    ? "bg-primary text-primary-foreground" 
+                    : "hover:bg-muted text-muted-foreground"
+                )}
+                title="Tema del sistema"
+              >
+                <Monitor className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => setTheme('dark')}
+                className={cn(
+                  "p-1.5 rounded-md transition-all",
+                  theme === 'dark' 
+                    ? "bg-primary text-primary-foreground" 
+                    : "hover:bg-muted text-muted-foreground"
+                )}
+                title="Tema oscuro"
+              >
+                <Moon className="h-4 w-4" />
+              </button>
+            </div>
+          </div>
         </DialogHeader>
         
         <Tabs defaultValue="keys" className="flex-1 overflow-hidden flex flex-col">
@@ -270,10 +317,6 @@ export function ConfigModal() {
               <Key className="h-4 w-4" />
               <span className="hidden sm:inline">API Keys</span>
             </TabsTrigger>
-            <TabsTrigger value="appearance" className="gap-2">
-              <Palette className="h-4 w-4" />
-              <span className="hidden sm:inline">Apariencia</span>
-            </TabsTrigger>
             <TabsTrigger value="instructions" className="gap-2">
               <FileText className="h-4 w-4" />
               <span className="hidden sm:inline">Instrucciones</span>
@@ -281,6 +324,10 @@ export function ConfigModal() {
             <TabsTrigger value="server" className="gap-2">
               <Server className="h-4 w-4" />
               <span className="hidden sm:inline">Servidor</span>
+            </TabsTrigger>
+            <TabsTrigger value="advanced" className="gap-2">
+              <Settings className="h-4 w-4" />
+              <span className="hidden sm:inline">Avanzados</span>
             </TabsTrigger>
           </TabsList>
           
@@ -365,63 +412,6 @@ export function ConfigModal() {
             </div>
           </TabsContent>
           
-          {/* Appearance Tab */}
-          <TabsContent value="appearance" className="space-y-6">
-            <div className="space-y-4">
-              <div>
-                <Label className="text-base font-medium">Tema</Label>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Selecciona el tema de la interfaz
-                </p>
-              </div>
-              
-              <div className="grid grid-cols-3 gap-4">
-                {(['light', 'dark', 'system'] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setTheme(t)}
-                    className={cn(
-                      "p-4 rounded-lg border-2 transition-all",
-                      theme === t 
-                        ? "border-primary bg-primary/5" 
-                        : "border-transparent bg-muted/50 hover:bg-muted"
-                    )}
-                  >
-                    <div className="text-center">
-                      <div className="text-2xl mb-2">
-                        {t === 'light' ? '☀️' : t === 'dark' ? '🌙' : '💻'}
-                      </div>
-                      <span className="text-sm font-medium capitalize">{t}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Opciones de modelos */}
-            <div className="space-y-4 pt-4 border-t">
-              <div>
-                <Label className="text-base font-medium">Selector de Modelos</Label>
-                <p className="text-sm text-muted-foreground mb-4">
-                  Configura cómo se muestran los modelos disponibles
-                </p>
-              </div>
-              
-              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border">
-                <div className="space-y-0.5">
-                  <Label className="font-medium">Mostrar solo modelos gratis</Label>
-                  <p className="text-sm text-muted-foreground">
-                    Filtra OpenRouter para mostrar solo modelos con precio $0
-                  </p>
-                </div>
-                <Switch
-                  checked={filters.onlyFree}
-                  onCheckedChange={setOnlyFree}
-                />
-              </div>
-            </div>
-          </TabsContent>
-          
           {/* Instructions Tab */}
           <TabsContent value="instructions" className="space-y-4">
             <div>
@@ -483,6 +473,171 @@ export function ConfigModal() {
                 Usa el botón &quot;Validar Keys&quot; en la pestaña de API Keys para verificar la conexión.
               </p>
             </div>
+          </TabsContent>
+
+          {/* Advanced Tab */}
+          <TabsContent value="advanced" className="flex-1 overflow-auto space-y-6 pr-2">
+            {/* Filtro de modelos gratis */}
+            <div className="space-y-4">
+              <div>
+                <Label className="text-base font-medium">Filtros de Modelos</Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Configura qué modelos se muestran en el selector
+                </p>
+              </div>
+              
+              <div className="flex items-center justify-between p-4 rounded-lg bg-muted/50 border">
+                <div className="space-y-0.5">
+                  <Label className="font-medium">Mostrar solo modelos gratis</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Filtra OpenRouter para mostrar solo modelos con precio $0
+                  </p>
+                </div>
+                <Switch
+                  checked={filters.onlyFree}
+                  onCheckedChange={setOnlyFree}
+                />
+              </div>
+            </div>
+
+            {/* Parámetros de LLM */}
+            <div className="space-y-4 pt-4 border-t">
+              <div>
+                <Label className="text-base font-medium">Parámetros de LLM</Label>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Ajusta el comportamiento de los modelos. Los modelos marcados con 🔒 ignorarán estos valores.
+                </p>
+              </div>
+
+              <div className="space-y-6">
+                {/* Temperature con Slider */}
+                <div className="p-4 rounded-lg bg-muted/50 border space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="font-medium">Temperature</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Bajo = preciso y determinista · Alto = creativo y variado
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={2}
+                        step={0.1}
+                        value={advancedParams.temperature ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? null : Math.min(2, Math.max(0, parseFloat(e.target.value)));
+                          setAdvancedParams({ temperature: val });
+                        }}
+                        className="w-20 text-center font-mono"
+                        placeholder="auto"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs text-muted-foreground w-8">0.0</span>
+                    <Slider
+                      value={[advancedParams.temperature ?? 0.7]}
+                      onValueChange={([val]) => setAdvancedParams({ temperature: val })}
+                      min={0}
+                      max={2}
+                      step={0.1}
+                      className="flex-1"
+                    />
+                    <span className="text-xs text-muted-foreground w-8">2.0</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span>🎯 Preciso</span>
+                    <span>⚖️ Balanceado</span>
+                    <span>✨ Creativo</span>
+                  </div>
+                </div>
+
+                {/* Top P con Slider */}
+                <div className="p-4 rounded-lg bg-muted/50 border space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5">
+                      <Label className="font-medium">Top P (Nucleus Sampling)</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Controla la diversidad de tokens considerados
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={0}
+                        max={1}
+                        step={0.05}
+                        value={advancedParams.top_p ?? ''}
+                        onChange={(e) => {
+                          const val = e.target.value === '' ? null : Math.min(1, Math.max(0, parseFloat(e.target.value)));
+                          setAdvancedParams({ top_p: val });
+                        }}
+                        className="w-20 text-center font-mono"
+                        placeholder="auto"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <span className="text-xs text-muted-foreground w-8">0.0</span>
+                    <Slider
+                      value={[advancedParams.top_p ?? 1]}
+                      onValueChange={([val]) => setAdvancedParams({ top_p: val })}
+                      min={0}
+                      max={1}
+                      step={0.05}
+                      className="flex-1"
+                    />
+                    <span className="text-xs text-muted-foreground w-8">1.0</span>
+                  </div>
+                </div>
+
+                {/* Max Tokens */}
+                <div className="p-4 rounded-lg bg-muted/50 border">
+                  <div className="flex items-center justify-between">
+                    <div className="space-y-0.5 flex-1">
+                      <Label className="font-medium">Max Tokens</Label>
+                      <p className="text-sm text-muted-foreground">
+                        Límite de tokens en la respuesta. Vacío = sin límite
+                      </p>
+                    </div>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={128000}
+                      step={256}
+                      value={advancedParams.max_tokens ?? ''}
+                      onChange={(e) => {
+                        const val = e.target.value === '' ? null : parseInt(e.target.value);
+                        setAdvancedParams({ max_tokens: val });
+                      }}
+                      className="w-28 text-center font-mono"
+                      placeholder="auto"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Modelos con defaults */}
+            {modelsUsingDefaults.length > 0 && (
+              <div className="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 space-y-2">
+                <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
+                  🔒 Modelos usando valores por defecto
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Estos modelos no soportan parámetros personalizados y usarán sus valores por defecto:
+                </p>
+                <div className="flex flex-wrap gap-2 pt-1">
+                  {modelsUsingDefaults.map(model => (
+                    <Badge key={model} variant="secondary" className="text-xs">
+                      {model}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
           </TabsContent>
         </Tabs>
       </DialogContent>
