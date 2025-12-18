@@ -8,7 +8,7 @@ services:
     build: .                      # Usa tu Dockerfile actual
     container_name: agente-tfg
     ports:
-      - "5000:5000"               # API del Agente (Host:5000 -> Container:5000)
+      - "3000:5000"               # API del Agente (Host:3000 -> Container:5000)
     volumes:
       - ./script:/app             # MODO DESARROLLO: Tu carpeta 'script' es '/app' dentro
     networks:
@@ -29,7 +29,7 @@ services:
     image: vulnerables/web-dvwa
     container_name: victima-dvwa
     ports:
-      - "8080:80"                 # Acceso web para configurar DB (Host:8080)
+      - "8010:80"                 # Acceso web para configurar DB (Host:8010)
     networks:
       hacking_net:
         ipv4_address: 10.5.0.3
@@ -41,12 +41,12 @@ services:
   meta_victim:
     image: tleemcjr/metasploitable2
     container_name: victima-meta
+    ports:
+      - "8030:80"                 # Web de Metasploitable (Host:8030)
     networks:
       hacking_net:
         ipv4_address: 10.5.0.4
-    # No exponemos puertos al host. Es una caja negra para el agente.
     restart: always
-    # --- AÑADE ESTAS DOS LÍNEAS ---
     tty: true          # Simula una terminal para que no se cierre
     stdin_open: true   # Mantiene la entrada estándar abierta
 
@@ -57,7 +57,7 @@ services:
     image: bkimminich/juice-shop
     container_name: victima-juice
     ports:
-      - "3000:3000"               # Acceso web opcional (Host:3000)
+      - "8020:3000"               # Acceso web (Host:8020 -> Container:3000)
     networks:
       hacking_net:
         ipv4_address: 10.5.0.5
