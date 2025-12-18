@@ -5,11 +5,70 @@ Este documento contiene todas las instrucciones necesarias para instalar, config
 ---
 
 ## Índice
+- [Mapa de Puertos](#mapa-de-puertos)
 - [Requisitos previos](#requisitos-previos)
 - [Instalación inicial](#instalación-inicial)
 - [Arranque estándar](#arranque-estándar)
 - [Comandos típicos por escenario](#comandos-típicos-por-escenario)
 - [Troubleshooting](#troubleshooting)
+
+---
+
+## Mapa de Puertos
+
+### 📋 Resumen Visual
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      PUERTOS DEL PROYECTO                       │
+├─────────────────────────────────────────────────────────────────┤
+│  🌐 SERVICIOS PRINCIPALES                                       │
+│  ├── 80/443  → LLM Frontend (Next.js)      [Web Principal]     │
+│  ├── 3000    → Sandbox API (Flask)         [Terminal IA]       │
+│  └── 5000    → LLM Backend (FastAPI)       [API de Modelos]    │
+├─────────────────────────────────────────────────────────────────┤
+│  🎯 MÁQUINAS VULNERABLES (8010-8030)                           │
+│  ├── 8010    → DVWA                        [Web Clásica]       │
+│  ├── 8020    → OWASP Juice Shop            [Web Moderna]       │
+│  └── 8030    → Metasploitable2             [Infraestructura]   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 📊 Tabla Detallada
+
+| Puerto Host | Servicio | Contenedor | Puerto Interno | Descripción |
+|:-----------:|----------|------------|:--------------:|-------------|
+| **80/443** | LLM Frontend | `llm-frontend` | 3000 | Interfaz web principal del chat |
+| **3000** | Sandbox API | `agente-tfg` | 5000 | API Flask para ejecutar comandos |
+| **5000** | LLM Backend | `llm-backend` | 5000 | FastAPI para proveedores LLM |
+| **8010** | DVWA | `victima-dvwa` | 80 | Damn Vulnerable Web App |
+| **8020** | Juice Shop | `victima-juice` | 3000 | OWASP Juice Shop |
+| **8030** | Metasploitable | `victima-meta` | 80 | Metasploitable2 |
+
+### 🔗 URLs de Acceso Rápido
+
+```bash
+# Servicios principales
+http://localhost          # LLM Frontend (producción)
+http://localhost:3000     # Sandbox Terminal API
+http://localhost:5000     # LLM Backend API
+
+# Máquinas vulnerables
+http://localhost:8010     # DVWA (admin/password)
+http://localhost:8020     # Juice Shop
+http://localhost:8030     # Metasploitable2
+```
+
+### 🛡️ Red Interna (10.5.0.0/24)
+
+Los contenedores se comunican entre sí usando IPs estáticas:
+
+| IP | Contenedor | Rol |
+|:--:|------------|-----|
+| 10.5.0.2 | agente-tfg | Atacante |
+| 10.5.0.3 | victima-dvwa | Víctima 1 |
+| 10.5.0.4 | victima-meta | Víctima 2 |
+| 10.5.0.5 | victima-juice | Víctima 3 |
 
 ---
 
@@ -100,9 +159,12 @@ docker exec agente-tfg ping -c 2 10.5.0.5
 
 ### Acceso a servicios web
 
-- **DVWA**: http://localhost:8080 (Credenciales: `admin` / `password`)
-- **Juice Shop**: http://localhost:3000
-- **API del Agente**: http://localhost:5000
+- **LLM Frontend**: http://localhost (o http://localhost:80)
+- **Sandbox API**: http://localhost:3000
+- **LLM Backend**: http://localhost:5000
+- **DVWA**: http://localhost:8010 (Credenciales: `admin` / `password`)
+- **Juice Shop**: http://localhost:8020
+- **Metasploitable**: http://localhost:8030
 
 ---
 
