@@ -8,9 +8,11 @@ services:
     build: .                      # Usa tu Dockerfile actual
     container_name: agente-tfg
     ports:
-      - "3000:5000"               # API del Agente (Host:3000 -> Container:5000)
+      - "5000:5000"               # API del Agente (Host:5000 -> Container:5000)
     volumes:
       - ./script:/app             # MODO DESARROLLO: Tu carpeta 'script' es '/app' dentro
+      - persistent_storage:/workspace_persistent  # Carpeta compartida que persiste
+      - sessions_storage:/workspace_sessions      # Repos git por conversación
     networks:
       hacking_net:
         ipv4_address: 10.5.0.2
@@ -72,3 +74,10 @@ networks:
     ipam:
       config:
         - subnet: 10.5.0.0/24
+
+# -------------------------------------------------------
+# VOLÚMENES PERSISTENTES
+# -------------------------------------------------------
+volumes:
+  persistent_storage:   # Herramientas compartidas entre todas las conversaciones
+  sessions_storage:     # Repos git de cada conversación
