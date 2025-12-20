@@ -12,6 +12,7 @@ RUN apt-get install -y \
     iputils-ping netcat-traditional dnsutils samba-client \
     python3 python3-pip python3-flask wordlists \
     # Limpieza de caché para reducir peso
+    && pip3 install flask-cors --break-system-packages \
     && rm -rf /var/lib/apt/lists/*
 
 # Instalación de Nuclei (Escáner de vulnerabilidades moderno)
@@ -66,6 +67,18 @@ RUN mkdir -p /workspace
 
 # 4. Creamos un archivo de bienvenida
 RUN echo "Bienvenido al Agente de Ciberseguridad TFG" > /workspace/README.txt
+
+# 5. PERSISTENT STORAGE: Carpeta compartida entre todas las conversaciones
+RUN mkdir -p /workspace_persistent/tools && \
+    mkdir -p /workspace_persistent/wordlists && \
+    mkdir -p /workspace_persistent/downloads && \
+    chmod -R 777 /workspace_persistent
+
+# 6. WORKSPACE SESSIONS: Carpeta para repos git de cada conversación
+RUN mkdir -p /workspace_sessions && chmod 777 /workspace_sessions
+
+# 7. GitPython para control de versiones por conversación
+RUN pip3 install gitpython --break-system-packages
 
 # -------------------------------------------------------------------
 # FASE 4: ARRANQUE

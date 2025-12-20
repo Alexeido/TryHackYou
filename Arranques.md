@@ -19,28 +19,35 @@ Este documento contiene todas las instrucciones necesarias para instalar, config
 ### 📋 Resumen Visual
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      PUERTOS DEL PROYECTO                       │
-├─────────────────────────────────────────────────────────────────┤
-│  🌐 SERVICIOS PRINCIPALES                                       │
-│  ├── 80/443  → LLM Frontend (Next.js)      [Web Principal]     │
-│  ├── 3000    → Sandbox API (Flask)         [Terminal IA]       │
-│  └── 5000    → LLM Backend (FastAPI)       [API de Modelos]    │
-├─────────────────────────────────────────────────────────────────┤
-│  🎯 MÁQUINAS VULNERABLES (8010-8030)                           │
+┌────────────────────────────────────────────────────────────────┐
+│                      PUERTOS DEL PROYECTO                      │
+├────────────────────────────────────────────────────────────────┤
+│  🌐 SERVICIOS PRINCIPALES                                      │
+│  ├── 3000    → LLM Frontend (Next.js)      [Web Principal]     │
+│  ├── 4000    → LLM Backend (FastAPI)       [API de Modelos]    │
+│  └── 5000    → Sandbox API (Flask)         [Terminal IA]       │
+├────────────────────────────────────────────────────────────────┤
+│  🎯 MÁQUINAS VULNERABLES (8010-8070)                           │
 │  ├── 8010    → DVWA                        [Web Clásica]       │
 │  ├── 8020    → OWASP Juice Shop            [Web Moderna]       │
 │  └── 8030    → Metasploitable2             [Infraestructura]   │
-└─────────────────────────────────────────────────────────────────┘
+│  └── 8040    → Vacante                     [Vacío]             │
+│  └── 8050    → Vacante                     [Vacío]             │
+│  └── 8060    → Vacante                     [Vacío]             │
+│  └── 8070    → Vacante                     [Vacío]             │
+├────────────────────────────────────────────────────────────────┤
+│  🚧 RESERVADOS (sin usar hasta producción)                     │
+│  └── 80/443  → (futuro: reverse proxy + TLS)                   │
+└────────────────────────────────────────────────────────────────┘
 ```
 
 ### 📊 Tabla Detallada
 
 | Puerto Host | Servicio | Contenedor | Puerto Interno | Descripción |
 |:-----------:|----------|------------|:--------------:|-------------|
-| **80/443** | LLM Frontend | `llm-frontend` | 3000 | Interfaz web principal del chat |
-| **3000** | Sandbox API | `agente-tfg` | 5000 | API Flask para ejecutar comandos |
-| **5000** | LLM Backend | `llm-backend` | 5000 | FastAPI para proveedores LLM |
+| **3000** | LLM Frontend | - | 3000 | Next.js (modo desarrollo) |
+| **4000** | LLM Backend | - | 4000 | FastAPI para proveedores LLM |
+| **5000** | Sandbox API | `agente-tfg` | 5000 | API Flask para ejecutar comandos |
 | **8010** | DVWA | `victima-dvwa` | 80 | Damn Vulnerable Web App |
 | **8020** | Juice Shop | `victima-juice` | 3000 | OWASP Juice Shop |
 | **8030** | Metasploitable | `victima-meta` | 80 | Metasploitable2 |
@@ -49,9 +56,9 @@ Este documento contiene todas las instrucciones necesarias para instalar, config
 
 ```bash
 # Servicios principales
-http://localhost          # LLM Frontend (producción)
-http://localhost:3000     # Sandbox Terminal API
-http://localhost:5000     # LLM Backend API
+http://localhost:3000     # LLM Frontend (Next.js dev)
+http://localhost:4000     # LLM Backend API (FastAPI)
+http://localhost:5000     # Sandbox Terminal API (Flask)
 
 # Máquinas vulnerables
 http://localhost:8010     # DVWA (admin/password)
@@ -159,9 +166,9 @@ docker exec agente-tfg ping -c 2 10.5.0.5
 
 ### Acceso a servicios web
 
-- **LLM Frontend**: http://localhost (o http://localhost:80)
-- **Sandbox API**: http://localhost:3000
-- **LLM Backend**: http://localhost:5000
+- **LLM Frontend**: http://localhost:3000
+- **LLM Backend**: http://localhost:4000
+- **Sandbox API**: http://localhost:5000
 - **DVWA**: http://localhost:8010 (Credenciales: `admin` / `password`)
 - **Juice Shop**: http://localhost:8020
 - **Metasploitable**: http://localhost:8030
