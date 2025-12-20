@@ -118,7 +118,7 @@ export const useConfigStore = create<ConfigState>()(
       
       theme: 'dark',
       systemPrompt: "Eres un experto en Ciberseguridad ofensiva y defensiva. Ayuda al usuario con escaneos, análisis de logs y scripts de pentesting ético. Responde siempre en español.",
-      backendUrl: 'http://localhost:8000',
+      backendUrl: 'http://localhost:4000',
       
       setApiKey: (provider, key) => set((state) => ({
         apiKeys: { ...state.apiKeys, [provider]: key },
@@ -401,6 +401,105 @@ export const useConversationsStore = create<ConversationsState>()((set) => ({
     )
   })),
   setLoading: (loading) => set({ isLoading: loading }),
+}));
+
+// ============================================
+// TERMINAL STORE - Estado de sesiones de terminal
+// ============================================
+
+export interface TerminalJob {
+  id: string;
+  command: string;
+  cwd: string;
+  status: 'running' | 'completed' | 'timeout';
+  started_at: string;
+  elapsed?: string;
+  conversation_id?: string;
+  leaf_id?: number;
+}
+
+export interface TerminalSession {
+  conversationId: string;
+  initialized: boolean;
+  repoPath?: string;
+  currentLeafId: number | null;
+}
+
+interface TerminalState {
+  // Sesiones por conversación
+  sessions: Record<string, TerminalSession>;
+  
+  // Jobs activos en la conversación actual
+  runningJobs: TerminalJob[];
+  
+  // Estado de conexión con el sandbox
+  isConnected: boolean;
+  lastError: string | null;
+  
+  // Acciones
+  initSession: (conversationId: string, repoPath?: string) => void;
+  updateSessionLeaf: (conversationId: string, leafId: number) => void;
+  setRunningJobs: (jobs: TerminalJob[]) => void;
+  addRunningJob: (job: TerminalJob) => void;
+  removeRunningJob: (jobId: string) => void;
+  updateJobStatus: (jobId: string, status: 'running' | 'completed' | 'timeout') => void;
+  setConnected: (connected: boolean) => void;
+  setError: (error: string | null) => void;
+  clearSession: (conversationId: string) => void;
+}
+
+export const useTerminalStore = create<TerminalState>()((set) => ({
+  sessions: {},
+  runningJobs: [],
+  isConnected: false,
+  lastError: null,
+  
+  initSession: (conversationId, repoPath) => set((state) => ({
+    sessions: {
+      ...state.sessions,
+      [conversationId]: {
+        conversationId,
+        initialized: true,
+        repoPath,
+        currentLeafId: null,
+      }
+    }
+  })),
+  
+  updateSessionLeaf: (conversationId, leafId) => set((state) => ({
+    sessions: {
+      ...state.sessions,
+      [conversationId]: {
+        ...state.sessions[conversationId],
+        currentLeafId: leafId,
+      }
+    }
+  })),
+  
+  setRunningJobs: (jobs) => set({ runningJobs: jobs }),
+  
+  addRunningJob: (job) => set((state) => ({
+    runningJobs: [...state.runningJobs, job]
+  })),
+  
+  removeRunningJob: (jobId) => set((state) => ({
+    runningJobs: state.runningJobs.filter(j => j.id !== jobId)
+  })),
+  
+  updateJobStatus: (jobId, status) => set((state) => ({
+    runningJobs: state.runningJobs.map(j => 
+      j.id === jobId ? { ...j, status } : j
+    )
+  })),
+  
+  setConnected: (connected) => set({ isConnected: connected }),
+  
+  setError: (error) => set({ lastError: error }),
+  
+  clearSession: (conversationId) => set((state) => {
+    const { [conversationId]: _, ...rest } = state.sessions;
+    return { sessions: rest };
+  }),
 }));
 
 // ============================================
