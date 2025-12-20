@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Message, useChatStore } from "@/store/useStore";
+import { useState, useMemo } from "react";
+import { Message, useChatStore, ToolCall } from "@/store/useStore";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { BranchIndicator } from "./BranchIndicator";
@@ -30,6 +30,21 @@ interface MessageBubbleProps {
   onRegenerate?: (messageId: number) => void;
 }
 
+// Helper para parsear tool_calls que pueden venir como string JSON o array
+function parseToolCalls(toolCalls: ToolCall[] | string | null | undefined): ToolCall[] {
+  if (!toolCalls) return [];
+  if (Array.isArray(toolCalls)) return toolCalls;
+  if (typeof toolCalls === 'string') {
+    try {
+      const parsed = JSON.parse(toolCalls);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
 export function MessageBubble({ message, isStreaming, streamContent, onEdit, onRegenerate }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -40,7 +55,10 @@ export function MessageBubble({ message, isStreaming, streamContent, onEdit, onR
   const content = isStreaming ? streamContent : message.content;
   const isUser = message.role === 'user';
   const isTool = message.role === 'tool';
-  const hasToolCalls = message.tool_calls && message.tool_calls.length > 0;
+  
+  // Parsear tool_calls correctamente
+  const toolCallsArray = useMemo(() => parseToolCalls(message.tool_calls), [message.tool_calls]);
+  const hasToolCalls = toolCallsArray.length > 0;
 
   // Verificar si tiene ramas hermanas (para saber si mostrar el indicador)
   const siblings = fullTree?.filter(n => n.parent_id === message.parent_id) || [];
@@ -279,12 +297,12 @@ export function MessageBubble({ message, isStreaming, streamContent, onEdit, onR
                 <ChevronRight className="h-3 w-3 mr-1" />
               )}
               <Wrench className="h-3 w-3 mr-1" />
-              {message.tool_calls!.length} herramienta(s)
+              {toolCallsArray.length} herramienta(s)
             </Button>
             
             {showToolCalls && (
               <div className="mt-2 space-y-2">
-                {message.tool_calls!.map((tc, i) => (
+                {toolCallsArray.map((tc, i) => (
                   <div 
                     key={tc.id || i}
                     className="bg-muted/30 rounded-lg p-3 text-sm"
@@ -293,7 +311,13 @@ export function MessageBubble({ message, isStreaming, streamContent, onEdit, onR
                       {tc.function.name}
                     </div>
                     <pre className="text-xs overflow-x-auto">
-                      {JSON.stringify(JSON.parse(tc.function.arguments), null, 2)}
+                      {(() => {
+                        try {
+                          return JSON.stringify(JSON.parse(tc.function.arguments), null, 2);
+                        } catch {
+                          return tc.function.arguments;
+                        }
+                      })()}
                     </pre>
                   </div>
                 ))}

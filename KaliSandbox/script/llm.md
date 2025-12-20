@@ -5,6 +5,86 @@ You have access to a Linux terminal via a REST API. Use this to execute commands
 ## Base URL
 `http://localhost:5000`
 
+---
+
+## 🗂️ Conversation & Branch Management
+
+Each conversation has its own **isolated workspace** with Git version control. This allows:
+- Each chat conversation to have separate files/results
+- Switching between conversation branches restores the exact filesystem state
+- Heavy tools persist across all conversations in `/workspace_persistent/`
+
+### Initialize Session
+**POST** `/session/init`
+
+Creates a new Git repository for a conversation. Call this when starting a new chat.
+
+```json
+{ "conversation_id": "conv_abc123" }
+```
+
+**Response:**
+```json
+{
+  "status": "created",
+  "conversation_id": "conv_abc123",
+  "repo_path": "/workspace_sessions/conv_abc123",
+  "commit": "a1b2c3d4"
+}
+```
+
+### Create Checkpoint
+**POST** `/session/checkpoint`
+
+Saves current state as a Git commit + tag. Call after each assistant response.
+
+```json
+{
+  "conversation_id": "conv_abc123",
+  "leaf_id": "msg_xyz789",
+  "parent_leaf_id": "msg_parent123"
+}
+```
+
+### Switch Branch
+**POST** `/session/switch`
+
+Restores filesystem to a previous state (when user navigates chat branches).
+
+```json
+{
+  "conversation_id": "conv_abc123",
+  "leaf_id": "msg_xyz789"
+}
+```
+
+---
+
+## 📦 Persistent Storage
+
+Heavy tools (>10MB) should be installed in `/workspace_persistent/` to avoid re-downloading.
+
+### Directory Structure
+```
+/workspace_persistent/
+├── INVENTORY.md      # Tool inventory (read before downloading!)
+├── tools/            # Installed tools (sqlmap, metasploit, etc.)
+├── wordlists/        # Custom wordlists
+└── downloads/        # Temporary downloads
+```
+
+### Workflow for Large Tools
+1. **Check inventory first:** `cat /workspace_persistent/INVENTORY.md | grep sqlmap`
+2. **If exists:** Create symlink: `ln -s /workspace_persistent/tools/sqlmap ./sqlmap`
+3. **If not:** Install to persistent and update inventory:
+   ```bash
+   git clone https://github.com/sqlmapproject/sqlmap.git /workspace_persistent/tools/sqlmap
+   echo "| sqlmap | /workspace_persistent/tools/sqlmap | 50MB | 1.7.12 | $(date +%Y-%m-%d) |" >> /workspace_persistent/INVENTORY.md
+   ln -s /workspace_persistent/tools/sqlmap ./sqlmap
+   ```
+
+---
+
 ## Endpoints
 
 ### 1. Execute Command
@@ -16,13 +96,16 @@ Starts a shell command in the background.
 ```json
 {
   "command": "ping -c 10 google.com",
-  "session_id": "my-session",
+  "conversation_id": "conv_abc123",
+  "leaf_id": "msg_xyz789",
   "wait_time": 5,
   "exit_time": 30
 }
 ```
 - `command`: The shell command to run.
-- `session_id` (optional): Session identifier to maintain persistent working directory. If not provided, uses `"default"`. Each session has its own current working directory (cwd).
+- `conversation_id` (recommended): Links command to a specific conversation workspace.
+- `leaf_id` (optional): Current message ID for tracking.
+- `session_id` (deprecated): Use `conversation_id` instead.
 - `wait_time` (optional): Seconds to wait before returning the first response. Recommended: `5` or `10` to see immediate output.
 - `exit_time` (optional): Seconds after which, if the process is still running, the server will stop the process and return the final output. If both `exit_time` and `wait_time` are provided, `exit_time` takes precedence.
 
@@ -36,7 +119,8 @@ Starts a shell command in the background.
 {
   "job_id": "uuid-string",
   "status": "running",
-  "cwd": "/app",
+  "cwd": "/workspace_sessions/conv_abc123",
+  "conversation_id": "conv_abc123",
   "stdout": "PING google.com ...",
   "return_code": null
 }
@@ -44,9 +128,9 @@ Starts a shell command in the background.
 *Note: `stdout` and `stderr` fields are omitted if empty.*
 
 **Working Directory:**
-- The `cwd` field shows the current working directory for this session.
-- `cd` commands automatically update the session's working directory.
-- All subsequent commands in the same session execute from this directory.
+- The `cwd` field shows the current working directory for this conversation.
+- `cd` commands automatically update the conversation's working directory.
+- All subsequent commands in the same conversation execute from this directory.
 
 ### 2. Check Status / Get Output
 **GET** `/status/<job_id>?wait=5`

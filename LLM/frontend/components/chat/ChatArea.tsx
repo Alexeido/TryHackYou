@@ -10,6 +10,7 @@ import {
   useModelsStore,
   useUIStore,
   useConversationsStore,
+  useTerminalStore,
   Message 
 } from "@/store/useStore";
 import { 
@@ -19,6 +20,13 @@ import {
   getConversationThread,
   getConversationTree 
 } from "@/services/api";
+import {
+  initTerminalSession,
+  createCheckpoint,
+  switchBranch,
+  checkTerminalHealth,
+} from "@/services/terminal";
+import { getToolsForAPI } from "@/services/tools";
 import { 
   Send, 
   Loader2, 
@@ -85,6 +93,7 @@ export function ChatArea() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const abortRef = useRef<(() => void) | null>(null);
+  const prevLeafIdRef = useRef<number | null>(null);  // Para detectar cambios de branch
   
   const { 
     conversationId, 
@@ -108,6 +117,85 @@ export function ChatArea() {
   const { selectedModel, advancedParams, modelsUsingDefaults, addModelToDefaults } = useModelsStore();
   const { setTerminalOpen } = useUIStore();
   const { addConversation, updateConversation } = useConversationsStore();
+  const { 
+    sessions, 
+    initSession, 
+    updateSessionLeaf,
+    setConnected,
+    setError: setTerminalError 
+  } = useTerminalStore();
+
+  // Verificar conexión con el sandbox al montar
+  useEffect(() => {
+    const checkConnection = async () => {
+      try {
+        await checkTerminalHealth();
+        setConnected(true);
+      } catch (err) {
+        setConnected(false);
+        console.log('[Terminal] Sandbox no disponible:', err);
+      }
+    };
+    checkConnection();
+    // Re-check cada 30 segundos
+    const interval = setInterval(checkConnection, 30000);
+    return () => clearInterval(interval);
+  }, [setConnected]);
+
+  // Inicializar sesión de terminal cuando cambia la conversación
+  useEffect(() => {
+    if (!conversationId) return;
+    
+    // Si ya está inicializada, no hacer nada
+    if (sessions[conversationId]?.initialized) {
+      console.log(`[Terminal] Sesión ya inicializada para ${conversationId}`);
+      return;
+    }
+    
+    const initSession_ = async () => {
+      try {
+        console.log(`[Terminal] Inicializando sesión para ${conversationId}`);
+        const result = await initTerminalSession(conversationId);
+        initSession(conversationId, result.repo_path);
+        console.log(`[Terminal] Sesión inicializada: ${result.repo_path}`);
+      } catch (err) {
+        console.log('[Terminal] Error inicializando sesión:', err);
+        // No es crítico, el sandbox puede no estar disponible
+      }
+    };
+    
+    initSession_();
+  }, [conversationId, sessions, initSession]);
+
+  // Detectar cambios de branch (navegación en el árbol)
+  useEffect(() => {
+    if (!conversationId || !activeLeafId) return;
+    
+    // Si es la primera vez, solo guardar la referencia
+    if (prevLeafIdRef.current === null) {
+      prevLeafIdRef.current = activeLeafId;
+      return;
+    }
+    
+    // Si cambió el leaf, es navegación en el árbol
+    if (prevLeafIdRef.current !== activeLeafId) {
+      const prevLeaf = prevLeafIdRef.current;
+      prevLeafIdRef.current = activeLeafId;
+      
+      // Si la sesión está inicializada, hacer switch
+      if (sessions[conversationId]?.initialized) {
+        console.log(`[Terminal] Cambio de branch: ${prevLeaf} -> ${activeLeafId}`);
+        switchBranch(conversationId, activeLeafId)
+          .then((result) => {
+            updateSessionLeaf(conversationId, activeLeafId);
+            console.log(`[Terminal] Branch cambiado a leaf ${activeLeafId}`);
+          })
+          .catch((err) => {
+            console.log('[Terminal] Error cambiando branch:', err);
+          });
+      }
+    }
+  }, [conversationId, activeLeafId, sessions, updateSessionLeaf]);
 
   // Auto-scroll al final cuando llegan nuevos mensajes
   useEffect(() => {
@@ -235,6 +323,7 @@ export function ChatArea() {
           parent_message_id: activeLeafId || undefined,
           user_message: userMessage,
           stream: true,
+          tools: getToolsForAPI(),
           ...advParams,
         },
         {
@@ -245,6 +334,14 @@ export function ChatArea() {
             // Abrir terminal si hay tool calls
             setTerminalOpen(true);
             console.log("Tool call:", toolCall);
+          },
+          onToolExecuting: (data) => {
+            // Tool está siendo ejecutada en el backend
+            console.log("🔧 Ejecutando tool:", data.function_name);
+          },
+          onToolResult: (data) => {
+            // Resultado de la tool recibido
+            console.log("✅ Tool result:", data.result?.substring(0, 100));
           },
           onDone: async (data) => {
             setStreaming(false);
@@ -264,6 +361,21 @@ export function ChatArea() {
               updated_at: new Date().toISOString(),
               message_count: thread.messages.length,
             });
+            
+            // Crear checkpoint en el sandbox después de la respuesta
+            if (thread.active_leaf_id && sessions[currentConversationId!]?.initialized) {
+              try {
+                const checkpoint = await createCheckpoint(
+                  currentConversationId!,
+                  thread.active_leaf_id,
+                  activeLeafId
+                );
+                updateSessionLeaf(currentConversationId!, thread.active_leaf_id);
+                console.log(`[Terminal] Checkpoint creado: ${checkpoint.tag}`);
+              } catch (err) {
+                console.log('[Terminal] Error creando checkpoint:', err);
+              }
+            }
           },
           onError: (err) => {
             setStreaming(false);
@@ -344,6 +456,7 @@ export function ChatArea() {
           user_message: userMessage.content,
           regenerate: true,  // No crear nuevo mensaje de usuario
           stream: true,
+          tools: getToolsForAPI(),
           ...advParams,
         },
         {
@@ -353,6 +466,12 @@ export function ChatArea() {
           onToolCall: (toolCall) => {
             setTerminalOpen(true);
             console.log("Tool call:", toolCall);
+          },
+          onToolExecuting: (data) => {
+            console.log("🔧 Ejecutando tool:", data.function_name);
+          },
+          onToolResult: (data) => {
+            console.log("✅ Tool result:", data.result?.substring(0, 100));
           },
           onDone: async (data) => {
             setStreaming(false);
@@ -372,6 +491,21 @@ export function ChatArea() {
               updated_at: new Date().toISOString(),
               message_count: thread.messages.length,
             });
+            
+            // Crear checkpoint en el sandbox después de regenerar
+            if (thread.active_leaf_id && sessions[conversationId!]?.initialized) {
+              try {
+                const checkpoint = await createCheckpoint(
+                  conversationId!,
+                  thread.active_leaf_id,
+                  userMessage.id  // Parent es el mensaje de usuario
+                );
+                updateSessionLeaf(conversationId!, thread.active_leaf_id);
+                console.log(`[Terminal] Checkpoint (regenerate) creado: ${checkpoint.tag}`);
+              } catch (err) {
+                console.log('[Terminal] Error creando checkpoint:', err);
+              }
+            }
           },
           onError: (err) => {
             setStreaming(false);
@@ -443,6 +577,7 @@ export function ChatArea() {
           parent_message_id: originalMessage.parent_id || undefined,
           user_message: newContent,
           stream: true,
+          tools: getToolsForAPI(),
         },
         {
           onMessage: (chunk) => {
@@ -451,6 +586,12 @@ export function ChatArea() {
           onToolCall: (toolCall) => {
             setTerminalOpen(true);
             console.log("Tool call:", toolCall);
+          },
+          onToolExecuting: (data) => {
+            console.log("🔧 Ejecutando tool:", data.function_name);
+          },
+          onToolResult: (data) => {
+            console.log("✅ Tool result:", data.result?.substring(0, 100));
           },
           onDone: async () => {
             setStreaming(false);
@@ -467,6 +608,21 @@ export function ChatArea() {
               updated_at: new Date().toISOString(),
               message_count: thread.messages.length,
             });
+            
+            // Crear checkpoint en el sandbox después de editar
+            if (thread.active_leaf_id && sessions[conversationId]?.initialized) {
+              try {
+                const checkpoint = await createCheckpoint(
+                  conversationId,
+                  thread.active_leaf_id,
+                  originalMessage.parent_id  // El nuevo parent después de la edición
+                );
+                updateSessionLeaf(conversationId, thread.active_leaf_id);
+                console.log(`[Terminal] Checkpoint (edit) creado: ${checkpoint.tag}`);
+              } catch (err) {
+                console.log('[Terminal] Error creando checkpoint:', err);
+              }
+            }
           },
           onError: (err) => {
             setStreaming(false);
