@@ -223,11 +223,14 @@ export async function sendMessage(request: ChatRequest): Promise<ChatResponse> {
 export interface StreamCallbacks {
   onMessage: (chunk: string) => void;
   onToolCall: (toolCall: Record<string, unknown>) => void;
+  onToolExecuting?: (data: { tool_call_id: string; function_name: string }) => void;
+  onToolResult?: (data: { tool_call_id: string; result: string; tool_message_id: number }) => void;
   onDone: (data: { 
     conversation_id: string; 
     user_message_id: number; 
     assistant_message_id: number;
     model_used: string;
+    had_tool_calls?: boolean;
   }) => void;
   onError: (error: string) => void;
 }
@@ -283,14 +286,43 @@ export function sendMessageStream(
             try {
               const data = JSON.parse(jsonStr);
               
-              if (data.chunk !== undefined) {
+              // Contenido de texto
+              if (data.type === 'content' && data.chunk !== undefined) {
                 callbacks.onMessage(data.chunk);
-              } else if (data.tool_call) {
+              } 
+              // Tool call streaming
+              else if (data.type === 'tool_call' && data.tool_call) {
                 callbacks.onToolCall(data.tool_call);
-              } else if (data.conversation_id && data.assistant_message_id) {
+              }
+              // Tool ejecutándose (nuevo)
+              else if (data.type === 'tool_executing') {
+                callbacks.onToolExecuting?.({
+                  tool_call_id: data.tool_call_id,
+                  function_name: data.function_name
+                });
+              }
+              // Resultado de tool (nuevo)
+              else if (data.type === 'tool_result') {
+                callbacks.onToolResult?.({
+                  tool_call_id: data.tool_call_id,
+                  result: data.result,
+                  tool_message_id: data.tool_message_id
+                });
+              }
+              // Finalización
+              else if (data.type === 'done' || (data.conversation_id && data.assistant_message_id && !data.type)) {
                 callbacks.onDone(data);
-              } else if (data.type === 'error' || data.error) {
-                // Manejar errores del backend (type: error, message: ...)
+              } 
+              // Legacy: contenido sin type
+              else if (data.chunk !== undefined && !data.type) {
+                callbacks.onMessage(data.chunk);
+              }
+              // Legacy: tool_call sin type
+              else if (data.tool_call && !data.type) {
+                callbacks.onToolCall(data.tool_call);
+              }
+              // Errores
+              else if (data.type === 'error' || data.error) {
                 const errorMsg = data.message || data.error || 'Error desconocido del servidor';
                 callbacks.onError(errorMsg);
               }
