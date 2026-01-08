@@ -199,3 +199,8 @@ Jornada de estabilización y refinamiento técnico:
 **Estado:** Sistema robusto y configuración de modelos optimizada. Listo para el desarrollo de ciclos autónomos.
 
 ---
+
+
+Arreglada compatibilidad con gemini 3 flash preview, mejor interfaz, procesos activos visibles
+
+Para mañana: que vaya el botón de stop, que pueda ver el estado de los procesos activos en la terminal pese a que ya haya pasado el mensaje de respuesta y ya empezar con modelos locales

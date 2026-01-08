@@ -72,12 +72,14 @@ export interface SessionInfo {
 export interface JobInfo {
   id: string;
   command: string;
-  cwd: string;
-  status: string;
-  started_at: string;
+  cwd?: string;
+  status?: string;
+  started_at?: string;
   conversation_id?: string;
-  leaf_id?: number;
-  elapsed?: string;
+  leaf_id?: number | null;
+  elapsed?: number | string;
+  job_id?: string;
+  job_id_short?: string;
 }
 
 export interface ConversationSummary {
@@ -88,9 +90,16 @@ export interface ConversationSummary {
   last_activity: string;
 }
 
+// Respuesta real del sandbox (running y total)
 export interface RunningJobsResponse {
-  total_running: number;
-  by_conversation: Record<string, JobInfo[]>;
+  total: number;
+  running: Record<string, Array<{
+    command: string;
+    elapsed: number;
+    job_id: string;
+    job_id_short: string;
+    leaf_id: number | null;
+  }>>;
 }
 
 export interface ExecuteRequest {
@@ -262,7 +271,17 @@ export async function getRunningJobs(): Promise<RunningJobsResponse> {
  */
 export async function getRunningJobsForConversation(conversationId: string): Promise<JobInfo[]> {
   const running = await getRunningJobs();
-  return running.by_conversation[conversationId] || [];
+  const rawJobs = running.running?.[conversationId] || [];
+  
+  // Transformar al formato JobInfo
+  return rawJobs.map(job => ({
+    id: job.job_id,
+    command: job.command,
+    elapsed: typeof job.elapsed === 'number' ? `${job.elapsed.toFixed(1)}s` : String(job.elapsed),
+    leaf_id: job.leaf_id,
+    job_id: job.job_id,
+    job_id_short: job.job_id_short,
+  }));
 }
 
 // ============================================

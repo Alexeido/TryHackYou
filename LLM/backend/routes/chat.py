@@ -384,6 +384,9 @@ async def stream_chat_response(
         
         tool_calls_json = json.dumps(tool_calls_accumulator) if tool_calls_accumulator else None
         
+        # Log para debug
+        print(f"📊 Stream finalizado: finish_reason={finish_reason}, tool_calls={len(tool_calls_accumulator)}, content_len={len(full_content)}")
+        
         assistant_msg_id = db.add_message(
             conversation_id=conversation_id,
             role="assistant",
@@ -401,31 +404,88 @@ async def stream_chat_response(
         # EJECUTAR TOOL CALLS AUTOMÁTICAMENTE Y CONTINUAR LOOP
         # =======================================================================
         
-        if finish_reason == "tool_calls" and tool_calls_accumulator:
+        # Detectar tool calls: verificar tanto finish_reason como la existencia de tool_calls
+        # Algunos proveedores (Google/Gemini) pueden usar finish_reason diferente
+        has_tool_calls = len(tool_calls_accumulator) > 0
+        should_execute_tools = (finish_reason in ("tool_calls", "function_call", "stop") and has_tool_calls) or \
+                               (has_tool_calls and not full_content)  # Si hay tools y no hay contenido
+        
+        print(f"🔍 Decisión de tools: should_execute={should_execute_tools}, finish_reason={finish_reason}, has_tools={has_tool_calls}")
+        
+        if should_execute_tools:
             print(f"🔧 Ejecutando {len(tool_calls_accumulator)} tool calls automáticamente...")
+            print(f"🔧 Raw tool_calls_accumulator: {json.dumps(tool_calls_accumulator, indent=2)[:500]}")
             
             # Reconstruir tool_calls en formato completo
+            # Algunos proveedores envían deltas (chunks), otros envían completo
             reconstructed_tool_calls = []
             current_tc = None
+            
             for tc_delta in tool_calls_accumulator:
-                idx = tc_delta.get('index', 0)
-                if tc_delta.get('id'):
+                # Verificar si ya es un tool_call completo (tiene id y function.name)
+                tc_id = tc_delta.get('id')
+                func_info = tc_delta.get('function', {})
+                func_name = func_info.get('name', '')
+                func_args = func_info.get('arguments', '')
+                
+                # Si tiene ID, es un nuevo tool_call o uno completo
+                if tc_id:
+                    # Guardar el anterior si existe
                     if current_tc:
                         reconstructed_tool_calls.append(current_tc)
+                    
+                    # Iniciar nuevo
                     current_tc = {
-                        'id': tc_delta['id'],
+                        'id': tc_id,
                         'type': tc_delta.get('type', 'function'),
                         'function': {
-                            'name': tc_delta.get('function', {}).get('name', ''),
-                            'arguments': tc_delta.get('function', {}).get('arguments', '')
+                            'name': func_name,
+                            'arguments': func_args
                         }
                     }
-                elif current_tc:
-                    # Concatenar argumentos
-                    current_tc['function']['arguments'] += tc_delta.get('function', {}).get('arguments', '')
+                elif current_tc and func_args:
+                    # Es un chunk de argumentos adicional, concatenar
+                    current_tc['function']['arguments'] += func_args
             
+            # No olvidar el último
             if current_tc:
                 reconstructed_tool_calls.append(current_tc)
+            
+            print(f"🔧 Reconstructed tool_calls: {len(reconstructed_tool_calls)}")
+            for i, tc in enumerate(reconstructed_tool_calls):
+                print(f"   [{i}] {tc.get('function', {}).get('name', 'unknown')} - args: {tc.get('function', {}).get('arguments', '')[:100]}")
+            
+            # Preservar extra_content (contiene thought_signature para Google Gemini)
+            # Mapear por ID para poder encontrar el extra_content original
+            extra_content_map = {}
+            for tc_delta in tool_calls_accumulator:
+                tc_id = tc_delta.get('id')
+                extra = tc_delta.get('extra_content')
+                if tc_id and extra:
+                    extra_content_map[tc_id] = extra
+            
+            # Añadir extra_content a los tool_calls reconstruidos
+            for tc in reconstructed_tool_calls:
+                tc_id = tc.get('id')
+                if tc_id and tc_id in extra_content_map:
+                    tc['extra_content'] = extra_content_map[tc_id]
+                    print(f"   ✅ Preservando extra_content para {tc_id}")
+            
+            # Si no se pudo reconstruir ningún tool_call, enviar done sin ejecutar
+            if not reconstructed_tool_calls:
+                print(f"⚠️ No se pudieron reconstruir tool_calls. Raw: {tool_calls_accumulator}")
+                done_data = json.dumps({
+                    "type": "done",
+                    "conversation_id": conversation_id,
+                    "user_message_id": user_msg_id,
+                    "assistant_message_id": assistant_msg_id,
+                    "finish_reason": finish_reason,
+                    "had_tool_calls": False,
+                    "error": "No se pudieron reconstruir las tool_calls",
+                    "done": True
+                })
+                yield f"event: done\ndata: {done_data}\n\n"
+                return
             
             # Ejecutar cada tool call y guardar resultados
             tool_results = []
