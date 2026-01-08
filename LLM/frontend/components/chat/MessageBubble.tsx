@@ -14,7 +14,9 @@ import {
   Wrench,
   ChevronDown,
   ChevronRight,
-  RotateCcw
+  RotateCcw,
+  TerminalSquare,
+  Clock
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -50,6 +52,7 @@ export function MessageBubble({ message, isStreaming, streamContent, onEdit, onR
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content || '');
   const [showToolCalls, setShowToolCalls] = useState(false);
+  const [expandedToolContent, setExpandedToolContent] = useState(false);
   const { fullTree } = useChatStore();
 
   const content = isStreaming ? streamContent : message.content;
@@ -98,18 +101,40 @@ export function MessageBubble({ message, isStreaming, streamContent, onEdit, onR
   };
 
   if (isTool) {
+    const lines = (content || '').split('\n');
+    const isLongContent = lines.length > 4;
+    const previewContent = isLongContent ? lines.slice(0, 4).join('\n') : content;
+    
     return (
       <div className="flex justify-start my-2">
-        <div className="max-w-[85%] rounded-xl bg-amber-500/10 border border-amber-500/20 p-3">
+        <div className="max-w-[85%] rounded-xl bg-green-500/10 border border-green-500/20 p-3">
           <div className="flex items-center gap-2 mb-2">
-            <Wrench className="h-4 w-4 text-amber-500" />
-            <span className="text-sm font-medium text-amber-500">
-              Tool: {message.tool_call_id}
+            <TerminalSquare className="h-4 w-4 text-green-500" />
+            <span className="text-sm font-medium text-green-500">
+              Terminal Response
+            </span>
+            <span className="text-xs text-muted-foreground font-mono">
+              {message.tool_call_id?.slice(0, 20)}...
             </span>
           </div>
-          <pre className="text-xs bg-black/20 rounded p-2 overflow-x-auto">
-            {content}
+          <pre className="text-xs bg-black/20 rounded p-2 overflow-x-auto whitespace-pre-wrap">
+            {expandedToolContent ? content : previewContent}
+            {isLongContent && !expandedToolContent && '...'}
           </pre>
+          {isLongContent && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mt-2 h-6 px-2 text-xs text-green-400 hover:text-green-300"
+              onClick={() => setExpandedToolContent(!expandedToolContent)}
+            >
+              {expandedToolContent ? (
+                <><ChevronDown className="h-3 w-3 mr-1" /> Ver menos</>
+              ) : (
+                <><ChevronRight className="h-3 w-3 mr-1" /> Ver más ({lines.length - 4} líneas más)</>
+              )}
+            </Button>
+          )}
         </div>
       </div>
     );
@@ -279,10 +304,47 @@ export function MessageBubble({ message, isStreaming, streamContent, onEdit, onR
               </div>
               <span className="text-sm text-muted-foreground">Pensando...</span>
             </div>
+          ) : hasToolCalls ? (
+            // Si no hay contenido pero hay tool_calls, mostrar animación de ejecución
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center gap-3 text-sm">
+                <div className="relative">
+                  <TerminalSquare className="h-5 w-5 text-amber-500" />
+                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-amber-500 rounded-full animate-ping" />
+                </div>
+                <span className="text-muted-foreground">
+                  Ejecutando comando{toolCallsArray.length > 1 ? 's' : ''} en terminal...
+                </span>
+              </div>
+              {/* Animación de terminal */}
+              <div className="bg-zinc-900/50 rounded-lg p-2 font-mono text-xs text-green-400 overflow-hidden">
+                <div className="flex items-center gap-2">
+                  <span className="text-zinc-500">$</span>
+                  <span className="animate-pulse">
+                    {(() => {
+                      try {
+                        const args = JSON.parse(toolCallsArray[0]?.function?.arguments || '{}');
+                        return args.command?.slice(0, 50) + (args.command?.length > 50 ? '...' : '');
+                      } catch {
+                        return 'ejecutando...';
+                      }
+                    })()}
+                  </span>
+                  <span className="inline-flex ml-1">
+                    <span className="animate-[blink_1s_infinite]">_</span>
+                  </span>
+                </div>
+                <div className="flex gap-1.5 mt-1.5">
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse [animation-delay:0s]" />
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse [animation-delay:0.2s]" />
+                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse [animation-delay:0.4s]" />
+                </div>
+              </div>
+            </div>
           ) : null}
         </div>
 
-        {/* Tool calls */}
+        {/* Tool calls - Terminal Calls */}
         {hasToolCalls && (
           <div className="mt-2 ml-4">
             <Button
@@ -296,31 +358,44 @@ export function MessageBubble({ message, isStreaming, streamContent, onEdit, onR
               ) : (
                 <ChevronRight className="h-3 w-3 mr-1" />
               )}
-              <Wrench className="h-3 w-3 mr-1" />
-              {toolCallsArray.length} herramienta(s)
+              <TerminalSquare className="h-3 w-3 mr-1" />
+              {toolCallsArray.length} Terminal Call{toolCallsArray.length > 1 ? 's' : ''}
             </Button>
             
             {showToolCalls && (
               <div className="mt-2 space-y-2">
-                {toolCallsArray.map((tc, i) => (
-                  <div 
-                    key={tc.id || i}
-                    className="bg-muted/30 rounded-lg p-3 text-sm"
-                  >
-                    <div className="font-mono text-xs text-muted-foreground mb-1">
-                      {tc.function.name}
+                {toolCallsArray.map((tc, i) => {
+                  // Parsear argumentos para mostrar info útil
+                  let args: { command?: string; wait_time?: number; exit_time?: number } = {};
+                  try {
+                    args = JSON.parse(tc.function.arguments);
+                  } catch {
+                    args = {};
+                  }
+                  
+                  return (
+                    <div 
+                      key={tc.id || i}
+                      className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-sm"
+                    >
+                      <div className="flex items-center gap-2 mb-1">
+                        <TerminalSquare className="h-3.5 w-3.5 text-blue-400" />
+                        <span className="text-xs text-blue-400 font-medium">Terminal Call</span>
+                        {args.wait_time && (
+                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Clock className="h-3 w-3" />
+                            {args.wait_time}s
+                          </span>
+                        )}
+                      </div>
+                      {args.command && (
+                        <div className="font-mono text-sm bg-black/20 rounded px-2 py-1.5 text-foreground">
+                          <span className="text-green-400">$</span> {args.command}
+                        </div>
+                      )}
                     </div>
-                    <pre className="text-xs overflow-x-auto">
-                      {(() => {
-                        try {
-                          return JSON.stringify(JSON.parse(tc.function.arguments), null, 2);
-                        } catch {
-                          return tc.function.arguments;
-                        }
-                      })()}
-                    </pre>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

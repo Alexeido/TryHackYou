@@ -42,6 +42,10 @@ interface LogEntry {
   content: string;
   name?: string;
   expanded?: boolean;
+  // Datos parseados para tool_calls
+  command?: string;
+  waitTime?: number;
+  exitTime?: number;
 }
 
 export function TerminalPanel({ onClose }: TerminalPanelProps) {
@@ -122,12 +126,28 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
         if (Array.isArray(toolCallsArray) && toolCallsArray.length > 0) {
           toolCallsArray.forEach((tc: { id?: string; function?: { name?: string; arguments?: string } }) => {
             if (tc.id && tc.function) {
+              // Parsear argumentos para extraer comando y tiempos
+              let command = '';
+              let waitTime: number | undefined;
+              let exitTime: number | undefined;
+              try {
+                const args = JSON.parse(tc.function.arguments || '{}');
+                command = args.command || '';
+                waitTime = args.wait_time;
+                exitTime = args.exit_time;
+              } catch {
+                // Si falla el parse, usar los argumentos raw
+              }
+              
               newLogs.push({
                 id: tc.id,
                 type: 'tool_call',
                 timestamp: new Date(msg.created_at),
                 name: tc.function.name || 'unknown',
                 content: tc.function.arguments || '{}',
+                command,
+                waitTime,
+                exitTime,
               });
             }
           });
@@ -223,13 +243,13 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
       {/* Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1 flex flex-col overflow-hidden">
         <TabsList className="w-full bg-zinc-900 border-b border-zinc-800 rounded-none h-8 px-2">
-          <TabsTrigger value="activity" className="text-xs data-[state=active]:bg-zinc-800">
+          <TabsTrigger value="activity" className="text-xs text-zinc-400 data-[state=active]:text-zinc-100 data-[state=active]:bg-zinc-800">
             Actividad
           </TabsTrigger>
-          <TabsTrigger value="jobs" className="text-xs data-[state=active]:bg-zinc-800">
+          <TabsTrigger value="jobs" className="text-xs text-zinc-400 data-[state=active]:text-zinc-100 data-[state=active]:bg-zinc-800">
             Jobs {runningJobs.length > 0 && `(${runningJobs.length})`}
           </TabsTrigger>
-          <TabsTrigger value="session" className="text-xs data-[state=active]:bg-zinc-800">
+          <TabsTrigger value="session" className="text-xs text-zinc-400 data-[state=active]:text-zinc-100 data-[state=active]:bg-zinc-800">
             Sesión
           </TabsTrigger>
         </TabsList>
@@ -243,7 +263,7 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
                   <TerminalSquare className="h-8 w-8 mx-auto mb-2 opacity-50" />
                   <p>No hay actividad de herramientas</p>
                   <p className="text-xs mt-1">
-                    Los tool calls aparecerán aquí
+                    Los comandos ejecutados aparecerán aquí
                   </p>
                 </div>
               ) : (
@@ -257,60 +277,77 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
                       log.type === 'error' && "border-red-500/30 bg-red-500/5"
                     )}
                   >
-                    <div className="flex items-center justify-between mb-1">
-                      <button
-                        onClick={() => toggleExpand(log.id)}
-                        className="flex items-center gap-2 text-left"
-                      >
-                        {log.expanded ? (
-                          <ChevronDown className="h-3 w-3" />
-                        ) : (
-                          <ChevronRight className="h-3 w-3" />
+                    {log.type === 'tool_call' ? (
+                      // Renderizado mejorado para Terminal Call
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <TerminalSquare className="h-3.5 w-3.5 text-blue-400" />
+                            <span className="text-blue-400 font-medium text-xs">Terminal Call</span>
+                            {log.waitTime && (
+                              <span className="flex items-center gap-1 text-zinc-500 text-xs">
+                                <Clock className="h-3 w-3" />
+                                {log.waitTime}s
+                              </span>
+                            )}
+                          </div>
+                          <span className="text-zinc-600 text-xs">
+                            {log.timestamp.toLocaleTimeString()}
+                          </span>
+                        </div>
+                        {log.command && (
+                          <div className="bg-black/40 rounded px-2 py-1.5 text-zinc-200">
+                            <span className="text-green-400">$</span> {log.command}
+                          </div>
                         )}
-                        <Badge 
-                          variant="outline" 
-                          className={cn(
-                            "text-xs",
-                            log.type === 'tool_call' && "border-blue-500/50 text-blue-400",
-                            log.type === 'tool_response' && "border-green-500/50 text-green-400"
-                          )}
-                        >
-                          {log.type === 'tool_call' ? 'CALL' : 'RESPONSE'}
-                        </Badge>
-                        {log.name && (
-                          <span className="text-zinc-300">{log.name}</span>
-                        )}
-                      </button>
-                      
-                      <div className="flex items-center gap-2">
-                        <span className="text-zinc-600">
-                          {log.timestamp.toLocaleTimeString()}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-zinc-500 hover:text-zinc-300"
-                          onClick={() => copyContent(log.id, log.content)}
-                        >
-                          {copiedId === log.id ? (
-                            <Check className="h-3 w-3 text-green-500" />
-                          ) : (
-                            <Copy className="h-3 w-3" />
-                          )}
-                        </Button>
                       </div>
-                    </div>
-                    
-                    {log.expanded && (
-                      <pre className="mt-2 p-2 bg-black/30 rounded overflow-x-auto text-zinc-300">
-                        {formatJson(log.content)}
-                      </pre>
-                    )}
-                    
-                    {!log.expanded && (
-                      <p className="text-zinc-500 truncate mt-1">
-                        {log.content.slice(0, 100)}...
-                      </p>
+                    ) : (
+                      // Renderizado para Terminal Response
+                      <div>
+                        <div className="flex items-center justify-between mb-1">
+                          <button
+                            onClick={() => toggleExpand(log.id)}
+                            className="flex items-center gap-2 text-left"
+                          >
+                            {log.expanded ? (
+                              <ChevronDown className="h-3 w-3 text-zinc-400" />
+                            ) : (
+                              <ChevronRight className="h-3 w-3 text-zinc-400" />
+                            )}
+                            <TerminalSquare className="h-3.5 w-3.5 text-green-400" />
+                            <span className="text-green-400 font-medium text-xs">Terminal Response</span>
+                          </button>
+                          
+                          <div className="flex items-center gap-2">
+                            <span className="text-zinc-600 text-xs">
+                              {log.timestamp.toLocaleTimeString()}
+                            </span>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6 text-zinc-500 hover:text-zinc-300"
+                              onClick={() => copyContent(log.id, log.content)}
+                            >
+                              {copiedId === log.id ? (
+                                <Check className="h-3 w-3 text-green-500" />
+                              ) : (
+                                <Copy className="h-3 w-3" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                        
+                        {log.expanded ? (
+                          <pre className="mt-2 p-2 bg-black/30 rounded overflow-x-auto text-zinc-300 whitespace-pre-wrap text-xs">
+                            {log.content}
+                          </pre>
+                        ) : (
+                          <p className="text-zinc-400 text-xs mt-1 truncate">
+                            {log.content.split('\n')[0]?.slice(0, 80) || '(vacío)'}
+                            {log.content.length > 80 && '...'}
+                          </p>
+                        )}
+                      </div>
                     )}
                   </div>
                 ))
@@ -372,9 +409,11 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
                         <Clock className="h-3 w-3" />
                         {job.elapsed || 'iniciando...'}
                       </span>
-                      <span className="truncate" title={job.cwd}>
-                        {job.cwd}
-                      </span>
+                      {job.job_id_short && (
+                        <span className="font-mono">
+                          #{job.job_id_short}
+                        </span>
+                      )}
                     </div>
                   </div>
                 ))
