@@ -1,23 +1,21 @@
-version: '3.8'
-
 services:
   # -------------------------------------------------------
   # EL AGENTE (ATACANTE) - IP: 10.5.0.2
   # -------------------------------------------------------
   attacker:
-    build: .                      # Usa tu Dockerfile actual
+    build: .
     container_name: agente-tfg
     ports:
-      - "5000:5000"               # API del Agente (Host:5000 -> Container:5000)
+      - "5000:5000"
     volumes:
-      - ./script:/app             # MODO DESARROLLO: Tu carpeta 'script' es '/app' dentro
-      - persistent_storage:/workspace_persistent  # Carpeta compartida que persiste
-      - sessions_storage:/workspace_sessions      # Repos git por conversación
+      - ./script:/app
+      - persistent_storage:/workspace_persistent
+      - sessions_storage:/workspace_sessions
     networks:
       hacking_net:
         ipv4_address: 10.5.0.2
     command: python3 /app/agent_api.py
-    tty: true                     # Mantiene el contenedor vivo
+    tty: true
     restart: always
     depends_on:
       - victim
@@ -31,7 +29,7 @@ services:
     image: vulnerables/web-dvwa
     container_name: victima-dvwa
     ports:
-      - "8010:80"                 # Acceso web para configurar DB (Host:8010)
+      - "8010:80"
     networks:
       hacking_net:
         ipv4_address: 10.5.0.3
@@ -44,13 +42,13 @@ services:
     image: tleemcjr/metasploitable2
     container_name: victima-meta
     ports:
-      - "8030:80"                 # Web de Metasploitable (Host:8030)
+      - "8030:80"
     networks:
       hacking_net:
         ipv4_address: 10.5.0.4
     restart: always
-    tty: true          # Simula una terminal para que no se cierre
-    stdin_open: true   # Mantiene la entrada estándar abierta
+    tty: true
+    stdin_open: true
 
   # -------------------------------------------------------
   # VÍCTIMA 3: WEB MODERNA (JUICE SHOP) - IP: 10.5.0.5
@@ -59,7 +57,7 @@ services:
     image: bkimminich/juice-shop
     container_name: victima-juice
     ports:
-      - "8020:3000"               # Acceso web (Host:8020 -> Container:3000)
+      - "8020:3000"
     networks:
       hacking_net:
         ipv4_address: 10.5.0.5
@@ -79,5 +77,5 @@ networks:
 # VOLÚMENES PERSISTENTES
 # -------------------------------------------------------
 volumes:
-  persistent_storage:   # Herramientas compartidas entre todas las conversaciones
-  sessions_storage:     # Repos git de cada conversación
+  persistent_storage:
+  sessions_storage:

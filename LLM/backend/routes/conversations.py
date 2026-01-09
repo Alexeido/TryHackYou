@@ -59,7 +59,8 @@ async def list_conversations(limit: int = 50, offset: int = 0):
                 title=c["title"],
                 created_at=c["created_at"],
                 updated_at=c["updated_at"],
-                message_count=c["message_count"]
+                message_count=c["message_count"],
+                pinned=bool(c.get("pinned", 0))
             )
             for c in result["conversations"]
         ]

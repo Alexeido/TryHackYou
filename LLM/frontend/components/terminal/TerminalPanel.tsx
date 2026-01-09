@@ -58,59 +58,51 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
   const [activeTab, setActiveTab] = useState<string>("activity");
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Cargar jobs en ejecución para la conversación actual
-  const loadRunningJobs = useCallback(async () => {
-    if (!conversationId || !isConnected) {
-      setRunningJobs([]);
-      return;
-    }
-    try {
-      const jobs = await getRunningJobsForConversation(conversationId);
-      setRunningJobs(jobs);
-    } catch (err) {
-      console.log('[Terminal] Error cargando jobs:', err);
-      setRunningJobs([]);
-    }
-  }, [conversationId, isConnected]);
-
-  // Cargar información de la sesión
-  const loadSessionInfo = useCallback(async () => {
-    if (!conversationId || !isConnected) return;
-    try {
-      const info = await getSessionInfo(conversationId);
-      setSessionInfo(info);
-    } catch (err) {
-      // Es normal que falle si no hay sesión
-      setSessionInfo(null);
-    }
-  }, [conversationId, isConnected]);
-
-  // Poll jobs cada 2 segundos si hay alguno corriendo
-  // Resetear cuando cambia la conversación
+  // Poll jobs cada 3 segundos - SIN dependencias que causen re-renders
   useEffect(() => {
     // Resetear jobs inmediatamente al cambiar de conversación
     setRunningJobs([]);
+    setSessionInfo(null);
     
     if (!conversationId) return;
     
-    loadRunningJobs();
-    loadSessionInfo();
-    
-    const interval = setInterval(() => {
-      loadRunningJobs();
-      if (runningJobs.length > 0) {
-        loadSessionInfo();
+    // Función interna para evitar dependencias
+    const fetchData = async () => {
+      try {
+        const jobs = await getRunningJobsForConversation(conversationId);
+        setRunningJobs(jobs);
+        
+        // Solo cargar session info si hay jobs
+        if (jobs.length > 0) {
+          try {
+            const info = await getSessionInfo(conversationId);
+            setSessionInfo(info);
+          } catch {
+            // Ignorar errores de session info
+          }
+        }
+      } catch (err) {
+        console.log('[Terminal] Error cargando jobs:', err);
+        setRunningJobs([]);
       }
-    }, 2000);
+    };
+    
+    // Cargar inmediatamente
+    fetchData();
+    
+    // Poll cada 3 segundos
+    const interval = setInterval(fetchData, 3000);
     
     return () => clearInterval(interval);
-  }, [conversationId, loadRunningJobs, loadSessionInfo, runningJobs.length]);
+  }, [conversationId]); // SOLO conversationId como dependencia
 
   // Cancelar un job
   const handleCancelJob = async (jobId: string) => {
     try {
       await cancelJob(jobId);
-      loadRunningJobs();
+      // Recargar después de cancelar
+      const jobs = await getRunningJobsForConversation(conversationId || '');
+      setRunningJobs(jobs);
     } catch (err) {
       console.error('[Terminal] Error cancelando job:', err);
     }

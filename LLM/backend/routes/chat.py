@@ -118,10 +118,14 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, lea
                 if result.get("return_code") is not None:
                     output_parts.append(f"EXIT CODE: {result['return_code']}")
                 
-                return "\n\n".join(output_parts)
+                return "\n".join(output_parts)
                 
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    return f"JOB_ID: {job_id}\nSTATUS: not_found\nERROR: El job ya no existe. Puede que haya finalizado y sido eliminado del sistema."
+                return f"JOB_ID: {job_id}\nSTATUS: error\nERROR: Error HTTP {e.response.status_code} consultando el job"
             except httpx.HTTPError as e:
-                return f"Error consultando job: {str(e)}"
+                return f"JOB_ID: {job_id}\nSTATUS: error\nERROR: No se pudo conectar con el sandbox"
     
     return f"Error: tool '{function_name}' no implementada"
 

@@ -792,16 +792,23 @@ export function ChatArea() {
             </div>
           )}
           
-          {visibleMessages.map((message) => (
-            <MessageBubble 
-              key={message.id} 
-              message={message}
-              isStreaming={streamingMessage?.id === message.id}
-              streamContent={streamingMessage?.id === message.id ? currentChunk : undefined}
-              onEdit={handleEditMessage}
-              onRegenerate={handleRegenerateMessage}
-            />
-          ))}
+          {visibleMessages.map((message, index) => {
+            // Verificar si el siguiente mensaje es un tool response para este mensaje
+            const nextMessage = visibleMessages[index + 1];
+            const toolResponseContent = nextMessage?.role === 'tool' ? (nextMessage.content || undefined) : undefined;
+            
+            return (
+              <MessageBubble 
+                key={message.id} 
+                message={message}
+                isStreaming={streamingMessage?.id === message.id}
+                streamContent={streamingMessage?.id === message.id ? currentChunk : undefined}
+                toolResponseContent={toolResponseContent}
+                onEdit={handleEditMessage}
+                onRegenerate={handleRegenerateMessage}
+              />
+            );
+          })}
           
           {isLoading && visibleMessages.length === 0 && (
             <div className="flex items-center justify-center py-8">
