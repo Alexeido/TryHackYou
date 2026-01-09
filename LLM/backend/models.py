@@ -107,6 +107,7 @@ class ConversationListItem(BaseModel):
     created_at: str
     updated_at: str
     message_count: int
+    pinned: bool = False
 
 
 class ConversationListResponse(BaseModel):

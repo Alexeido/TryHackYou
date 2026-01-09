@@ -17,7 +17,7 @@ echo "✅ Docker está listo. Iniciando servicios..."
 # 2. TERMINAL 1: KALI SANDBOX (Se abre, arranca y SE CIERRA solo)
 # Al no poner "exec bash" al final, la ventana se cierra en cuanto termina el comando.
 gnome-terminal --title="🐳 Docker Setup" -- bash -c "
-    cd '$BASE_DIR/KaliSandbox' || exit;
+    cd '$BASE_DIR/KaliLab' || exit;
     echo '🚀 Levantando infraestructura Docker en segundo plano...';
     docker compose up -d;
     echo '✅ Hecho. Cerrando esta ventana...';

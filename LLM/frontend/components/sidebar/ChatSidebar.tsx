@@ -237,14 +237,14 @@ export function ChatSidebar() {
                         key={conv.id}
                         onClick={() => !isEditing && handleSelectConversation(conv.id)}
                         className={cn(
-                          "w-full text-left px-2 py-2 rounded-lg text-sm group transition-colors overflow-hidden",
+                          "w-full text-left px-2 py-1.5 rounded-lg text-sm group transition-colors",
                           !isEditing && "cursor-pointer hover:bg-sidebar-accent",
                           conv.id === conversationId && "bg-sidebar-accent"
                         )}
                       >
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 w-full">
                           {/* Contenido principal - se trunca */}
-                          <div className="flex-1 min-w-0 overflow-hidden">
+                          <div className="flex-1 min-w-0">
                             {isEditing ? (
                               <div className="flex items-center gap-1">
                                 <Input
@@ -284,29 +284,29 @@ export function ChatSidebar() {
                               </div>
                             ) : (
                               <>
-                                <div className="flex items-center gap-1 overflow-hidden">
-                                  {conv.pinned && (
-                                    <Pin className="h-3 w-3 text-amber-500 shrink-0" />
+                                <div className="flex items-center gap-1 min-w-0">
+                                  {(conv.pinned === true || conv.pinned === 1) && (
+                                    <Pin className="h-3 w-3 text-amber-500 flex-shrink-0" />
                                   )}
-                                  <span className="font-medium truncate block">
+                                  <span className="font-medium truncate">
                                     {conv.title || "Sin título"}
                                   </span>
                                 </div>
-                                <p className="text-xs text-muted-foreground truncate">
+                                <p className="text-xs text-muted-foreground">
                                   {conv.message_count} msgs
                                 </p>
                               </>
                             )}
                           </div>
-                          {/* Iconos de acciones - siempre visibles al hover, nunca se salen */}
+                          {/* Iconos de acciones - siempre visibles al hover */}
                           {!isEditing && (
-                            <div className="flex items-center shrink-0 ml-auto">
+                            <div className="flex items-center flex-shrink-0">
                               <button
                                 className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-amber-500 transition-opacity"
                                 onClick={(e) => handlePinConversation(conv.id, e)}
-                                title={conv.pinned ? "Desfijar" : "Fijar"}
+                                title={(conv.pinned === true || conv.pinned === 1) ? "Desfijar" : "Fijar"}
                               >
-                                {conv.pinned ? (
+                                {(conv.pinned === true || conv.pinned === 1) ? (
                                   <PinOff className="h-3 w-3" />
                                 ) : (
                                   <Pin className="h-3 w-3" />
@@ -379,8 +379,9 @@ function groupByDate(conversations: Conversation[]) {
   }
 
   conversations.forEach((conv) => {
-    // Las fijadas van en su propio grupo
-    if (conv.pinned) {
+    // Las fijadas van en su propio grupo (pinned puede ser 0/1 o boolean)
+    const isPinned = conv.pinned === true || conv.pinned === 1 || conv.pinned === '1';
+    if (isPinned) {
       groups['📌 Fijadas'].push(conv);
       return;
     }
