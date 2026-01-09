@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
 import {
   useConversationsStore,
   useChatStore,
@@ -15,7 +16,9 @@ import {
   getConversations, 
   getConversationThread, 
   getConversationTree,
-  deleteConversation 
+  deleteConversation,
+  toggleConversationPin,
+  renameConversation 
 } from "@/services/api";
 import { 
   Plus, 
@@ -24,18 +27,27 @@ import {
   Settings,
   Loader2,
   ChevronLeft,
-  Search
+  Search,
+  Pin,
+  PinOff,
+  Pencil,
+  Check,
+  X
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "@/lib/dateUtils";
 
 export function ChatSidebar() {
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  
   const { 
     conversations, 
     isLoading, 
     setConversations, 
     setLoading,
-    removeConversation 
+    removeConversation,
+    updateConversation 
   } = useConversationsStore();
   
   const { 
@@ -107,7 +119,31 @@ export function ChatSidebar() {
     }
   };
 
-  // Agrupar por fecha
+  const handlePinConversation = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    try {
+      const result = await toggleConversationPin(id);
+      updateConversation(id, { pinned: result.pinned });
+      // Recargar lista para que se reordene
+      loadConversations();
+    } catch (err) {
+      console.error("Error pinning conversation:", err);
+    }
+  };
+
+  const handleRenameConversation = async (id: string, newTitle: string) => {
+    if (!newTitle.trim()) return;
+    
+    try {
+      await renameConversation(id, newTitle);
+      updateConversation(id, { title: newTitle });
+    } catch (err) {
+      console.error("Error renaming conversation:", err);
+    }
+  };
+
+  // Agrupar por fecha (separando fijadas)
   const groupedConversations = groupByDate(conversations);
 
   if (!isSidebarOpen) {
@@ -148,7 +184,10 @@ export function ChatSidebar() {
       <div className="p-4 border-b">
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-lg font-semibold flex items-center gap-2">
-            🧠 Cerebro
+            <span className="h-6 w-6 rounded bg-black border border-green-500 text-green-400 text-sm font-bold flex items-center justify-center">
+              #
+            </span>
+            TryHackYou
           </h1>
           <Button
             variant="ghost"
@@ -190,34 +229,113 @@ export function ChatSidebar() {
                   {group}
                 </h3>
                 <div className="space-y-1">
-                  {convs.map((conv) => (
-                    <div
-                      key={conv.id}
-                      onClick={() => handleSelectConversation(conv.id)}
-                      className={cn(
-                        "w-full text-left px-3 py-2.5 rounded-lg text-sm group transition-colors cursor-pointer",
-                        "hover:bg-sidebar-accent",
-                        conv.id === conversationId && "bg-sidebar-accent"
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">
-                            {conv.title || "Sin título"}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-0.5">
-                            {conv.message_count} mensajes
-                          </p>
+                  {convs.map((conv) => {
+                    const isEditing = editingId === conv.id;
+                    
+                    return (
+                      <div
+                        key={conv.id}
+                        onClick={() => !isEditing && handleSelectConversation(conv.id)}
+                        className={cn(
+                          "w-full text-left px-2 py-1.5 rounded-lg text-sm group transition-colors",
+                          !isEditing && "cursor-pointer hover:bg-sidebar-accent",
+                          conv.id === conversationId && "bg-sidebar-accent"
+                        )}
+                      >
+                        <div className="flex items-center gap-1 w-full">
+                          {/* Contenido principal - se trunca */}
+                          <div className="flex-1 min-w-0">
+                            {isEditing ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  value={editTitle}
+                                  onChange={(e) => setEditTitle(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter') {
+                                      handleRenameConversation(conv.id, editTitle);
+                                      setEditingId(null);
+                                    } else if (e.key === 'Escape') {
+                                      setEditingId(null);
+                                    }
+                                  }}
+                                  className="h-6 text-sm py-0 px-1 w-full"
+                                  autoFocus
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                                <button
+                                  className="h-6 w-6 flex items-center justify-center rounded text-green-500 hover:bg-green-500/20"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRenameConversation(conv.id, editTitle);
+                                    setEditingId(null);
+                                  }}
+                                >
+                                  <Check className="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                  className="h-6 w-6 flex items-center justify-center rounded text-red-500 hover:bg-red-500/20"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingId(null);
+                                  }}
+                                >
+                                  <X className="h-3.5 w-3.5" />
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                <div className="flex items-center gap-1 min-w-0">
+                                  {(conv.pinned === true || conv.pinned === 1) && (
+                                    <Pin className="h-3 w-3 text-amber-500 flex-shrink-0" />
+                                  )}
+                                  <span className="font-medium truncate">
+                                    {conv.title || "Sin título"}
+                                  </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                  {conv.message_count} msgs
+                                </p>
+                              </>
+                            )}
+                          </div>
+                          {/* Iconos de acciones - siempre visibles al hover */}
+                          {!isEditing && (
+                            <div className="flex items-center flex-shrink-0">
+                              <button
+                                className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-amber-500 transition-opacity"
+                                onClick={(e) => handlePinConversation(conv.id, e)}
+                                title={(conv.pinned === true || conv.pinned === 1) ? "Desfijar" : "Fijar"}
+                              >
+                                {(conv.pinned === true || conv.pinned === 1) ? (
+                                  <PinOff className="h-3 w-3" />
+                                ) : (
+                                  <Pin className="h-3 w-3" />
+                                )}
+                              </button>
+                              <button
+                                className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-blue-500 transition-opacity"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditTitle(conv.title || "");
+                                  setEditingId(conv.id);
+                                }}
+                                title="Renombrar"
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </button>
+                              <button
+                                className="h-6 w-6 flex items-center justify-center rounded opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                                onClick={(e) => handleDeleteConversation(conv.id, e)}
+                                title="Eliminar"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <button
-                          className="h-7 w-7 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive hover:bg-muted shrink-0 transition-all"
-                          onClick={(e) => handleDeleteConversation(conv.id, e)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             ))}
@@ -240,7 +358,7 @@ export function ChatSidebar() {
   );
 }
 
-// Utility function to group conversations by date
+// Utility function to group conversations by date (with pinned first)
 function groupByDate(conversations: Conversation[]) {
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -248,6 +366,7 @@ function groupByDate(conversations: Conversation[]) {
   const lastWeek = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
 
   const groups: Record<string, Conversation[]> = {
+    '📌 Fijadas': [],
     'Hoy': [],
     'Ayer': [],
     'Esta semana': [],
@@ -260,6 +379,13 @@ function groupByDate(conversations: Conversation[]) {
   }
 
   conversations.forEach((conv) => {
+    // Las fijadas van en su propio grupo (pinned puede ser 0/1 o boolean)
+    const isPinned = conv.pinned === true || conv.pinned === 1 || conv.pinned === '1';
+    if (isPinned) {
+      groups['📌 Fijadas'].push(conv);
+      return;
+    }
+    
     const date = new Date(conv.updated_at);
     
     if (date >= today) {

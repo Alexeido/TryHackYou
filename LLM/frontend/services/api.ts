@@ -151,6 +151,22 @@ export async function deleteConversation(id: string): Promise<void> {
   }
 }
 
+export async function toggleConversationPin(id: string): Promise<{ pinned: boolean }> {
+  const response = await fetch(`${getBaseUrl()}/conversations/${id}/pin`, {
+    method: 'POST',
+  });
+  return handleResponse<{ pinned: boolean }>(response);
+}
+
+export async function renameConversation(id: string, title: string): Promise<{ title: string }> {
+  const response = await fetch(`${getBaseUrl()}/conversations/${id}/title`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ title }),
+  });
+  return handleResponse<{ title: string }>(response);
+}
+
 export async function getConversationThread(id: string): Promise<ThreadResponse> {
   const response = await fetch(`${getBaseUrl()}/conversations/${id}/thread`);
   return handleResponse<ThreadResponse>(response);
@@ -454,4 +470,101 @@ export async function sendToolResponse(
     body: JSON.stringify(request),
   });
   return handleResponse<ChatResponse>(response);
+}
+
+// ============================================
+// BACKGROUND JOBS
+// ============================================
+
+export interface PendingJob {
+  id: number;
+  job_id: string;
+  conversation_id: string;
+  leaf_id: number;
+  command: string;
+  status: string;
+  result?: string;
+  created_at: string;
+  completed_at?: string;
+  notified: number;
+}
+
+export interface JobCompletedEvent {
+  job_id: string;
+  result: string;
+  leaf_id: number;
+}
+
+/**
+ * Obtiene jobs pendientes (running) de una conversación
+ */
+export async function getPendingJobs(conversationId: string): Promise<PendingJob[]> {
+  const response = await fetch(`${getBaseUrl()}/jobs/${conversationId}/pending`);
+  return handleResponse<PendingJob[]>(response);
+}
+
+/**
+ * Obtiene jobs completados no notificados
+ */
+export async function getCompletedJobs(conversationId: string, leafId?: number): Promise<PendingJob[]> {
+  let url = `${getBaseUrl()}/jobs/${conversationId}/completed`;
+  if (leafId) {
+    url += `?leaf_id=${leafId}`;
+  }
+  const response = await fetch(url);
+  return handleResponse<PendingJob[]>(response);
+}
+
+/**
+ * Marca un job como notificado
+ */
+export async function markJobNotified(jobId: string): Promise<void> {
+  const response = await fetch(`${getBaseUrl()}/jobs/${jobId}/mark-notified`, {
+    method: 'POST',
+  });
+  if (!response.ok) {
+    throw new Error('Failed to mark job as notified');
+  }
+}
+
+/**
+ * Se conecta al stream SSE de notificaciones de jobs completados.
+ * Retorna una función para cerrar la conexión.
+ */
+export function subscribeToJobNotifications(
+  conversationId: string,
+  callbacks: {
+    onConnected?: () => void;
+    onJobCompleted: (event: JobCompletedEvent) => void;
+    onError?: (error: Error) => void;
+  }
+): () => void {
+  const eventSource = new EventSource(`${getBaseUrl()}/jobs/${conversationId}/stream`);
+  
+  eventSource.addEventListener('connected', () => {
+    callbacks.onConnected?.();
+  });
+  
+  eventSource.addEventListener('job_completed', (e) => {
+    try {
+      const data = JSON.parse(e.data) as JobCompletedEvent;
+      callbacks.onJobCompleted(data);
+    } catch (err) {
+      console.error('[Jobs] Error parsing job_completed event:', err);
+    }
+  });
+  
+  eventSource.addEventListener('heartbeat', () => {
+    // Heartbeat recibido, conexión activa
+  });
+  
+  eventSource.onerror = (e) => {
+    console.error('[Jobs] EventSource error:', e);
+    callbacks.onError?.(new Error('Job notification stream error'));
+  };
+  
+  // Retornar función para cerrar
+  return () => {
+    eventSource.close();
+  };
 }

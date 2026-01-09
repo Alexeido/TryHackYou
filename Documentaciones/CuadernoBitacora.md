@@ -130,20 +130,77 @@ Día de desarrollo intensivo del backend y herramientas de prueba:
 
 **Estado:** API completamente funcional con documentación y herramientas de testing operativas.
 
+Aquí tienes la actualización de tu cuaderno de bitácora, adaptada con el lenguaje técnico adecuado y reflejando fielmente los avances que has descrito.
+
+
+
 ## M **16/12/2025**
 
-Inicio del desarrollo del frontend web definitivo:
+Jornada de definición tecnológica y arquitectura del cliente web:
 
-* **Elección de frameworks:** Se evaluaron y compararon diferentes opciones para el stack frontend:
-  - **React** vs **Vue** vs **Svelte** para la capa de UI.
-  - Estudio de librerías de componentes (Material-UI, Tailwind, etc.).
-  - Análisis de requisitos para chat en tiempo real y gestión de estado.
-* **Investigación de arquitectura:** Se estudió cómo estructurar la comunicación con el backend, manejo de sesiones y persistencia de conversaciones.
-* **Prototipo inicial:** Se creó una versión muy básica sin funcionalidad real, estableciendo:
-  - Estructura de carpetas y configuración del proyecto.
-  - Componentes placeholder para chat, selector de modelos y panel de configuración.
-  - Esquema de rutas y navegación básica.
-
-**Estado:** Estructura del proyecto frontend inicializada, pendiente de implementación de funcionalidades.
+* **Definición del Tech Stack "Golden Stack 2025":** Se ha seleccionado un conjunto de tecnologías de vanguardia para garantizar un rendimiento profesional y una estética de "herramienta de ciberseguridad":
+* **Framework:** Next.js 14 (App Router) para optimización y enrutamiento avanzado.
+* **UI Library:** Shadcn/UI basado en Radix UI para componentes altamente accesibles.
+* **Estilos:** Tailwind CSS para un diseño ágil y consistente.
+* **Iconos:** Lucide React para una iconografía técnica ligera.
+* **Estado Global:** Zustand para una gestión de estado ligera y persistente.
+* **Data Fetching:** TanStack Query para la sincronización asíncrona con el backend.
+* **Markdown:** React Markdown para el renderizado de código y respuestas técnicas.
 
 
+* **Inicialización del Proyecto:** Configuración de la estructura de directorios, alias de importación y temas (dark mode por defecto).
+
+**Estado:** Stack tecnológico cerrado y entorno de desarrollo configurado.
+
+
+
+## X **17/12/2025**
+
+Integración del ecosistema y diseño de persistencia avanzada:
+
+* **Integración Frontend-Backend:** Conexión exitosa del cliente web con los endpoints de descubrimiento de modelos. Se implementaron filtros complejos y sistemas de ordenación (ELO, latencia, proveedores) aprovechando la lógica de ranking del backend.
+* **Diseño de Base de Datos Cronológica:** Estudio de necesidades para la persistencia de chats. Se ha definido una estructura de datos en **árbol (N-ary Tree)** que permita:
+* Almacenar conversaciones de forma relacional.
+* Implementar "branching" (ramas) para permitir al usuario editar mensajes y explorar diferentes caminos de respuesta sin perder el historial original.
+
+
+* **Implementación de Streaming:** Se ha añadido soporte en el backend para la generación de respuestas mediante **Server-Sent Events (SSE)**, permitiendo una experiencia de usuario fluida (token a token).
+* **Hito Visual:** Interfaz de chat completamente funcional con renderizado de código y selección dinámica de modelos.
+
+**Estado:** Frontend operativo como chat de IA; arquitectura de persistencia diseñada.
+
+
+
+## J **18/12/2025**
+
+Aislamiento de procesos y gestión de estado del sistema (Sandbox Isolation):
+
+* **Aislamiento de Directorios por Conversación:** Para evitar colisiones de archivos y contaminación de contexto, se ha modificado el backend del sandbox (Kali Linux). Ahora, cada conversación posee su propia carpeta aislada en el sistema de archivos del contenedor.
+* **Sistema de Control de Versiones para el Estado (Git Integration):** Se ha implementado una solución innovadora utilizando **Git** dentro de cada carpeta de chat:
+* Se realiza un *commit/checkout* automático por cada mensaje enviado/recibido.
+* Si el usuario vuelve a una rama anterior del chat, el sandbox ejecuta un `git checkout` al estado exacto de ese mensaje, eliminando archivos residuales o cambios en el sistema que no existían en ese punto.
+
+
+* **Persistencia de Recursos Globales:** Creación de una carpeta de persistencia compartida para almacenar herramientas pesadas, diccionarios de fuerza bruta y bases de datos que deben sobrevivir al reinicio de los chats.
+* **Cierre del Círculo:** El LLM ya es capaz de ejecutar comandos en la terminal de forma autónoma y recibir el output procesado.
+
+**Estado:** Bucle de ejecución técnica completado. Pendiente: optimización de prompts para ciclos de razonamiento autónomo.
+
+
+
+## V **19/12/2025**
+
+Jornada de estabilización y refinamiento técnico:
+
+* **QA & Bug Fixing:** Corrección de errores al alternar ramas justo despues de un comando.
+* **Interfaz de Ajustes:** Rediseño del panel de configuración (Shadcn/UI) para parámetros de inferencia: Temperatura, Top-P, Penalties y Max Tokens.
+* **Sistema de Compatibilidad:** Implementación de una lógica de filtrado en el backend que valida y bloquea parámetros no soportados según el proveedor/modelo, evitando errores de API.
+
+**Estado:** Sistema robusto y configuración de modelos optimizada. Listo para el desarrollo de ciclos autónomos.
+
+---
+
+
+Arreglada compatibilidad con gemini 3 flash preview, mejor interfaz, procesos activos visibles
+
+Para mañana: que vaya el botón de stop, que pueda ver el estado de los procesos activos en la terminal pese a que ya haya pasado el mensaje de respuesta y ya empezar con modelos locales

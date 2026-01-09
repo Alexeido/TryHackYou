@@ -59,7 +59,8 @@ async def list_conversations(limit: int = 50, offset: int = 0):
                 title=c["title"],
                 created_at=c["created_at"],
                 updated_at=c["updated_at"],
-                message_count=c["message_count"]
+                message_count=c["message_count"],
+                pinned=bool(c.get("pinned", 0))
             )
             for c in result["conversations"]
         ]
@@ -203,3 +204,53 @@ async def update_active_leaf(conversation_id: str, req: ActiveLeafUpdate):
         )
     
     return {"success": True, "active_leaf_id": req.leaf_id}
+
+
+@router.post("/{conversation_id}/pin")
+async def toggle_pin(conversation_id: str):
+    """
+    Alterna el estado de fijado de una conversación.
+    """
+    conv = db.get_conversation(conversation_id)
+    
+    if not conv:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "CONVERSATION_NOT_FOUND", "message": "Conversación no encontrada"}
+        )
+    
+    is_pinned = db.toggle_conversation_pin(conversation_id)
+    return {"success": True, "pinned": is_pinned}
+
+
+@router.patch("/{conversation_id}/title")
+async def rename_conversation(conversation_id: str, req: dict):
+    """
+    Renombra una conversación.
+    Body: { "title": "nuevo nombre" }
+    """
+    title = req.get("title", "").strip()
+    
+    if not title:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "INVALID_TITLE", "message": "El título no puede estar vacío"}
+        )
+    
+    conv = db.get_conversation(conversation_id)
+    
+    if not conv:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "CONVERSATION_NOT_FOUND", "message": "Conversación no encontrada"}
+        )
+    
+    success = db.rename_conversation(conversation_id, title)
+    
+    if not success:
+        raise HTTPException(
+            status_code=500,
+            detail={"code": "DATABASE_ERROR", "message": "Error al renombrar"}
+        )
+    
+    return {"success": True, "title": title}

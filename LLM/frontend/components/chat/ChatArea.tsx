@@ -18,7 +18,11 @@ import {
   sendMessageStream, 
   createConversation,
   getConversationThread,
-  getConversationTree 
+  getConversationTree,
+  subscribeToJobNotifications,
+  markJobNotified,
+  getCompletedJobs,
+  type JobCompletedEvent
 } from "@/services/api";
 import {
   initTerminalSession,
@@ -232,6 +236,120 @@ export function ChatArea() {
       max_tokens: advancedParams.max_tokens,
     };
   }, [selectedModel, advancedParams, modelsUsingDefaults]);
+
+  // Suscribirse al stream de jobs completados para notificaciones automáticas
+  useEffect(() => {
+    if (!conversationId) return;
+    
+    console.log(`[Jobs] Suscribiendo a notificaciones para ${conversationId}`);
+    
+    const handleJobCompleted = async (event: JobCompletedEvent) => {
+      console.log(`[Jobs] Job completado: ${event.job_id}, leaf del job: ${event.leaf_id}, leaf actual: ${activeLeafId}`);
+      
+      // Procesar el resultado - el job_monitor ya creó el mensaje tool en la BD
+      // No necesitamos verificar el leaf porque el mensaje tool ya está guardado
+      console.log('[Jobs] Procesando resultado automáticamente');
+      
+      try {
+        // Recargar el thread para ver los mensajes actualizados (incluye el nuevo mensaje tool)
+        const threadData = await getConversationThread(conversationId);
+        setMessages(threadData.messages);
+        setActiveLeafId(threadData.active_leaf_id);
+        
+        // Marcar como notificado
+        await markJobNotified(event.job_id);
+        
+        // Mostrar panel de terminal
+        setTerminalOpen(true);
+        
+        // IMPORTANTE: Enviar automáticamente al LLM para que procese el resultado
+        // Solo si tenemos modelo y API key configurados
+        const apiKey = getApiKey();
+        if (apiKey && selectedModel && !isLoading && !isStreaming) {
+          console.log('[Jobs] Enviando resultado al LLM automáticamente...');
+          
+          // Enviar al LLM para que procese (el contexto ya incluye el tool result)
+          setLoading(true);
+          setStreaming(true);
+          clearChunk();
+          
+          // Agregar mensaje temporal del asistente para streaming
+          const tempAssistantId = Date.now();
+          addMessage({
+            id: tempAssistantId,
+            conversation_id: conversationId,
+            parent_id: threadData.active_leaf_id,
+            role: 'assistant',
+            content: null,
+            tool_calls: null,
+            tool_call_id: null,
+            model_used: selectedModel.id,
+            created_at: new Date().toISOString(),
+          });
+          
+          const advParams = getAdvancedParamsForModel();
+          
+          // Mensaje especial indicando que continue procesando el resultado del tool
+          const continueMessage = "[BACKGROUND_JOB_COMPLETED] The background command has finished and the output has been added to the conversation context. Please analyze the result and provide your response to the user.";
+          
+          abortRef.current = sendMessageStream(
+            {
+              provider: selectedModel.provider,
+              api_key: apiKey,
+              model_id: selectedModel.id,
+              conversation_id: conversationId,
+              user_message: continueMessage,
+              tools: getToolsForAPI(),
+              ...advParams,
+            },
+            {
+              onMessage: (chunk) => appendChunk(chunk),
+              onToolCall: () => setTerminalOpen(true),
+              onDone: async (data) => {
+                setStreaming(false);
+                setLoading(false);
+                abortRef.current = null;
+                
+                // Recargar para obtener los mensajes reales de la BD
+                const finalThread = await getConversationThread(conversationId);
+                setMessages(finalThread.messages);
+                setActiveLeafId(finalThread.active_leaf_id);
+                
+                // Actualizar árbol
+                const treeData = await getConversationTree(conversationId);
+                setFullTree(treeData.nodes);
+              },
+              onError: (err) => {
+                setStreaming(false);
+                setLoading(false);
+                console.error('[Jobs] Error enviando al LLM:', err);
+              },
+            }
+          );
+        } else {
+          console.log('[Jobs] No se puede enviar al LLM:', { 
+            hasApiKey: !!apiKey, 
+            hasModel: !!selectedModel, 
+            isLoading, 
+            isStreaming 
+          });
+        }
+      } catch (err) {
+        console.error('[Jobs] Error procesando job completado:', err);
+      }
+    };
+    
+    const unsubscribe = subscribeToJobNotifications(conversationId, {
+      onConnected: () => console.log('[Jobs] Conectado al stream de notificaciones'),
+      onJobCompleted: handleJobCompleted,
+      onError: (err) => console.log('[Jobs] Error en stream:', err),
+    });
+    
+    return () => {
+      console.log(`[Jobs] Desuscribiendo de ${conversationId}`);
+      unsubscribe();
+    };
+  }, [conversationId, activeLeafId, setMessages, setActiveLeafId, setTerminalOpen, getApiKey, selectedModel, isLoading, isStreaming, setLoading, setStreaming, clearChunk, addMessage, getAdvancedParamsForModel, appendChunk, setFullTree]);
 
   const handleSend = async () => {
     if (!input.trim() || isLoading || isStreaming) return;
@@ -674,16 +792,23 @@ export function ChatArea() {
             </div>
           )}
           
-          {visibleMessages.map((message) => (
-            <MessageBubble 
-              key={message.id} 
-              message={message}
-              isStreaming={streamingMessage?.id === message.id}
-              streamContent={streamingMessage?.id === message.id ? currentChunk : undefined}
-              onEdit={handleEditMessage}
-              onRegenerate={handleRegenerateMessage}
-            />
-          ))}
+          {visibleMessages.map((message, index) => {
+            // Verificar si el siguiente mensaje es un tool response para este mensaje
+            const nextMessage = visibleMessages[index + 1];
+            const toolResponseContent = nextMessage?.role === 'tool' ? (nextMessage.content || undefined) : undefined;
+            
+            return (
+              <MessageBubble 
+                key={message.id} 
+                message={message}
+                isStreaming={streamingMessage?.id === message.id}
+                streamContent={streamingMessage?.id === message.id ? currentChunk : undefined}
+                toolResponseContent={toolResponseContent}
+                onEdit={handleEditMessage}
+                onRegenerate={handleRegenerateMessage}
+              />
+            );
+          })}
           
           {isLoading && visibleMessages.length === 0 && (
             <div className="flex items-center justify-center py-8">
