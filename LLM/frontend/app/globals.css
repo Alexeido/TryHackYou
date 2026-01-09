@@ -123,3 +123,13 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Animación de cursor parpadeante para terminal */
+@keyframes blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
