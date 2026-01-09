@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Admin Panel - Agent Monitor</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <style>
+      .stats {
+        display: flex;
+        gap: 20px;
+        margin: 20px 0;
+        flex-wrap: wrap;
+      }
+      .stat-card {
+        flex: 1;
+        min-width: 150px;
+        background: rgba(255,255,255,0.03);
+        padding: 20px;
+        border-radius: 8px;
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+      .stat-number {
+        font-size: 32px;
+        font-weight: bold;
+        color: var(--accent);
+      }
+      .stat-label {
+        color: var(--muted);
+        font-size: 14px;
+        margin-top: 4px;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 20px 0;
+        background: rgba(255,255,255,0.02);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+      th, td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid rgba(255,255,255,0.05);
+      }
+      th {
+        background: rgba(255,255,255,0.04);
+        color: var(--accent);
+        font-weight: 600;
+      }
+      tr:hover {
+        background: rgba(255,255,255,0.02);
+      }
+      .status-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+      }
+      .status-running {
+        background: rgba(79,209,197,0.15);
+        color: var(--accent);
+      }
+      .status-finished {
+        background: rgba(255,255,255,0.08);
+        color: var(--muted);
+      }
+      .job-id {
+        font-family: monospace;
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .section-title {
+        margin-top: 40px;
+        margin-bottom: 16px;
+        color: var(--text);
+        font-size: 18px;
+        font-weight: 600;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .filter-bar {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        margin-bottom: 20px;
+        flex-wrap: wrap;
+      }
+      .filter-bar select {
+        padding: 8px 12px;
+        border-radius: 6px;
+        background: rgba(255,255,255,0.05);
+        color: var(--text);
+        border: 1px solid rgba(255,255,255,0.1);
+        font-size: 14px;
+      }
+      .filter-bar label {
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .refresh-btn {
+        padding: 8px 16px;
+        border-radius: 6px;
+        background: var(--accent);
+        color: #032125;
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+      }
+      .refresh-btn:hover {
+        opacity: 0.9;
+      }
+      .stop-btn {
+        padding: 4px 8px;
+        border-radius: 4px;
+        background: #ff5a5a;
+        color: white;
+        border: none;
+        cursor: pointer;
+        font-size: 12px;
+      }
+      .stop-btn:hover {
+        opacity: 0.9;
+      }
+      .stop-btn:disabled {
+        opacity: 0.3;
+        cursor: not-allowed;
+      }
+      .conv-badge {
+        font-family: monospace;
+        font-size: 11px;
+        padding: 2px 6px;
+        background: rgba(79,209,197,0.1);
+        border-radius: 4px;
+        color: var(--accent);
+      }
+      .leaf-badge {
+        font-family: monospace;
+        font-size: 10px;
+        padding: 2px 4px;
+        background: rgba(255,255,255,0.05);
+        border-radius: 3px;
+        color: var(--muted);
+      }
+      .git-info {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .git-commit {
+        font-family: monospace;
+        font-size: 11px;
+        color: #f0c674;
+      }
+      .git-tags {
+        font-size: 11px;
+        color: var(--muted);
+      }
+      .running-indicator {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        background: #4fd1c5;
+        border-radius: 50%;
+        animation: pulse 1.5s infinite;
+        margin-right: 6px;
+      }
+      @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+      .tabs {
+        display: flex;
+        gap: 4px;
+        margin-bottom: 20px;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        padding-bottom: 10px;
+      }
+      .tab {
+        padding: 8px 16px;
+        border-radius: 6px 6px 0 0;
+        background: rgba(255,255,255,0.03);
+        color: var(--muted);
+        border: none;
+        cursor: pointer;
+        font-size: 14px;
+        transition: all 0.2s;
+      }
+      .tab:hover {
+        background: rgba(255,255,255,0.06);
+      }
+      .tab.active {
+        background: rgba(79,209,197,0.15);
+        color: var(--accent);
+      }
+      .tab-content {
+        display: none;
+      }
+      .tab-content.active {
+        display: block;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1>🛡️ Admin Panel - Terminal Agent</h1>
+
+      <div class="filter-bar">
+        <button class="refresh-btn" onclick="location.reload()">🔄 Actualizar</button>
+        
+        <label>
+          Filtrar por conversación:
+          <select id="convFilter" onchange="filterByConversation()">
+            <option value="">Todas</option>
+            {% for conv_id in all_conv_ids %}
+            <option value="{{ conv_id }}" {% if filter_conv == conv_id %}selected{% endif %}>
+              {{ conv_id[:20] }}{% if conv_id|length > 20 %}...{% endif %}
+            </option>
+            {% endfor %}
+          </select>
+        </label>
+      </div>
+
+      <div class="stats">
+        <div class="stat-card">
+          <div class="stat-number">{{ total_jobs }}</div>
+          <div class="stat-label">Total Jobs</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">{{ total_conversations }}</div>
+          <div class="stat-label">Conversaciones Git</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number">{{ active_sessions }}</div>
+          <div class="stat-label">Sesiones Legacy</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-number" id="runningCount">0</div>
+          <div class="stat-label">Jobs Activos</div>
+        </div>
+      </div>
+
+      <!-- Tabs -->
+      <div class="tabs">
+        <button class="tab active" onclick="showTab('jobs')">⚙️ Jobs</button>
+        <button class="tab" onclick="showTab('conversations')">🗂️ Conversaciones</button>
+        <button class="tab" onclick="showTab('sessions')">📁 Sesiones Legacy</button>
+      </div>
+
+      <!-- Tab: Jobs -->
+      <div id="tab-jobs" class="tab-content active">
+        <h2 class="section-title">
+          <span id="runningIndicator"></span>
+          Jobs Ejecutados
+        </h2>
+        
+        {% if jobs %}
+        <table>
+          <thead>
+            <tr>
+              <th>Job ID</th>
+              <th>Comando</th>
+              <th>Conversación</th>
+              <th>Leaf</th>
+              <th>Estado</th>
+              <th>Return</th>
+              <th>Tiempo</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for job in jobs %}
+            <tr data-job-start="{{ job.start_time }}" 
+                data-job-running="{{ 'true' if job.status == 'running' else 'false' }}"
+                data-conversation="{{ job.conversation_id }}">
+              <td class="job-id">{{ job.job_id[:8] }}...</td>
+              <td><code>{{ job.command[:50] }}{% if job.command|length > 50 %}...{% endif %}</code></td>
+              <td><span class="conv-badge">{{ job.conversation_id[:12] }}{% if job.conversation_id|length > 12 %}...{% endif %}</span></td>
+              <td>
+                {% if job.leaf_id and job.leaf_id != '-' %}
+                <span class="leaf-badge">{{ job.leaf_id[:8] }}</span>
+                {% else %}
+                <span style="color:var(--muted)">-</span>
+                {% endif %}
+              </td>
+              <td>
+                <span class="status-badge status-{{ job.status }}">
+                  {% if job.status == 'running' %}<span class="running-indicator"></span>{% endif %}
+                  {{ job.status }}
+                </span>
+              </td>
+              <td>{{ job.return_code if job.return_code is not none else '-' }}</td>
+              <td class="elapsed-time">{{ job.elapsed }}s</td>
+              <td>
+                <button 
+                  class="stop-btn" 
+                  onclick="stopJob('{{ job.job_id }}')"
+                  {% if job.status == 'finished' %}disabled{% endif %}
+                  style="margin-right: 4px;"
+                >
+                  Stop
+                </button>
+                <button 
+                  class="stop-btn" 
+                  onclick="viewLogs('{{ job.job_id }}')"
+                  style="background:#4fd1c5;color:#032125;"
+                >
+                  Logs
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--muted);">No hay jobs registrados.</p>
+        {% endif %}
+      </div>
+
+      <!-- Tab: Conversaciones -->
+      <div id="tab-conversations" class="tab-content">
+        <h2 class="section-title">🗂️ Conversaciones con Git</h2>
+        
+        {% if conversations %}
+        <table>
+          <thead>
+            <tr>
+              <th>Conversation ID</th>
+              <th>Directorio</th>
+              <th>Git</th>
+              <th>Comandos</th>
+              <th>Jobs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for conv in conversations %}
+            <tr style="cursor: pointer;" onclick="window.location='/admin?conversation={{ conv.conversation_id }}'">
+              <td><strong class="conv-badge">{{ conv.conversation_id[:20] }}{% if conv.conversation_id|length > 20 %}...{% endif %}</strong></td>
+              <td><code style="font-size:11px;">{{ conv.cwd }}</code></td>
+              <td>
+                <div class="git-info">
+                  <span class="git-commit">{{ conv.commit }}</span>
+                  <span class="git-tags">{{ conv.tags }} tags</span>
+                </div>
+              </td>
+              <td>{{ conv.commands_count }}</td>
+              <td>
+                {% if conv.active_jobs > 0 %}
+                <span class="running-indicator"></span>
+                {% endif %}
+                {{ conv.active_jobs }}/{{ conv.total_jobs }}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--muted);">No hay conversaciones con Git iniciadas.</p>
+        {% endif %}
+      </div>
+
+      <!-- Tab: Sesiones Legacy -->
+      <div id="tab-sessions" class="tab-content">
+        <h2 class="section-title">📁 Sesiones Legacy (sin Git)</h2>
+        
+        {% if sessions %}
+        <table>
+          <thead>
+            <tr>
+              <th>Session ID</th>
+              <th>Directorio Actual</th>
+              <th>Comandos</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for session in sessions %}
+            <tr style="cursor: pointer;" onclick="window.location='/admin/session/{{ session.session_id }}'">
+              <td><strong>{{ session.session_id }}</strong></td>
+              <td><code>{{ session.cwd }}</code></td>
+              <td>{{ session.commands_count }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <p style="color: var(--muted);">No hay sesiones legacy activas.</p>
+        {% endif %}
+      </div>
+
+    </div>
+
+    <script>
+      // Tab switching
+      function showTab(tabName) {
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + tabName).classList.add('active');
+        event.target.classList.add('active');
+      }
+
+      // Filter by conversation
+      function filterByConversation() {
+        const filter = document.getElementById('convFilter').value;
+        if (filter) {
+          window.location.href = '/admin?conversation=' + encodeURIComponent(filter);
+        } else {
+          window.location.href = '/admin';
+        }
+      }
+
+      async function stopJob(jobId) {
+        if (!confirm('¿Seguro que quieres detener este job?')) return;
+        
+        try {
+          const res = await fetch(`/stop/${jobId}`, { method: 'POST' });
+          const data = await res.json();
+          alert(data.message || 'Job detenido');
+          location.reload();
+        } catch (e) {
+          alert('Error al detener el job: ' + e.message);
+        }
+      }
+
+      async function viewLogs(jobId) {
+        try {
+          const res = await fetch(`/status/${jobId}`);
+          const data = await res.json();
+          
+          const output = (data.stdout || '') + (data.stderr ? '\n--- STDERR ---\n' + data.stderr : '');
+          
+          // Crear modal
+          const modal = document.createElement('div');
+          modal.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.9);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+          
+          const content = document.createElement('div');
+          content.style.cssText = 'background:#0f1720;border-radius:8px;padding:20px;max-width:900px;width:100%;max-height:80vh;overflow:auto;position:relative;';
+          
+          const header = document.createElement('div');
+          header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;';
+          header.innerHTML = `
+            <div>
+              <h3 style="margin:0;color:#4fd1c5;">Logs - Job ${jobId.substring(0,8)}...</h3>
+              <small style="color:var(--muted);">Status: ${data.status} | CWD: ${data.cwd || '-'}</small>
+            </div>
+            <button onclick="this.parentElement.parentElement.parentElement.remove()" 
+                    style="background:#ff5a5a;color:white;border:none;padding:8px 16px;border-radius:4px;cursor:pointer;">
+              Cerrar
+            </button>`;
+          
+          const pre = document.createElement('pre');
+          pre.style.cssText = 'background:rgba(0,0,0,0.4);padding:12px;border-radius:4px;color:#dbe6ef;font-family:monospace;font-size:13px;white-space:pre-wrap;word-wrap:break-word;margin:0;max-height:60vh;overflow:auto;';
+          pre.textContent = output || '(Sin output)';
+          
+          content.appendChild(header);
+          content.appendChild(pre);
+          modal.appendChild(content);
+          document.body.appendChild(modal);
+          
+          modal.addEventListener('click', (e) => {
+            if (e.target === modal) modal.remove();
+          });
+        } catch (e) {
+          alert('Error al cargar logs: ' + e.message);
+        }
+      }
+
+      function updateElapsedTimes() {
+        const rows = document.querySelectorAll('[data-job-start]');
+        const now = Date.now() / 1000;
+        let runningCount = 0;
+        
+        rows.forEach(row => {
+          const startTime = parseFloat(row.dataset.jobStart);
+          const isRunning = row.dataset.jobRunning === 'true';
+          
+          if (isRunning) {
+            runningCount++;
+            const elapsed = (now - startTime).toFixed(1);
+            const cell = row.querySelector('.elapsed-time');
+            if (cell) cell.textContent = elapsed + 's';
+          }
+        });
+        
+        document.getElementById('runningCount').textContent = runningCount;
+        
+        // Indicador visual
+        const indicator = document.getElementById('runningIndicator');
+        if (runningCount > 0) {
+          indicator.innerHTML = '<span class="running-indicator"></span>';
+        } else {
+          indicator.innerHTML = '';
+        }
+      }
+
+      // Actualizar tiempos cada 100ms
+      setInterval(updateElapsedTimes, 100);
+      updateElapsedTimes();
+    </script>
+  </body>
+</html>

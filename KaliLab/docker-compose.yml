@@ -1,21 +1,21 @@
-version: '3.8'
-
 services:
   # -------------------------------------------------------
   # EL AGENTE (ATACANTE) - IP: 10.5.0.2
   # -------------------------------------------------------
   attacker:
-    build: .                      # Usa tu Dockerfile actual
+    build: .
     container_name: agente-tfg
     ports:
-      - "5000:5000"               # API del Agente (Host:5000 -> Container:5000)
+      - "5000:5000"
     volumes:
-      - ./script:/app             # MODO DESARROLLO: Tu carpeta 'script' es '/app' dentro
+      - ./script:/app
+      - persistent_storage:/workspace_persistent
+      - sessions_storage:/workspace_sessions
     networks:
       hacking_net:
         ipv4_address: 10.5.0.2
     command: python3 /app/agent_api.py
-    tty: true                     # Mantiene el contenedor vivo
+    tty: true
     restart: always
     depends_on:
       - victim
@@ -29,7 +29,7 @@ services:
     image: vulnerables/web-dvwa
     container_name: victima-dvwa
     ports:
-      - "8080:80"                 # Acceso web para configurar DB (Host:8080)
+      - "8010:80"
     networks:
       hacking_net:
         ipv4_address: 10.5.0.3
@@ -41,14 +41,14 @@ services:
   meta_victim:
     image: tleemcjr/metasploitable2
     container_name: victima-meta
+    ports:
+      - "8030:80"
     networks:
       hacking_net:
         ipv4_address: 10.5.0.4
-    # No exponemos puertos al host. Es una caja negra para el agente.
     restart: always
-    # --- AÑADE ESTAS DOS LÍNEAS ---
-    tty: true          # Simula una terminal para que no se cierre
-    stdin_open: true   # Mantiene la entrada estándar abierta
+    tty: true
+    stdin_open: true
 
   # -------------------------------------------------------
   # VÍCTIMA 3: WEB MODERNA (JUICE SHOP) - IP: 10.5.0.5
@@ -57,7 +57,7 @@ services:
     image: bkimminich/juice-shop
     container_name: victima-juice
     ports:
-      - "3000:3000"               # Acceso web opcional (Host:3000)
+      - "8020:3000"
     networks:
       hacking_net:
         ipv4_address: 10.5.0.5
@@ -72,3 +72,10 @@ networks:
     ipam:
       config:
         - subnet: 10.5.0.0/24
+
+# -------------------------------------------------------
+# VOLÚMENES PERSISTENTES
+# -------------------------------------------------------
+volumes:
+  persistent_storage:
+  sessions_storage:
