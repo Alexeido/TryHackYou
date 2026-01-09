@@ -307,39 +307,70 @@ export function MessageBubble({ message, isStreaming, streamContent, onEdit, onR
           ) : hasToolCalls ? (
             // Si no hay contenido pero hay tool_calls, mostrar animación de ejecución
             <div className="flex flex-col gap-2">
-              <div className="flex items-center gap-3 text-sm">
-                <div className="relative">
-                  <TerminalSquare className="h-5 w-5 text-amber-500" />
-                  <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-amber-500 rounded-full animate-ping" />
-                </div>
-                <span className="text-muted-foreground">
-                  Ejecutando comando{toolCallsArray.length > 1 ? 's' : ''} en terminal...
-                </span>
-              </div>
-              {/* Animación de terminal */}
-              <div className="bg-zinc-900/50 rounded-lg p-2 font-mono text-xs text-green-400 overflow-hidden">
-                <div className="flex items-center gap-2">
-                  <span className="text-zinc-500">$</span>
-                  <span className="animate-pulse">
-                    {(() => {
-                      try {
-                        const args = JSON.parse(toolCallsArray[0]?.function?.arguments || '{}');
-                        return args.command?.slice(0, 50) + (args.command?.length > 50 ? '...' : '');
-                      } catch {
-                        return 'ejecutando...';
-                      }
-                    })()}
-                  </span>
-                  <span className="inline-flex ml-1">
-                    <span className="animate-[blink_1s_infinite]">_</span>
-                  </span>
-                </div>
-                <div className="flex gap-1.5 mt-1.5">
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse [animation-delay:0s]" />
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse [animation-delay:0.2s]" />
-                  <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse [animation-delay:0.4s]" />
-                </div>
-              </div>
+              {(() => {
+                // Determinar el tipo de tool call
+                const firstTool = toolCallsArray[0];
+                const toolName = firstTool?.function?.name || '';
+                let args: { command?: string; job_id?: string } = {};
+                try {
+                  args = JSON.parse(firstTool?.function?.arguments || '{}');
+                } catch {}
+                
+                if (toolName === 'check_job_status') {
+                  // UI específica para check_job_status
+                  return (
+                    <>
+                      <div className="flex items-center gap-3 text-sm">
+                        <div className="relative">
+                          <Clock className="h-5 w-5 text-blue-500" />
+                          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-blue-500 rounded-full animate-ping" />
+                        </div>
+                        <span className="text-muted-foreground">
+                          Consultando estado del job...
+                        </span>
+                      </div>
+                      <div className="bg-zinc-900/50 rounded-lg p-2 font-mono text-xs text-blue-400 overflow-hidden">
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-500">job_id:</span>
+                          <span className="animate-pulse">{args.job_id || 'checking...'}</span>
+                        </div>
+                      </div>
+                    </>
+                  );
+                } else {
+                  // UI para execute_command (default)
+                  return (
+                    <>
+                      <div className="flex items-center gap-3 text-sm">
+                        <div className="relative">
+                          <TerminalSquare className="h-5 w-5 text-amber-500" />
+                          <span className="absolute -top-0.5 -right-0.5 h-2 w-2 bg-amber-500 rounded-full animate-ping" />
+                        </div>
+                        <span className="text-muted-foreground">
+                          Ejecutando comando{toolCallsArray.length > 1 ? 's' : ''} en terminal...
+                        </span>
+                      </div>
+                      <div className="bg-zinc-900/50 rounded-lg p-2 font-mono text-xs text-green-400 overflow-hidden">
+                        <div className="flex items-center gap-2">
+                          <span className="text-zinc-500">$</span>
+                          <span className="animate-pulse">
+                            {args.command?.slice(0, 50) || 'ejecutando...'}
+                            {(args.command?.length || 0) > 50 ? '...' : ''}
+                          </span>
+                          <span className="inline-flex ml-1">
+                            <span className="animate-[blink_1s_infinite]">_</span>
+                          </span>
+                        </div>
+                        <div className="flex gap-1.5 mt-1.5">
+                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse [animation-delay:0s]" />
+                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse [animation-delay:0.2s]" />
+                          <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse [animation-delay:0.4s]" />
+                        </div>
+                      </div>
+                    </>
+                  );
+                }
+              })()}
             </div>
           ) : null}
         </div>
@@ -366,29 +397,50 @@ export function MessageBubble({ message, isStreaming, streamContent, onEdit, onR
               <div className="mt-2 space-y-2">
                 {toolCallsArray.map((tc, i) => {
                   // Parsear argumentos para mostrar info útil
-                  let args: { command?: string; wait_time?: number; exit_time?: number } = {};
+                  let args: { command?: string; wait_time?: number; exit_time?: number; job_id?: string } = {};
                   try {
                     args = JSON.parse(tc.function.arguments);
                   } catch {
                     args = {};
                   }
                   
+                  const isCheckJob = tc.function.name === 'check_job_status';
+                  
                   return (
                     <div 
                       key={tc.id || i}
-                      className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 text-sm"
+                      className={cn(
+                        "rounded-lg p-3 text-sm",
+                        isCheckJob 
+                          ? "bg-blue-500/10 border border-blue-500/20"
+                          : "bg-amber-500/10 border border-amber-500/20"
+                      )}
                     >
                       <div className="flex items-center gap-2 mb-1">
-                        <TerminalSquare className="h-3.5 w-3.5 text-blue-400" />
-                        <span className="text-xs text-blue-400 font-medium">Terminal Call</span>
-                        {args.wait_time && (
-                          <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            {args.wait_time}s
-                          </span>
+                        {isCheckJob ? (
+                          <>
+                            <Clock className="h-3.5 w-3.5 text-blue-400" />
+                            <span className="text-xs text-blue-400 font-medium">Job Status Check</span>
+                          </>
+                        ) : (
+                          <>
+                            <TerminalSquare className="h-3.5 w-3.5 text-amber-400" />
+                            <span className="text-xs text-amber-400 font-medium">Terminal Call</span>
+                            {args.wait_time && (
+                              <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <Clock className="h-3 w-3" />
+                                {args.wait_time}s
+                              </span>
+                            )}
+                          </>
                         )}
                       </div>
-                      {args.command && (
+                      {isCheckJob && args.job_id && (
+                        <div className="font-mono text-sm bg-black/20 rounded px-2 py-1.5 text-foreground">
+                          <span className="text-blue-400">job_id:</span> {args.job_id}
+                        </div>
+                      )}
+                      {!isCheckJob && args.command && (
                         <div className="font-mono text-sm bg-black/20 rounded px-2 py-1.5 text-foreground">
                           <span className="text-green-400">$</span> {args.command}
                         </div>

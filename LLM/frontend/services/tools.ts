@@ -40,9 +40,16 @@ The command runs in a persistent workspace that is:
 
 Important notes:
 - Always check /workspace_persistent/INVENTORY.md before downloading heavy tools
-- Long-running commands (scans >30s) will timeout, check status with wait_time parameter
 - Use absolute paths or verify current directory with 'pwd'
-- Commands run as root in the Kali container`,
+- Commands run as root in the Kali container
+
+BACKGROUND EXECUTION with wait_time:
+When you use wait_time, the command runs in background. You'll get:
+1. Partial output after wait_time seconds
+2. A job_id to check progress later with check_job_status
+3. The full output will be delivered automatically when the job completes
+
+Example: For a long nmap scan, use wait_time=10 to get initial results, then the final output arrives automatically when done.`,
     parameters: {
       type: "object",
       properties: {
@@ -52,16 +59,45 @@ Important notes:
         },
         wait_time: {
           type: "number",
-          description: "Seconds to wait before returning. Use 5-10 for commands with immediate output, 30-60 for scans. Default: 5",
-          default: 5
+          description: "Seconds to wait before returning partial output. The command continues running in background and you'll receive the final output automatically when it completes. Use 5-10 for quick commands, 15-30 for scans. If not set, waits for command to fully complete.",
         },
         exit_time: {
           type: "number",
-          description: "Maximum execution time before forcefully stopping the command. Use for long scans to get partial results. Default: none (runs until completion)",
-          default: null
+          description: "Force-stop the command after this many seconds and return whatever output exists. Use this when you need results within a time limit. Takes precedence over wait_time.",
         }
       },
       required: ["command"]
+    }
+  }
+};
+
+/**
+ * Herramienta: check_job_status
+ * Consulta el estado de un job en background
+ */
+export const CHECK_JOB_STATUS_TOOL: ToolDefinition = {
+  type: "function",
+  function: {
+    name: "check_job_status",
+    description: `Check the status and output of a background job. Use this when:
+- The user asks about the progress of a running scan/command
+- You want to see partial output of a long-running process
+- You need to verify if a background job has completed
+
+Returns the current status (running/finished), output so far, and execution time.`,
+    parameters: {
+      type: "object",
+      properties: {
+        job_id: {
+          type: "string",
+          description: "The job_id returned from a previous execute_command call"
+        },
+        wait: {
+          type: "number",
+          description: "Optional: seconds to wait for new output if job is still running (long-polling). Default: 0 (return immediately)",
+        }
+      },
+      required: ["job_id"]
     }
   }
 };
@@ -72,7 +108,7 @@ Important notes:
  */
 export const ALL_TOOLS: ToolDefinition[] = [
   EXECUTE_COMMAND_TOOL,
-  // Futuras tools: read_file, write_file, search_exploits, etc.
+  CHECK_JOB_STATUS_TOOL,
 ];
 
 /**

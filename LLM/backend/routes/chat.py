@@ -19,12 +19,14 @@ router = APIRouter(tags=["Chat"])
 SANDBOX_URL = "http://localhost:5000"
 
 
-async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str) -> str:
+async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, leaf_id: Optional[int] = None) -> str:
     """
     Ejecuta una tool call en el sandbox y retorna el resultado.
+    Si el comando queda en background (wait_time), registra el job para seguimiento.
     """
     function_name = tool_call.get("function", {}).get("name")
     function_args_str = tool_call.get("function", {}).get("arguments", "{}")
+    tool_call_id = tool_call.get("id")  # ID del tool call para referencia
     
     print(f"🔧 Ejecutando tool: {function_name}")
     
@@ -35,7 +37,7 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str) -> 
     
     if function_name == "execute_command":
         command = function_args.get("command")
-        wait_time = function_args.get("wait_time", 5)
+        wait_time = function_args.get("wait_time")
         exit_time = function_args.get("exit_time")
         
         if not command:
@@ -46,9 +48,10 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str) -> 
             payload = {
                 "command": command,
                 "conversation_id": conversation_id,
-                "wait_time": wait_time
             }
-            if exit_time:
+            if wait_time is not None:
+                payload["wait_time"] = wait_time
+            if exit_time is not None:
                 payload["exit_time"] = exit_time
             
             try:
@@ -58,6 +61,22 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str) -> 
                 
                 # Formatear salida
                 output_parts = []
+                
+                # Incluir job_id si el proceso sigue corriendo (background)
+                if result.get("status") == "running" and result.get("job_id"):
+                    job_id = result['job_id']
+                    output_parts.append(f"JOB_ID: {job_id}")
+                    output_parts.append(f"STATUS: running (command executing in background)")
+                    output_parts.append("NOTE: You will receive the full output automatically when the command completes.")
+                    
+                    # Registrar job para seguimiento automático
+                    if leaf_id:
+                        try:
+                            db.add_pending_job(job_id, conversation_id, leaf_id, command, tool_call_id)
+                            print(f"📋 Job {job_id[:8]} registrado para seguimiento (tool_call_id={tool_call_id})")
+                        except Exception as e:
+                            print(f"⚠️ Error registrando job: {e}")
+                
                 if result.get("stdout"):
                     output_parts.append(f"STDOUT:\n{result['stdout']}")
                 if result.get("stderr"):
@@ -69,6 +88,40 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str) -> 
                 
             except httpx.HTTPError as e:
                 return f"Error ejecutando comando: {str(e)}"
+    
+    elif function_name == "check_job_status":
+        job_id = function_args.get("job_id")
+        wait = function_args.get("wait", 0)
+        
+        if not job_id:
+            return "Error: job_id no especificado"
+        
+        async with httpx.AsyncClient(timeout=120.0) as client:
+            try:
+                url = f"{SANDBOX_URL}/status/{job_id}"
+                if wait:
+                    url += f"?wait={wait}"
+                
+                response = await client.get(url)
+                response.raise_for_status()
+                result = response.json()
+                
+                # Formatear resultado
+                output_parts = []
+                output_parts.append(f"JOB_ID: {job_id}")
+                output_parts.append(f"STATUS: {result.get('status', 'unknown')}")
+                
+                if result.get("stdout"):
+                    output_parts.append(f"STDOUT:\n{result['stdout']}")
+                if result.get("stderr"):
+                    output_parts.append(f"STDERR:\n{result['stderr']}")
+                if result.get("return_code") is not None:
+                    output_parts.append(f"EXIT CODE: {result['return_code']}")
+                
+                return "\n\n".join(output_parts)
+                
+            except httpx.HTTPError as e:
+                return f"Error consultando job: {str(e)}"
     
     return f"Error: tool '{function_name}' no implementada"
 
@@ -505,8 +558,8 @@ async def stream_chat_response(
                 })
                 yield f"event: tool_executing\ndata: {exec_event}\n\n"
                 
-                # Ejecutar la tool
-                result = await execute_tool_call(tc, conversation_id)
+                # Ejecutar la tool (pasamos assistant_msg_id como leaf_id para tracking)
+                result = await execute_tool_call(tc, conversation_id, leaf_id=assistant_msg_id)
                 
                 # Guardar mensaje de tool
                 tool_msg_id = db.add_message(

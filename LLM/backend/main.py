@@ -23,11 +23,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import init_db
 from scoring import update_scores_from_internet
 
+# Importar job monitor para background jobs
+from job_monitor import start_job_monitor, stop_job_monitor
+
 # Importar routers
 from routes.health import router as health_router
 from routes.conversations import router as conversations_router
 from routes.chat import router as chat_router
 from routes.messages import router as messages_router
+from routes.jobs import router as jobs_router
 
 # Importar la lógica de discovery que ya existe
 from routes_legacy import router as legacy_router
@@ -48,12 +52,16 @@ async def lifespan(app: FastAPI):
     t = threading.Thread(target=update_scores_from_internet)
     t.start()
     
+    # Iniciar monitor de jobs en background
+    start_job_monitor(interval=5.0)
+    
     print("✅ Servidor listo!")
     
     yield  # El servidor está corriendo
     
     # === CIERRE ===
     print("👋 Cerrando servidor...")
+    stop_job_monitor()
 
 
 # =============================================================================
@@ -88,6 +96,7 @@ app.include_router(health_router)
 app.include_router(conversations_router)
 app.include_router(chat_router)
 app.include_router(messages_router)
+app.include_router(jobs_router)
 
 # Endpoints legacy (discovery de modelos)
 app.include_router(legacy_router)

@@ -54,9 +54,43 @@ def init_db():
         )
     """)
     
+    # Tabla para trackear jobs en background pendientes
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS pending_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id TEXT NOT NULL UNIQUE,
+            conversation_id TEXT NOT NULL,
+            leaf_id INTEGER NOT NULL,
+            command TEXT NOT NULL,
+            tool_call_id TEXT,
+            status TEXT DEFAULT 'running',
+            result TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME,
+            notified INTEGER DEFAULT 0,
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+        )
+    """)
+    
     # Índices para optimizar queries
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_messages_parent ON messages(parent_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_jobs_conv ON pending_jobs(conversation_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_pending_jobs_status ON pending_jobs(status)")
+    
+    # Migración: añadir columna pinned si no existe
+    cursor.execute("PRAGMA table_info(conversations)")
+    columns = [col[1] for col in cursor.fetchall()]
+    if 'pinned' not in columns:
+        cursor.execute("ALTER TABLE conversations ADD COLUMN pinned INTEGER DEFAULT 0")
+        print("📌 Añadida columna 'pinned' a conversations")
+    
+    # Migración: añadir columna tool_call_id a pending_jobs si no existe
+    cursor.execute("PRAGMA table_info(pending_jobs)")
+    job_columns = [col[1] for col in cursor.fetchall()]
+    if 'tool_call_id' not in job_columns:
+        cursor.execute("ALTER TABLE pending_jobs ADD COLUMN tool_call_id TEXT")
+        print("🔧 Añadida columna 'tool_call_id' a pending_jobs")
     
     conn.commit()
     conn.close()
@@ -132,7 +166,7 @@ def create_conversation(title: str = "Nueva conversación", system_prompt: Optio
 
 def list_conversations(limit: int = 50, offset: int = 0) -> Dict[str, Any]:
     """
-    Lista todas las conversaciones ordenadas por updated_at descendente.
+    Lista todas las conversaciones ordenadas por pinned (primero fijadas) y updated_at descendente.
     """
     with get_db() as conn:
         cursor = conn.cursor()
@@ -142,13 +176,15 @@ def list_conversations(limit: int = 50, offset: int = 0) -> Dict[str, Any]:
         total = cursor.fetchone()[0]
         
         # Obtener conversaciones con conteo de mensajes
+        # Ordenar: primero fijadas, luego por fecha
         cursor.execute("""
             SELECT c.id, c.title, c.created_at, c.updated_at,
+                   COALESCE(c.pinned, 0) as pinned,
                    COUNT(m.id) as message_count
             FROM conversations c
             LEFT JOIN messages m ON m.conversation_id = c.id
             GROUP BY c.id
-            ORDER BY c.updated_at DESC
+            ORDER BY c.pinned DESC, c.updated_at DESC
             LIMIT ? OFFSET ?
         """, (limit, offset))
         
@@ -205,6 +241,34 @@ def update_conversation_timestamp(conv_id: str):
             UPDATE conversations SET updated_at = ? WHERE id = ?
         """, (now, conv_id))
         conn.commit()
+
+
+def toggle_conversation_pin(conv_id: str) -> bool:
+    """Alterna el estado de fijado de una conversación. Devuelve el nuevo estado."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        # Obtener estado actual
+        cursor.execute("SELECT COALESCE(pinned, 0) FROM conversations WHERE id = ?", (conv_id,))
+        row = cursor.fetchone()
+        if not row:
+            return False
+        
+        new_pinned = 0 if row[0] else 1
+        cursor.execute("UPDATE conversations SET pinned = ? WHERE id = ?", (new_pinned, conv_id))
+        conn.commit()
+        return bool(new_pinned)
+
+
+def rename_conversation(conv_id: str, new_title: str) -> bool:
+    """Renombra una conversación."""
+    now = datetime.utcnow().isoformat()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?
+        """, (new_title.strip(), now, conv_id))
+        conn.commit()
+        return cursor.rowcount > 0
 
 
 # =============================================================================
@@ -413,3 +477,97 @@ def get_conversation_for_llm(leaf_id: int) -> List[Dict[str, str]]:
         messages.append(message)
     
     return messages
+
+
+# =============================================================================
+# PENDING JOBS (Background Jobs Tracking)
+# =============================================================================
+
+def add_pending_job(job_id: str, conversation_id: str, leaf_id: int, command: str, tool_call_id: str = None) -> int:
+    """
+    Registra un job que está ejecutándose en background.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO pending_jobs (job_id, conversation_id, leaf_id, command, tool_call_id)
+            VALUES (?, ?, ?, ?, ?)
+        """, (job_id, conversation_id, leaf_id, command, tool_call_id))
+        conn.commit()
+        return cursor.lastrowid
+
+
+def get_pending_jobs(conversation_id: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Obtiene jobs pendientes (running) para una conversación o todos.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        if conversation_id:
+            cursor.execute("""
+                SELECT * FROM pending_jobs 
+                WHERE conversation_id = ? AND status = 'running'
+                ORDER BY created_at ASC
+            """, (conversation_id,))
+        else:
+            cursor.execute("""
+                SELECT * FROM pending_jobs 
+                WHERE status = 'running'
+                ORDER BY created_at ASC
+            """)
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def complete_pending_job(job_id: str, result: str) -> bool:
+    """
+    Marca un job como completado y guarda su resultado.
+    """
+    now = datetime.utcnow().isoformat()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE pending_jobs 
+            SET status = 'completed', result = ?, completed_at = ?
+            WHERE job_id = ?
+        """, (result, now, job_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_unnotified_completed_jobs(conversation_id: str, leaf_id: int) -> List[Dict[str, Any]]:
+    """
+    Obtiene jobs completados no notificados para una rama específica.
+    Solo devuelve jobs que fueron lanzados en esa misma rama (leaf_id).
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM pending_jobs 
+            WHERE conversation_id = ? AND leaf_id = ? AND status = 'completed' AND notified = 0
+            ORDER BY completed_at ASC
+        """, (conversation_id, leaf_id))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def mark_job_notified(job_id: str) -> bool:
+    """
+    Marca un job como notificado al LLM.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE pending_jobs SET notified = 1 WHERE job_id = ?
+        """, (job_id,))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def delete_pending_job(job_id: str) -> bool:
+    """
+    Elimina un job de la tabla de pendientes.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM pending_jobs WHERE job_id = ?", (job_id,))
+        conn.commit()
+        return cursor.rowcount > 0

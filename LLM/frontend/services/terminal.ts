@@ -236,13 +236,13 @@ export async function getJobOutput(jobId: string): Promise<{ output: string; sta
 }
 
 /**
- * Cancela un job en ejecución
+ * Cancela/detiene un job en ejecución
  */
-export async function cancelJob(jobId: string): Promise<{ status: string; message: string }> {
-  const response = await fetch(`${TERMINAL_API_URL}/cancel/${jobId}`, {
+export async function cancelJob(jobId: string): Promise<{ status: string; message?: string }> {
+  const response = await fetch(`${TERMINAL_API_URL}/stop/${jobId}`, {
     method: 'POST',
   });
-  return handleTerminalResponse<{ status: string; message: string }>(response);
+  return handleTerminalResponse<{ status: string; message?: string }>(response);
 }
 
 // ============================================
