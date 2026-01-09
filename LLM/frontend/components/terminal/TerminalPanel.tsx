@@ -60,12 +60,16 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
 
   // Cargar jobs en ejecución para la conversación actual
   const loadRunningJobs = useCallback(async () => {
-    if (!conversationId || !isConnected) return;
+    if (!conversationId || !isConnected) {
+      setRunningJobs([]);
+      return;
+    }
     try {
       const jobs = await getRunningJobsForConversation(conversationId);
       setRunningJobs(jobs);
     } catch (err) {
       console.log('[Terminal] Error cargando jobs:', err);
+      setRunningJobs([]);
     }
   }, [conversationId, isConnected]);
 
@@ -82,7 +86,13 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
   }, [conversationId, isConnected]);
 
   // Poll jobs cada 2 segundos si hay alguno corriendo
+  // Resetear cuando cambia la conversación
   useEffect(() => {
+    // Resetear jobs inmediatamente al cambiar de conversación
+    setRunningJobs([]);
+    
+    if (!conversationId) return;
+    
     loadRunningJobs();
     loadSessionInfo();
     
@@ -94,7 +104,7 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
     }, 2000);
     
     return () => clearInterval(interval);
-  }, [loadRunningJobs, loadSessionInfo, runningJobs.length]);
+  }, [conversationId, loadRunningJobs, loadSessionInfo, runningJobs.length]);
 
   // Cancelar un job
   const handleCancelJob = async (jobId: string) => {
