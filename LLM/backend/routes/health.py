@@ -7,6 +7,8 @@ from datetime import datetime
 from openai import AsyncOpenAI
 from anthropic import AsyncAnthropic
 import asyncio
+import httpx
+from typing import List, Optional
 
 from models import (
     HealthResponse,
@@ -15,6 +17,7 @@ from models import (
     KeyValidationResult
 )
 from database import DB_PATH
+from pydantic import BaseModel
 
 router = APIRouter(tags=["Health"])
 
@@ -64,6 +67,10 @@ async def validate_api_keys(req: KeysValidationRequest):
     if req.openrouter_key and len(req.openrouter_key) > 5:
         tasks.append(validate_openrouter(req.openrouter_key))
         providers.append("openrouter")
+    
+    if req.ollama_url and len(req.ollama_url) > 5:
+        tasks.append(validate_ollama(req.ollama_url))
+        providers.append("ollama")
     
     # Ejecutar validaciones en paralelo
     if tasks:
@@ -162,3 +169,86 @@ async def validate_openrouter(api_key: str) -> KeyValidationResult:
             return KeyValidationResult(valid=False, error="API Key inválida")
         else:
             return KeyValidationResult(valid=False, error=f"Error: {error_msg[:100]}")
+
+
+# =============================================================================
+# OLLAMA - Modelos Locales
+# =============================================================================
+
+class OllamaModel(BaseModel):
+    """Información de un modelo de Ollama."""
+    name: str
+    model: str
+    size: int
+    parameter_size: Optional[str] = None
+    quantization_level: Optional[str] = None
+    family: Optional[str] = None
+
+
+class OllamaModelsRequest(BaseModel):
+    """Request para obtener modelos de Ollama."""
+    url: str  # URL del servidor Ollama (ej: http://localhost:11434)
+
+
+class OllamaModelsResponse(BaseModel):
+    """Response con modelos de Ollama."""
+    connected: bool
+    models: List[OllamaModel] = []
+    error: Optional[str] = None
+
+
+@router.post("/ollama/models", response_model=OllamaModelsResponse)
+async def get_ollama_models(req: OllamaModelsRequest):
+    """
+    Obtiene la lista de modelos disponibles en un servidor Ollama.
+    """
+    try:
+        base_url = req.url.rstrip('/')
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(f"{base_url}/api/tags")
+            response.raise_for_status()
+            data = response.json()
+            
+            models = []
+            for m in data.get('models', []):
+                details = m.get('details', {})
+                models.append(OllamaModel(
+                    name=m.get('name', ''),
+                    model=m.get('model', ''),
+                    size=m.get('size', 0),
+                    parameter_size=details.get('parameter_size'),
+                    quantization_level=details.get('quantization_level'),
+                    family=details.get('family')
+                ))
+            
+            return OllamaModelsResponse(connected=True, models=models)
+            
+    except httpx.ConnectError:
+        return OllamaModelsResponse(
+            connected=False, 
+            error=f"No se puede conectar a {req.url}"
+        )
+    except httpx.TimeoutException:
+        return OllamaModelsResponse(
+            connected=False, 
+            error="Timeout al conectar"
+        )
+    except Exception as e:
+        return OllamaModelsResponse(
+            connected=False, 
+            error=str(e)[:100]
+        )
+
+
+async def validate_ollama(url: str) -> KeyValidationResult:
+    """Valida conexión a servidor Ollama."""
+    try:
+        base_url = url.rstrip('/')
+        async with httpx.AsyncClient(timeout=5.0) as client:
+            response = await client.get(f"{base_url}/api/tags")
+            response.raise_for_status()
+            return KeyValidationResult(valid=True)
+    except httpx.ConnectError:
+        return KeyValidationResult(valid=False, error="No se puede conectar")
+    except Exception as e:
+        return KeyValidationResult(valid=False, error=str(e)[:100])

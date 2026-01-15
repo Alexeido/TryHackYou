@@ -35,7 +35,7 @@ import {
   Provider,
   BackendSorting,
 } from "@/store/useStore";
-import { discoverModels } from "@/services/api";
+import { discoverModels, getOllamaModels } from "@/services/api";
 import { 
   ChevronDown, 
   Star, 
@@ -51,17 +51,20 @@ import {
   Fish,
   Gift,
   Lock,
-  Settings2
+  Settings2,
+  Server
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // 🐟 DeepSeek usa un icono de pez (animal marino)
+// 🦙 Ollama usa un icono de servidor (local)
 const PROVIDER_INFO: Record<Provider, { name: string; icon: React.ReactNode; color: string }> = {
   openai: { name: 'OpenAI', icon: <Bot className="h-4 w-4" />, color: 'text-emerald-500' },
   google: { name: 'Google', icon: <Sparkles className="h-4 w-4" />, color: 'text-blue-500' },
   anthropic: { name: 'Anthropic', icon: <Brain className="h-4 w-4" />, color: 'text-orange-500' },
   deepseek: { name: 'DeepSeek', icon: <Fish className="h-4 w-4" />, color: 'text-cyan-500' },
   openrouter: { name: 'OpenRouter', icon: <Globe className="h-4 w-4" />, color: 'text-pink-500' },
+  ollama: { name: 'Ollama', icon: <Server className="h-4 w-4" />, color: 'text-purple-500' },
 };
 
 const SORT_OPTIONS: { value: BackendSorting; label: string }[] = [
@@ -133,23 +136,55 @@ export function ModelSelector() {
       if (apiKeys.deepseek) request.deepseek_key = apiKeys.deepseek;
       if (apiKeys.openrouter) request.openrouter_key = apiKeys.openrouter;
       
-      const hasKeys = Object.values(apiKeys).some(k => k && k.length > 5);
-      if (!hasKeys) {
+      // Verificar si hay API keys (excepto ollama que usa URL)
+      const hasApiKeys = Object.entries(apiKeys)
+        .filter(([key]) => key !== 'ollama')
+        .some(([, value]) => value && value.length > 5);
+      const hasOllama = apiKeys.ollama && apiKeys.ollama.length > 5;
+      
+      if (!hasApiKeys && !hasOllama) {
         setModels([]);
         return;
       }
       
-      const result = await discoverModels(request);
-      const loadedModels: Model[] = result.models.map(m => ({
-        id: m.id,
-        name: m.name,
-        provider: m.provider as Provider,
-        elo_score: m.elo_score,
-        context_window: m.context_window,
-        pricing_input: m.pricing_input,
-        pricing_output: m.pricing_output,
-        isFavorite: favorites.includes(m.id),
-      }));
+      let loadedModels: Model[] = [];
+      
+      // Cargar modelos de APIs cloud
+      if (hasApiKeys) {
+        const result = await discoverModels(request);
+        loadedModels = result.models.map(m => ({
+          id: m.id,
+          name: m.name,
+          provider: m.provider as Provider,
+          elo_score: m.elo_score,
+          context_window: m.context_window,
+          pricing_input: m.pricing_input,
+          pricing_output: m.pricing_output,
+          isFavorite: favorites.includes(m.id),
+        }));
+      }
+      
+      // Cargar modelos de Ollama si hay URL configurada
+      if (hasOllama) {
+        try {
+          const ollamaResult = await getOllamaModels(apiKeys.ollama);
+          if (ollamaResult.connected && ollamaResult.models) {
+            const ollamaModels: Model[] = ollamaResult.models.map(m => ({
+              id: m.model,
+              name: m.name,
+              provider: 'ollama' as Provider,
+              elo_score: undefined,
+              context_window: undefined,
+              pricing_input: 0,
+              pricing_output: 0,
+              isFavorite: favorites.includes(m.model),
+            }));
+            loadedModels = [...loadedModels, ...ollamaModels];
+          }
+        } catch (err) {
+          console.error("Error loading Ollama models:", err);
+        }
+      }
       
       setModels(loadedModels);
       
@@ -222,6 +257,7 @@ export function ModelSelector() {
       anthropic: [],
       deepseek: [],
       openrouter: [],
+      ollama: [],
     };
     
     filteredModels.forEach(m => {

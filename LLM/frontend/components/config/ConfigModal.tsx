@@ -91,6 +91,14 @@ const PROVIDERS: ProviderConfig[] = [
     color: 'bg-pink-500',
     icon: '🌐'
   },
+  { 
+    key: 'ollama', 
+    name: 'Ollama (Local)', 
+    placeholder: 'http://localhost:11434', 
+    apiKeyField: 'ollama_url',
+    color: 'bg-cyan-500',
+    icon: '🦙'
+  },
 ];
 
 export function ConfigModal() {
@@ -116,6 +124,7 @@ export function ConfigModal() {
     anthropic: false,
     deepseek: false,
     openrouter: false,
+    ollama: false,
   });
   
   const [isValidating, setIsValidating] = useState(false);
@@ -179,6 +188,13 @@ export function ConfigModal() {
         setKeyValidation('openrouter', { 
           valid: results.openrouter.valid, 
           error: results.openrouter.error, 
+          checking: false 
+        });
+      }
+      if (results.ollama) {
+        setKeyValidation('ollama', { 
+          valid: results.ollama.valid, 
+          error: results.ollama.error, 
           checking: false 
         });
       }

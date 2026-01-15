@@ -20,6 +20,7 @@ class KeysValidationRequest(BaseModel):
     anthropic_key: Optional[str] = None
     deepseek_key: Optional[str] = None
     openrouter_key: Optional[str] = None
+    ollama_url: Optional[str] = None  # URL del servidor Ollama
 
 
 class KeyValidationResult(BaseModel):
@@ -35,6 +36,7 @@ class KeysValidationResponse(BaseModel):
     anthropic: Optional[KeyValidationResult] = None
     deepseek: Optional[KeyValidationResult] = None
     openrouter: Optional[KeyValidationResult] = None
+    ollama: Optional[KeyValidationResult] = None
 
 
 class HealthResponse(BaseModel):
@@ -189,7 +191,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     """Request para el endpoint de chat."""
     # Autenticación y modelo
-    provider: Literal["openai", "google", "deepseek", "openrouter"]
+    provider: Literal["openai", "google", "deepseek", "openrouter", "anthropic", "ollama"]
     api_key: str
     model_id: str
     

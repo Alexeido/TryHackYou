@@ -71,6 +71,7 @@ export interface KeysValidationResponse {
   anthropic?: KeyValidationResult;
   deepseek?: KeyValidationResult;
   openrouter?: KeyValidationResult;
+  ollama?: KeyValidationResult;
 }
 
 export async function checkHealth(): Promise<HealthResponse> {
@@ -84,6 +85,7 @@ export async function validateApiKeys(keys: {
   anthropic_key?: string;
   deepseek_key?: string;
   openrouter_key?: string;
+  ollama_url?: string;
 }): Promise<KeysValidationResponse> {
   const response = await fetch(`${getBaseUrl()}/health/keys`, {
     method: 'POST',
@@ -91,6 +93,34 @@ export async function validateApiKeys(keys: {
     body: JSON.stringify(keys),
   });
   return handleResponse<KeysValidationResponse>(response);
+}
+
+// ============================================
+// OLLAMA
+// ============================================
+
+export interface OllamaModel {
+  name: string;
+  model: string;
+  size: number;
+  parameter_size?: string;
+  quantization_level?: string;
+  family?: string;
+}
+
+export interface OllamaModelsResponse {
+  connected: boolean;
+  models: OllamaModel[];
+  error?: string;
+}
+
+export async function getOllamaModels(url: string): Promise<OllamaModelsResponse> {
+  const response = await fetch(`${getBaseUrl()}/ollama/models`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ url }),
+  });
+  return handleResponse<OllamaModelsResponse>(response);
 }
 
 // ============================================

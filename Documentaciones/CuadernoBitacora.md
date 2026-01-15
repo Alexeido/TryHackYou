@@ -17,6 +17,13 @@
     - [V 12/12/2025](#v-12122025)
     - [L 15/12/2025](#l-15122025)
     - [M 16/12/2025](#m-16122025)
+    - [X 17/12/2025](#x-17122025)
+    - [J 18/12/2025](#j-18122025)
+    - [V 19/12/2025](#v-19122025)
+    - [L 22/12/2025](#l-22122025)
+    - [M 23/12/2025](#m-23122025)
+    - [J 08/01/2026](#j-08012026)
+    - [V 09/01/2026](#v-09012026)
 
 # Sprint 2 - Sandbox Terminal
 
@@ -198,9 +205,47 @@ Jornada de estabilización y refinamiento técnico:
 
 **Estado:** Sistema robusto y configuración de modelos optimizada. Listo para el desarrollo de ciclos autónomos.
 
----
+## L **22/12/2025**
+
+Estudio de viabilidad para ejecución local y optimización de hardware:
+
+* **Investigación de Modelos Locales:** Análisis de modelos compatibles con entornos de recursos limitados, específicamente para la **RTX 3050 (4GB VRAM)**.
+* **Cuantización de Modelos:** Pruebas con formatos **GGUF y AWQ (4-bit/3-bit)** para reducir el uso de memoria sin degradar excesivamente la coherencia del modelo. Se evaluaron modelos de parámetros reducidos (SLMs) como **Phi-3 Mini**, **Qwen-2.5-Coder** y **Gemma 2B**.
+* **Benchmarking de Rendimiento:** Comparativa de velocidad de inferencia (tokens/seg) y consumo de VRAM para asegurar que el backend pueda coexistir con el entorno Docker del sandbox sin provocar desbordamientos de memoria (*OOM errors*).
+
+**Estado:** Selección de modelos locales finalizada para modo "offline" o de bajo consumo.
 
 
-Arreglada compatibilidad con gemini 3 flash preview, mejor interfaz, procesos activos visibles
+## M **23/12/2025**
 
-Para mañana: que vaya el botón de stop, que pueda ver el estado de los procesos activos en la terminal pese a que ya haya pasado el mensaje de respuesta y ya empezar con modelos locales
+Despliegue en infraestructura de alto rendimiento (HPC):
+
+* **Acceso a Computaex:** Validación de credenciales y primera conexión al supercomputador **Lusitania**. Revisión del entorno operativo basado en nodos con **2 NVIDIA RTX A4500 (20GB VRAM)**.
+* **Documentación Técnica:** Estudio del sistema de colas y gestión de recursos del HPC para la ejecución de contenedores y servicios persistentes.
+* **Estrategia de Modelos Especializados:** Investigación para el despliegue de **SecLLMs** (Modelos de lenguaje específicos para Ciberseguridad) de mayor escala (7B, 13B y superiores), como **WhiteRabbitNeo**, que requieren el ancho de banda y la capacidad de las GPUs A4500 para el análisis profundo de tráfico y código vulnerable.
+
+**Estado:** Infraestructura HPC preparada para tareas de computación intensiva y modelos de ciberseguridad avanzados.
+
+## J **08/01/2026**
+
+Optimización de modelos y robustez en la interacción con el Sandbox:
+
+* **Compatibilidad con Modelos Avanzados:** Integración y ajuste del backend para soportar **Gemini 3.0 Flash (Experimental/Preview)**, optimizando el manejo de ventanas de contexto extensas.
+* **Mejora de la Interfaz de Terminal:** Rediseño del panel de salida de comandos para mejorar la legibilidad y la distinción entre comandos ejecutados y respuestas del sistema.
+* **Monitorización de Procesos:** Implementación visual de los procesos activos en el sandbox, permitiendo un seguimiento en tiempo real de las tareas del agente.
+* **Mitigación de Alucinaciones:** Investigación y desarrollo de estrategias de control para evitar alucinaciones del LLM ante ausencias de respuestas de herramientas (*tool responses*), mejorando la lógica de reintento.
+
+**Estado:** Interfaz del terminal refinada y compatibilidad de modelos ampliada.
+
+
+## V **09/01/2026**
+
+Gestión avanzada de procesos asíncronos y preparación para la autonomía:
+
+* **Ejecución en Segundo Plano (Backgrounding):** Implementación de la capacidad de lanzar procesos en el sandbox que persistan de forma asíncrona, liberando el hilo principal del chat.
+* **Control de Ciclo de Vida de Procesos:** Desarrollo de funciones para revisar el estado, monitorizar la salida y detener (kill) procesos en ejecución desde la interfaz.
+* **Callback del Sandbox al LLM:** Implementación de un sistema de notificaciones automáticas donde los procesos finalizados interactúan directamente con la IA al terminar, eliminando la necesidad de que el usuario actúe como intermediario.
+* **Refactorización de UI y Bug Fixing:** Limpieza de errores en la gestión de estados y mejoras generales en la experiencia de usuario (UX) en múltiples secciones del frontend.
+* **Preparación de Ciclos Autónomos:** Sentadas las bases lógicas para los ciclos de razonamiento funcionales que se implementarán a continuación.
+
+**Estado:** Día altamente productivo; sistema de procesos asíncronos operativo y listo para la autonomía completa.

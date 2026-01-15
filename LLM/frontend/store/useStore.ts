@@ -5,7 +5,7 @@ import { persist } from 'zustand/middleware';
 // TIPOS
 // ============================================
 
-export type Provider = 'openai' | 'google' | 'deepseek' | 'openrouter' | 'anthropic';
+export type Provider = 'openai' | 'google' | 'deepseek' | 'openrouter' | 'anthropic' | 'ollama';
 
 export interface ApiKeys {
   openai: string;
@@ -13,6 +13,15 @@ export interface ApiKeys {
   deepseek: string;
   openrouter: string;
   anthropic: string;
+  ollama: string; // URL del servidor (no es API key)
+}
+
+export interface OllamaServer {
+  id: string;
+  name: string;
+  url: string;
+  isConnected: boolean;
+  models: string[];
 }
 
 export interface KeyValidationStatus {
@@ -107,6 +116,7 @@ export const useConfigStore = create<ConfigState>()(
         deepseek: '',
         openrouter: '',
         anthropic: '',
+        ollama: '',
       },
       
       keyValidation: {
@@ -115,6 +125,7 @@ export const useConfigStore = create<ConfigState>()(
         deepseek: { valid: false, error: null, checking: false },
         openrouter: { valid: false, error: null, checking: false },
         anthropic: { valid: false, error: null, checking: false },
+        ollama: { valid: false, error: null, checking: false },
       },
       
       theme: 'dark',
@@ -167,6 +178,7 @@ interface ChatState {
   isStreaming: boolean;
   currentChunk: string;
   streamingMessageId: number | null;
+  streamingToolCalls: ToolCall[];  // Tool calls en progreso (streaming)
   
   // Acciones
   setConversation: (id: string | null) => void;
@@ -180,6 +192,9 @@ interface ChatState {
   appendChunk: (chunk: string) => void;
   clearChunk: () => void;
   setStreamingMessageId: (id: number | null) => void;
+  addStreamingToolCall: (toolCall: ToolCall) => void;
+  updateStreamingToolCall: (id: string, args: string) => void;
+  clearStreamingToolCalls: () => void;
   
   // Árbol
   setFullTree: (tree: TreeNode[] | null) => void;
@@ -198,6 +213,7 @@ export const useChatStore = create<ChatState>()((set) => ({
   isStreaming: false,
   currentChunk: '',
   streamingMessageId: null,
+  streamingToolCalls: [],
   
   setConversation: (id) => set({ conversationId: id }),
   setMessages: (messages) => set({ messages }),
@@ -215,6 +231,30 @@ export const useChatStore = create<ChatState>()((set) => ({
   })),
   clearChunk: () => set({ currentChunk: '' }),
   setStreamingMessageId: (id) => set({ streamingMessageId: id }),
+  addStreamingToolCall: (toolCall) => set((state) => ({
+    streamingToolCalls: [...state.streamingToolCalls, toolCall]
+  })),
+  updateStreamingToolCall: (id, args) => set((state) => {
+    if (id === '__LAST__' && state.streamingToolCalls.length > 0) {
+      // Actualizar el último tool call
+      const lastIndex = state.streamingToolCalls.length - 1;
+      return {
+        streamingToolCalls: state.streamingToolCalls.map((tc, i) =>
+          i === lastIndex
+            ? { ...tc, function: { ...tc.function, arguments: tc.function.arguments + args } }
+            : tc
+        )
+      };
+    }
+    return {
+      streamingToolCalls: state.streamingToolCalls.map(tc =>
+        tc.id === id
+          ? { ...tc, function: { ...tc.function, arguments: tc.function.arguments + args } }
+          : tc
+      )
+    };
+  }),
+  clearStreamingToolCalls: () => set({ streamingToolCalls: [] }),
   
   setFullTree: (tree) => set({ fullTree: tree }),
   setActiveLeafId: (id) => set({ activeLeafId: id }),
@@ -228,6 +268,7 @@ export const useChatStore = create<ChatState>()((set) => ({
     isStreaming: false,
     currentChunk: '',
     streamingMessageId: null,
+    streamingToolCalls: [],
   }),
 }));
 

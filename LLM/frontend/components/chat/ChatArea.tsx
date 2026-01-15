@@ -11,7 +11,8 @@ import {
   useUIStore,
   useConversationsStore,
   useTerminalStore,
-  Message 
+  Message,
+  ToolCall
 } from "@/store/useStore";
 import { 
   sendMessage, 
@@ -108,13 +109,17 @@ export function ChatArea() {
     setConversation,
     setMessages,
     addMessage,
+    updateMessage,
     setLoading,
     setStreaming,
     appendChunk,
     clearChunk,
     setActiveLeafId,
     setFullTree,
-    activeLeafId
+    activeLeafId,
+    addStreamingToolCall,
+    updateStreamingToolCall,
+    clearStreamingToolCalls
   } = useChatStore();
   
   const { apiKeys, systemPrompt, backendUrl } = useConfigStore();
@@ -452,18 +457,90 @@ export function ChatArea() {
             // Abrir terminal si hay tool calls
             setTerminalOpen(true);
             console.log("Tool call:", toolCall);
+            
+            // Extraer datos del toolCall con tipos seguros
+            const tcId = toolCall.id as string | undefined;
+            const tcFunction = toolCall.function as { name?: string; arguments?: string } | undefined;
+            const tcFuncName = tcFunction?.name || '';
+            const tcFuncArgs = tcFunction?.arguments || '{}';
+            
+            // Agregar tool call al estado de streaming para visualización en tiempo real
+            if (tcId) {
+              // Nuevo tool call con ID
+              addStreamingToolCall({
+                id: tcId,
+                type: 'function',
+                function: {
+                  name: tcFuncName,
+                  arguments: tcFuncArgs
+                }
+              });
+            } else if (tcFuncArgs) {
+              // Es un delta de argumentos sin ID, actualizar el último
+              // Necesitamos acceder al último tool call agregado
+              updateStreamingToolCall('__LAST__', tcFuncArgs);
+            }
+            
+            // También mantener actualizado el mensaje del assistant para persistencia
+            const assistantMsg = messages.find(m => m.id === tempAssistantMsg.id);
+            if (assistantMsg) {
+              const existingToolCalls = assistantMsg.tool_calls || [];
+              
+              // Solo agregar si tiene ID (no es un delta parcial)
+              if (tcId) {
+                const newToolCall: ToolCall = {
+                  id: tcId,
+                  type: 'function',
+                  function: {
+                    name: tcFuncName,
+                    arguments: tcFuncArgs
+                  }
+                };
+                updateMessage(tempAssistantMsg.id, {
+                  tool_calls: [...existingToolCalls, newToolCall]
+                });
+              } else if (existingToolCalls.length > 0 && tcFuncArgs) {
+                // Es un delta de argumentos, actualizar el último tool_call
+                const lastTC = existingToolCalls[existingToolCalls.length - 1];
+                const updatedTC = {
+                  ...lastTC,
+                  function: {
+                    ...lastTC.function,
+                    arguments: lastTC.function.arguments + tcFuncArgs
+                  }
+                };
+                updateMessage(tempAssistantMsg.id, {
+                  tool_calls: [...existingToolCalls.slice(0, -1), updatedTC]
+                });
+              }
+            }
           },
           onToolExecuting: (data) => {
             // Tool está siendo ejecutada en el backend
             console.log("🔧 Ejecutando tool:", data.function_name);
           },
           onToolResult: (data) => {
-            // Resultado de la tool recibido
+            // Resultado de la tool recibido - agregar al store para tiempo real
             console.log("✅ Tool result:", data.result?.substring(0, 100));
+            
+            // Agregar mensaje tool al store para que TerminalPanel lo muestre inmediatamente
+            if (data.tool_message_id && data.result) {
+              const toolMessage: Message = {
+                id: data.tool_message_id,
+                conversation_id: currentConversationId!,
+                parent_id: null, // Se actualizará al recargar
+                role: 'tool',
+                content: data.result,
+                tool_call_id: data.tool_call_id,
+                created_at: new Date().toISOString(),
+              };
+              addMessage(toolMessage);
+            }
           },
           onDone: async (data) => {
             setStreaming(false);
             clearChunk();
+            clearStreamingToolCalls(); // Limpiar tool calls de streaming
             
             // Recargar el thread real desde el backend
             const thread = await getConversationThread(currentConversationId!);
@@ -584,6 +661,21 @@ export function ChatArea() {
           onToolCall: (toolCall) => {
             setTerminalOpen(true);
             console.log("Tool call:", toolCall);
+            
+            const tcId = toolCall.id as string | undefined;
+            const tcFunction = toolCall.function as { name?: string; arguments?: string } | undefined;
+            const tcFuncName = tcFunction?.name || '';
+            const tcFuncArgs = tcFunction?.arguments || '{}';
+            
+            if (tcId) {
+              addStreamingToolCall({
+                id: tcId,
+                type: 'function',
+                function: { name: tcFuncName, arguments: tcFuncArgs }
+              });
+            } else if (tcFuncArgs) {
+              updateStreamingToolCall('__LAST__', tcFuncArgs);
+            }
           },
           onToolExecuting: (data) => {
             console.log("🔧 Ejecutando tool:", data.function_name);
@@ -594,6 +686,7 @@ export function ChatArea() {
           onDone: async (data) => {
             setStreaming(false);
             clearChunk();
+            clearStreamingToolCalls();
             
             // Recargar el thread real desde el backend
             const thread = await getConversationThread(conversationId!);
@@ -704,6 +797,21 @@ export function ChatArea() {
           onToolCall: (toolCall) => {
             setTerminalOpen(true);
             console.log("Tool call:", toolCall);
+            
+            const tcId = toolCall.id as string | undefined;
+            const tcFunction = toolCall.function as { name?: string; arguments?: string } | undefined;
+            const tcFuncName = tcFunction?.name || '';
+            const tcFuncArgs = tcFunction?.arguments || '{}';
+            
+            if (tcId) {
+              addStreamingToolCall({
+                id: tcId,
+                type: 'function',
+                function: { name: tcFuncName, arguments: tcFuncArgs }
+              });
+            } else if (tcFuncArgs) {
+              updateStreamingToolCall('__LAST__', tcFuncArgs);
+            }
           },
           onToolExecuting: (data) => {
             console.log("🔧 Ejecutando tool:", data.function_name);
@@ -714,6 +822,7 @@ export function ChatArea() {
           onDone: async () => {
             setStreaming(false);
             clearChunk();
+            clearStreamingToolCalls();
             
             const thread = await getConversationThread(conversationId);
             setMessages(thread.messages);
@@ -767,9 +876,9 @@ export function ChatArea() {
   // Filtrar solo mensajes no-system para mostrar
   const visibleMessages = messages.filter(m => m.role !== 'system');
 
-  // Encontrar el mensaje que está en streaming (último assistant)
+  // Encontrar el mensaje que está en streaming (último assistant sin contenido)
   const streamingMessage = isStreaming 
-    ? visibleMessages.find(m => m.role === 'assistant' && !m.content)
+    ? [...visibleMessages].reverse().find(m => m.role === 'assistant' && !m.content)
     : null;
 
   return (

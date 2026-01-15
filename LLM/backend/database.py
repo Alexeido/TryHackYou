@@ -454,16 +454,29 @@ def update_message_content(message_id: int, new_content: str) -> bool:
 # UTILIDADES
 # =============================================================================
 
+# Configuración de límites para el contexto del LLM
+MAX_MESSAGES_FOR_LLM = 30  # Máximo de mensajes a enviar al LLM
+MAX_TOOL_RESPONSE_LENGTH = 2000  # Máximo de caracteres para respuestas de tools
+
 def get_conversation_for_llm(leaf_id: int) -> List[Dict[str, str]]:
     """
     Reconstruye el historial en formato para enviar al LLM.
     Solo incluye role y content (formato OpenAI).
+    
+    OPTIMIZACIÓN: Limita el número de mensajes y trunca respuestas largas
+    para evitar exceder límites de tokens.
     """
     thread = reconstruct_thread(leaf_id)
     
     messages = []
     for msg in thread:
-        message = {"role": msg['role'], "content": msg['content'] or ""}
+        content = msg['content'] or ""
+        
+        # Truncar respuestas de tools que sean muy largas
+        if msg['role'] == 'tool' and len(content) > MAX_TOOL_RESPONSE_LENGTH:
+            content = content[:MAX_TOOL_RESPONSE_LENGTH] + f"\n\n[... truncado, {len(msg['content'])} chars total]"
+        
+        message = {"role": msg['role'], "content": content}
         
         # Si tiene tool_calls, añadirlo
         if msg['tool_calls']:
@@ -475,6 +488,18 @@ def get_conversation_for_llm(leaf_id: int) -> List[Dict[str, str]]:
             message['tool_call_id'] = msg['tool_call_id']
         
         messages.append(message)
+    
+    # Limitar número de mensajes (mantener system prompt si existe + últimos N)
+    if len(messages) > MAX_MESSAGES_FOR_LLM:
+        # Preservar el system prompt si existe
+        if messages and messages[0]['role'] == 'system':
+            system_msg = [messages[0]]
+            recent_msgs = messages[-(MAX_MESSAGES_FOR_LLM - 1):]
+            messages = system_msg + recent_msgs
+            print(f"⚠️ Contexto truncado: {len(thread)} msgs -> {len(messages)} msgs")
+        else:
+            messages = messages[-MAX_MESSAGES_FOR_LLM:]
+            print(f"⚠️ Contexto truncado: {len(thread)} msgs -> {len(messages)} msgs")
     
     return messages
 

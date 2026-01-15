@@ -49,7 +49,7 @@ interface LogEntry {
 }
 
 export function TerminalPanel({ onClose }: TerminalPanelProps) {
-  const { messages, conversationId } = useChatStore();
+  const { messages, conversationId, streamingToolCalls } = useChatStore();
   const { isConnected, sessions } = useTerminalStore();
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [copiedId, setCopiedId] = useState<string | null>(null);
@@ -108,14 +108,23 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
     }
   };
 
-  // Extraer tool calls de los mensajes
+  // Extraer tool calls de los mensajes - mantener orden call -> response
   useEffect(() => {
     const newLogs: LogEntry[] = [];
+    const seenToolCallIds = new Set<string>();
     
+    // Crear mapa de tool_call_id -> mensaje de respuesta
+    const toolResponseMap = new Map<string, Message>();
+    messages.forEach(msg => {
+      if (msg.role === 'tool' && msg.tool_call_id) {
+        toolResponseMap.set(msg.tool_call_id, msg);
+      }
+    });
+    
+    // Procesar mensajes en orden
     messages.forEach(msg => {
       // Tool calls del assistant
       if (msg.tool_calls) {
-        // tool_calls puede venir como string JSON o como array
         let toolCallsArray = msg.tool_calls;
         if (typeof toolCallsArray === 'string') {
           try {
@@ -128,6 +137,8 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
         if (Array.isArray(toolCallsArray) && toolCallsArray.length > 0) {
           toolCallsArray.forEach((tc: { id?: string; function?: { name?: string; arguments?: string } }) => {
             if (tc.id && tc.function) {
+              seenToolCallIds.add(tc.id);
+              
               // Parsear argumentos para extraer comando y tiempos
               let command = '';
               let waitTime: number | undefined;
@@ -141,6 +152,7 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
                 // Si falla el parse, usar los argumentos raw
               }
               
+              // Agregar el tool call
               newLogs.push({
                 id: tc.id,
                 type: 'tool_call',
@@ -151,25 +163,54 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
                 waitTime,
                 exitTime,
               });
+              
+              // Buscar y agregar su respuesta inmediatamente después
+              const response = toolResponseMap.get(tc.id);
+              if (response) {
+                newLogs.push({
+                  id: `tool-response-${response.id}`,
+                  type: 'tool_response',
+                  timestamp: new Date(response.created_at),
+                  name: response.tool_call_id || 'tool',
+                  content: response.content || '',
+                });
+              }
             }
           });
         }
       }
-      
-      // Respuestas de tools
-      if (msg.role === 'tool' && msg.content) {
+    });
+    
+    // Agregar streaming tool calls que aún no están en messages (al final)
+    streamingToolCalls.forEach(tc => {
+      if (!seenToolCallIds.has(tc.id)) {
+        let command = '';
+        let waitTime: number | undefined;
+        let exitTime: number | undefined;
+        try {
+          const args = JSON.parse(tc.function.arguments || '{}');
+          command = args.command || '';
+          waitTime = args.wait_time;
+          exitTime = args.exit_time;
+        } catch {
+          // Los argumentos pueden estar incompletos durante streaming
+        }
+        
         newLogs.push({
-          id: `tool-response-${msg.id}`,
-          type: 'tool_response',
-          timestamp: new Date(msg.created_at),
-          name: msg.tool_call_id || 'tool',
-          content: msg.content,
+          id: tc.id,
+          type: 'tool_call',
+          timestamp: new Date(),
+          name: tc.function.name || 'unknown',
+          content: tc.function.arguments || '{}',
+          command,
+          waitTime,
+          exitTime,
         });
       }
     });
     
     setLogs(newLogs);
-  }, [messages]);
+  }, [messages, streamingToolCalls]);
 
   // Auto-scroll
   useEffect(() => {
