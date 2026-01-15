@@ -8,7 +8,7 @@ RUN apt-get update
 
 # Instalación de herramientas básicas de auditoría y sistema
 RUN apt-get install -y \
-    nmap sqlmap nikto hydra ffuf whatweb curl jq \
+    nmap sqlmap nikto hydra ffuf whatweb curl jq exploitdb wget \
     iputils-ping netcat-traditional dnsutils samba-client \
     python3 python3-pip python3-flask wordlists \
     # Limpieza de caché para reducir peso

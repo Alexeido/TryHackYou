@@ -94,8 +94,11 @@ CREATE TABLE objectives (
     mission_id TEXT NOT NULL,
     order_index INTEGER NOT NULL,     -- Orden de ejecución
     task TEXT NOT NULL,               -- Descripción del objetivo
-    status TEXT DEFAULT 'PENDING',    -- PENDING | IN_PROGRESS | COMPLETED | FAILED | SKIPPED
+    status TEXT DEFAULT 'PENDING',    -- PENDING | IN_PROGRESS | COMPLETED | FAILED | SKIPPED | AWAITING_AUTHORIZATION
     result_summary TEXT,              -- Resumen del resultado
+    requires_approval BOOLEAN DEFAULT 0,  -- Si requiere aprobación humana
+    approval_status TEXT,             -- NULL | APPROVED | REJECTED
+    pending_command TEXT,             -- Comando guardado esperando aprobación
     created_at TIMESTAMP,
     completed_at TIMESTAMP,
     FOREIGN KEY (mission_id) REFERENCES missions(id)
@@ -111,11 +114,26 @@ CREATE TABLE tool_summaries (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     message_id INTEGER NOT NULL,      -- Mensaje tool original
     tool_call_id TEXT NOT NULL,       -- ID del tool_call
+    original_output TEXT NOT NULL,    -- Output original COMPLETO (para zoom in)
     original_length INTEGER NOT NULL, -- Longitud del output original
     summary TEXT NOT NULL,            -- Resumen compacto
     compression_ratio REAL,           -- Ratio de compresión
     created_at TIMESTAMP,
     FOREIGN KEY (message_id) REFERENCES messages(id)
+);
+
+-- Tabla para tracking de jobs en background de misiones
+CREATE TABLE mission_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id TEXT NOT NULL,
+    mission_id TEXT NOT NULL,
+    objective_id INTEGER NOT NULL,
+    command TEXT NOT NULL,
+    status TEXT DEFAULT 'RUNNING',    -- RUNNING | COMPLETED | FAILED
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    FOREIGN KEY (mission_id) REFERENCES missions(id),
+    FOREIGN KEY (objective_id) REFERENCES objectives(id)
 );
 ```
 
@@ -255,13 +273,17 @@ async def summarize_tool_output(
     summary_prompt = f"""Resume este output técnico manteniendo SOLO la información crítica.
 
 Reglas:
-- Mantén IPs, puertos, versiones, CVEs
+- Mantén IPs, puertos, versiones, CVEs, cookies de sesion, tokens, hashes
+- Omite explicaciones innecesarias
 - Elimina líneas repetitivas o de progreso
 - Máximo 15 líneas
 - Formato conciso, bullets si es apropiado
 
+A tener en cuenta: La Inconsistencia del Summarizer: Si usas un modelo muy pequeño para resumir, podría omitir una cookie de sesión o un puerto raro que el Agente Jefe necesitaba.
+
+    Recomendación: Asegúrate de que el prompt de resumen sea "conservador" (mejor resumir menos que perder datos clave).
 OUTPUT:
-{output[:10000]}  # Limitar a primeros 10k chars
+  No limitaremos realmente el output pero le diremos al modelo que debe de hacer un resumen con lo importante.
 
 RESUMEN:"""
 
@@ -403,6 +425,13 @@ c) **Actualización**: Marca el objetivo como completado/fallado
    }
    ```
 
+    Lo que podría darte problemas (Puntos a vigilar)
+
+    La "Alucinación de Progreso": A veces el LLM marca un objetivo como COMPLETED porque el comando se ejecutó, pero el resultado real fue un error silencioso.
+
+        Solución: El prompt debe ser muy estricto: "Solo marca como completado si has verificado el éxito con un comando de comprobación (ej: whoami tras un exploit)".
+
+
 d) **Cambio de Fase**: Si cambias de fase, actualiza
    ```json
    {
@@ -422,7 +451,8 @@ Al completar todos los objetivos:
 ```json
 {
   "action": "complete",
-  "status": "COMPLETED"  // o "FAILED" si no se logró
+  "status": "COMPLETED",  // o "FAILED" si no se logró
+  "reflection": "Por que cree que tuvo éxito o fallo"
 }
 ```
 
@@ -526,16 +556,112 @@ function getStatusIcon(status: string) {
 }
 ```
 
-#### 4.2 Integración en el Chat
+#### 4.2 Layout con Sidebar de Misión
 
 ```typescript
-// En Chat.tsx, detectar si hay misión activa
+// En Chat.tsx - Layout de 2 columnas
 
-{activeMission && (
-  <div className="sidebar-mission">
-    <MissionProgress missionId={activeMission.id} />
-  </div>
-)}
+export default function Chat() {
+  const [activeMission, setActiveMission] = useState<Mission | null>(null);
+  
+  return (
+    <div className="chat-container">
+      {/* Columna izquierda: Chat normal */}
+      <div className="chat-column">
+        <MessageList messages={messages} />
+        <InputBox />
+      </div>
+      
+      {/* Columna derecha: Sidebar de Misión (si está activa) */}
+      {activeMission && (
+        <div className="mission-sidebar">
+          <MissionProgress missionId={activeMission.id} />
+          
+          {/* Logs de pensamiento (acordeón) */}
+          <ThoughtLogs conversationId={conversationId} />
+          
+          {/* Jobs en background */}
+          <BackgroundJobs missionId={activeMission.id} />
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+#### 4.3 Componente de Logs de Pensamiento
+
+```typescript
+// ThoughtLogs.tsx - Acordeón para ver razonamiento del agente
+
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+
+export function ThoughtLogs({ conversationId }: { conversationId: string }) {
+  const [thoughts, setThoughts] = useState<ThoughtEntry[]>([]);
+  
+  // Extraer bloques <thought> del historial de mensajes
+  useEffect(() => {
+    // Polling o SSE para actualizar
+    fetchThoughts(conversationId).then(setThoughts);
+  }, [conversationId]);
+  
+  return (
+    <div className="thought-logs">
+      <h4>🧠 Razonamiento del Agente</h4>
+      <Accordion type="single" collapsible>
+        {thoughts.map((thought, idx) => (
+          <AccordionItem key={idx} value={`thought-${idx}`}>
+            <AccordionTrigger>
+              Pensamiento #{idx + 1} - {thought.timestamp}
+            </AccordionTrigger>
+            <AccordionContent>
+              <pre className="thought-content">{thought.content}</pre>
+            </AccordionContent>
+          </AccordionItem>
+        ))}
+      </Accordion>
+    </div>
+  );
+}
+```
+
+#### 4.4 Vista de Jobs en Background
+
+```typescript
+// BackgroundJobs.tsx
+
+export function BackgroundJobs({ missionId }: { missionId: string }) {
+  const [jobs, setJobs] = useState<Job[]>([]);
+  
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      const response = await fetch(`/api/missions/${missionId}/jobs`);
+      const data = await response.json();
+      setJobs(data.jobs);
+    }, 3000);
+    
+    return () => clearInterval(interval);
+  }, [missionId]);
+  
+  const runningJobs = jobs.filter(j => j.status === 'RUNNING');
+  
+  if (runningJobs.length === 0) return null;
+  
+  return (
+    <div className="background-jobs">
+      <h4>⏳ Comandos en Ejecución</h4>
+      {runningJobs.map(job => (
+        <div key={job.id} className="job-card">
+          <code>{job.command}</code>
+          <div className="job-timer">
+            Ejecutando hace {formatDuration(job.started_at)}
+          </div>
+          <Spinner className="animate-spin" />
+        </div>
+      ))}
+    </div>
+  );
+}
 ```
 
 ---
@@ -568,32 +694,116 @@ async def get_active_mission(conversation_id: str):
     if not mission:
         return {"active": False}
     
-    return {
-        "active": True,
-        "mission": mission,
-        "objectives": db.get_objectives(mission["id"])
-    }
+    return { (REORGANIZADO)
 
-@router.delete("/missions/{mission_id}")
-async def cancel_mission(mission_id: str):
-    """Cancela una misión en progreso"""
-    db.complete_mission(mission_id, "CANCELLED")
-    return {"status": "Mission cancelled"}
-```
+### Sprint 1 (4-5 días): Foundation + Core Tools
+**Objetivo**: MVP funcional con estado básico
+
+- [ ] Crear tablas de BD (missions, objectives, tool_summaries, mission_jobs)
+- [ ] Implementar funciones CRUD de misiones en database.py
+- [ ] Tool `manage_mission` con actions:
+  - [x] create, update_objective, update_phase, complete, get_status
+  - [ ] **modify_objectives** (insertar/borrar objetivos dinámicamente)
+- [ ] Tool `get_original_output` (zoom in a outputs resumidos)
+- [ ] Testing básico con misión simple (3 objetivos)
+
+**Entregable**: Agente puede crear y seguir un plan básico, reorganizarlo si es necesario.
 
 ---
 
-## 🚀 Plan de Rollout
+### Sprint 2 (3-4 días): Tool Summarizer + Background Jobs
+**Objetivo**: Optimización de contexto y comandos largos
 
-### Sprint 1 (3-4 días): Foundation
-- [ ] Crear tablas de BD (missions, objectives, tool_summaries)
-- [ ] Implementar funciones CRUD de misiones en database.py
-- [ ] Añadir tool `manage_mission` básica (create, update_objective)
+- [ ] Endpoint `/summarize-tool-output` (no streaming)
+- [ ] Integración en loop de tools con auto_summarize
+- [ ] Guardar output original en tool_summaries (para zoom in)
+- [ ] Worker de background jobs (comandos con wait_time >30s)
+- [ ] Tabla mission_jobs y tracking de estado asíncrono
+- [ ] Testing con nmap (output largo + comando lento)
 
-### Sprint 2 (3-4 días): Tool Summarizer
-- [ ] Endpoint `/summarize-tool-output`
-- [ ] Integración en loop de tools con flag auto_summarize
-- [ ] Testing con outputs largos (nmap, dirb, etc)
+**Entregable**: Outputs se resumen automáticamente, comandos largos no bloquean el sistema.
+
+---
+
+### Sprint 3 (3-4 días): Human-in-the-Loop + Seguridad
+**Objetivo**: Control ético sobre comandos peligrosos
+
+- [ ] Detector de comandos peligrosos (regex patterns)
+- [ ] Estado AWAITING_AUTHORIZATION en objetivos
+- [ ] Endpoint `/objectives/{id}/approve` (aprobar/rechazar)
+- [ ] Frontend: Botón de aprobación con preview del comando
+- [ ] Testing con exploits de Metasploit (deben requerir aprobación)
+- [ ] Sistema de auditoría (log de todos los comandos ejecutados)
+
+**Entregable**: Comandos destructivos requieren aprobación humana explícita.
+
+---
+
+### Sprint 4 (2-3 días): System Prompt Agéntico + Detección
+**Objetivo**: Comportamiento autónomo inteligente
+
+- [ ] Detección de intención agéntica (keywords)
+- [ ] System prompt especializado con instrucciones de:
+  - Planificación inicial
+  - Loop de ejecución
+  - Reorganización dinámica de plan
+  - Gestión de errores
+- [ ] Integración de todas las tools en el prompt
+- [ ] Testing end-to-end: "Accede a root en X de forma autónoma"
+
+**Entregable**: El agente planifica, ejecuta y se adapta sin intervención humana (salvo aprobaciones).
+
+---
+
+### Sprint 5 (4-5 días): Frontend Avanzado + UX
+**Objetivo**: Visualización profesional para demo/tribunal
+
+- [ ] **Sidebar de Misión** (componente persistente a la derecha)
+  - Progress bar con % completado
+  - Lista de objetivos con estados
+  - Indicador de fase actual
+- [ ] **Logs de Pensamiento** (Accordion para `<thought>` blocks)
+  - Colapsables por defecto
+  - Ver razonamiento del agente sin ensuciar chat
+- [ ] Componente `MissionProgress.tsx` con polling cada 2s
+- [ ] Notificaciones al completar objetivos
+- [ ] Vista de jobs en background (en progreso)
+- [ ] Endpoints de API REST para misiones
+- [ ] Botones de control: Pausar/Reanudar/Cancelar misión
+
+**Entregable**: UI que impresiona en una demo de TFG.
+
+---
+
+### Sprint 6 (2-3 días): Polish, Testing & Documentation
+**Objetivo**: Preparación para defensa de TFG
+
+- [ ] Casos de prueba end-to-end:
+  - Reconocimiento simple (nmap + análisis)
+  - Pentesting completo (reconocimiento → exploit → post-exploit)
+  - Recuperación de fallos (exploit falla, cambia estrategia)
+  - Comando largo en background (sin perder estado)
+- [ ] Fine-tuning de prompts según resultados
+- [ ] Documentación técnica (Markdown en /Documentaciones)
+- [ ] Video demo de 5 minutos para el tribunal
+- [ ] Mejora de mensajes de error y logs
+
+**Entregable**: Sistema robusto listo para defensa académica.
+
+---
+
+## 📊 Roadmap Visual
+
+```
+Sprint 1: ████████░░░░░░░░░░  Foundation + Tools
+Sprint 2: ████████░░░░░░░░░░  Summarizer + Background
+Sprint 3: ████████░░░░░░░░░░  Security + Approvals  
+Sprint 4: ██████░░░░░░░░░░░░  Agentic Behavior
+Sprint 5: ██████████░░░░░░░░  Frontend Premium
+Sprint 6: ██████░░░░░░░░░░░░  Polish + Testing
+
+Total: 18-24 días (~4-5 semanas)
+```rgos (nmap, dirb, etc)
 
 ### Sprint 3 (2-3 días): System Prompt Agéntico
 - [ ] Detección de intención agéntica
@@ -614,14 +824,348 @@ async def cancel_mission(mission_id: str):
 
 ## 📝 Consideraciones de Diseño
 
+### 🎯 Plan Dinámico vs. Estático (CRÍTICO)
+
+**Problema Real**: En pentesting, el escaneo inicial puede revelar 10 servicios inesperados. El plan de 8 pasos original queda obsoleto.
+
+**Solución - Plan Evolutivo**:
+
+```python
+# Nueva action en manage_mission: "modify_objectives"
+elif action == "modify_objectives":
+    """
+    Permite al agente reorganizar el plan sobre la marcha.
+    
+    Args:
+        mission_id: ID de la misión
+        modifications: [
+            {"type": "insert", "after_id": 2, "task": "Explotar vuln PHP"},
+            {"type": "delete", "objective_id": 5},
+            {"type": "update", "objective_id": 3, "new_task": "Escanear puerto 8080"}
+        ]
+    """
+    modifications = function_args.get("modifications", [])
+    
+    for mod in modifications:
+        if mod["type"] == "insert":
+            db.insert_objective_after(
+                mission_id, 
+                mod["after_id"], 
+                mod["task"]
+            )
+        elif mod["type"] == "delete":
+            db.delete_objective(mod["objective_id"])
+        elif mod["type"] == "update":
+            db.update_objective_task(
+                mod["objective_id"], 
+                mod["new_task"]
+            )
+    
+    return json.dumps({
+        "status": "Plan reorganizado",
+        "new_objectives": db.get_objectives(mission_id)
+    })
+```
+
+**Trigger de Reorganización**: El agente detecta que el resultado de un comando cambia drásticamente el escenario (ej: encuentra un servidor web no esperado).
+
+---
+
+### 🛡️ Human-in-the-Loop: Autorización para Comandos Críticos
+
+**Problema Ético/Legal**: Un agente autónomo lanzando exploits sin supervisión es peligroso y éticamente cuestionable para un TFG.
+
+**Solución - Sistema de Autorización**:
+
+#### Nuevo Estado de Objetivo: `AWAITING_AUTHORIZATION`
+
+```sql
+-- Añadir a la tabla objectives
+ALTER TABLE objectives ADD COLUMN requires_approval BOOLEAN DEFAULT 0;
+ALTER TABLE objectives ADD COLUMN approval_status TEXT; -- NULL | APPROVED | REJECTED
+```
+
+#### Detector de Comandos Peligrosos
+
+```python
+# En execute_tool_call(), antes de ejecutar
+
+DANGEROUS_PATTERNS = [
+    r"msfconsole",           # Metasploit
+    r"exploit/",             # Ruta de exploits
+    r"--script.*vuln",       # Scripts de vulnerabilidad agresivos
+    r"sqlmap.*--dump",       # Dumping de BD
+    r"hydra",                # Brute force
+    r"john.*--crack",        # Password cracking
+    r"nc.*-e",               # Reverse shells
+]
+
+def is_dangerous_command(command: str) -> bool:
+    return any(
+        re.search(pattern, command, re.IGNORECASE) 
+        for pattern in DANGEROUS_PATTERNS
+    )
+
+# En execute_tool_call()
+if function_name == "execute_command":
+    command = function_args.get("command")
+    
+    if is_dangerous_command(command):
+        # Marcar objetivo actual como pendiente de aprobación
+        current_obj = db.get_current_objective(conversation_id)
+        db.update_objective_approval_status(
+            current_obj["id"], 
+            "AWAITING_AUTHORIZATION"
+        )
+        
+        # Guardar comando pendiente
+        db.save_pending_command(current_obj["id"], command)
+        
+        return json.dumps({
+            "status": "AWAITING_AUTHORIZATION",
+            "message": "Este comando requiere aprobación humana",
+            "command": command,
+            "reason": "Potencialmente destructivo/ruidoso"
+        })
+```
+
+#### Endpoint de Aprobación
+
+```python
+# En routes/missions.py
+
+@router.post("/objectives/{objective_id}/approve")
+async def approve_command(objective_id: int, approved: bool):
+    """
+    Aprueba o rechaza un comando peligroso.
+    Si se aprueba, ejecuta el comando guardado.
+    """
+    objective = db.get_objective_by_id(objective_id)
+    pending_cmd = db.get_pending_command(objective_id)
+    
+    if approved:
+        db.update_objective_approval_status(objective_id, "APPROVED")
+        
+        # Ejecutar comando ahora
+        result = await execute_command_in_sandbox(pending_cmd)
+        
+        # Continuar la misión automáticamente
+        # (el agente recibirá el resultado en el próximo turno)
+        
+        return {"status": "approved", "executing": True}
+    else:
+        db.update_objective_approval_status(objective_id, "REJECTED")
+        db.update_objective_status(objective_id, "SKIPPED")
+        
+        return {"status": "rejected", "objective_skipped": True}
+```
+
+#### Frontend - Botón de Aprobación
+
+```typescript
+// En MissionProgress.tsx
+
+{obj.approval_status === 'AWAITING_AUTHORIZATION' && (
+  <div className="approval-required">
+    <AlertTriangle className="text-yellow-500" />
+    <p>Comando peligroso requiere aprobación:</p>
+    <code>{obj.pending_command}</code>
+    <div className="approval-buttons">
+      <Button 
+        variant="destructive" 
+        onClick={() => approveCommand(obj.id, true)}
+      >
+        ✓ Aprobar Ejecución
+      </Button>
+      <Button 
+        variant="outline" 
+        onClick={() => approveCommand(obj.id, false)}
+      >
+        ✗ Rechazar
+      </Button>
+    </div>
+  </div>
+)}
+```
+
+---
+
+### 🔍 Zoom In: Recuperación de Outputs Originales
+
+**Problema de la "Memoria de Pez"**: El resumen elimina detalles técnicos que luego pueden ser necesarios.
+
+**Solución - Tool de Zoom In**:
+
+```python
+# Nueva tool: get_original_output
+
+elif function_name == "get_original_output":
+    """
+    Recupera el output original completo de un tool anterior.
+    
+    Args:
+        tool_call_id: ID del tool_call cuyo output original se necesita
+    """
+    tool_call_id = function_args.get("tool_call_id")
+    
+    # Buscar en tool_summaries
+    summary_entry = db.get_tool_summary_entry(tool_call_id)
+    
+    if not summary_entry:
+        return json.dumps({
+            "error": "No se encontró el output original",
+            "tool_call_id": tool_call_id
+        })
+    
+    original = summary_entry["original_output"]
+    
+    return json.dumps({
+        "status": "success",
+        "original_length": len(original),
+        "output": original,
+        "note": "Este es el output COMPLETO sin resumir"
+    })
+```
+
+**Tabla extendida de tool_summaries**:
+
+```sql
+-- Añadir columna para guardar el output original
+ALTER TABLE tool_summaries ADD COLUMN original_output TEXT;
+```
+
+**System Prompt - Instrucción de Zoom**:
+
+```python
+# Añadir al AGENTIC_SYSTEM_PROMPT
+
+"""
+## RECUPERACIÓN DE DETALLES
+
+Si un resumen de output no contiene la información que necesitas:
+1. Identifica el tool_call_id del comando previo (visible en el historial)
+2. Usa `get_original_output` para recuperar el log completo
+3. Analiza el detalle específico que faltaba
+4. Continúa con la misión
+
+Ejemplo: Si el resumen dice "3 hosts activos" pero necesitas las IPs exactas,
+recupera el output completo del nmap.
+"""
+```
+
+---
+
+### ⚙️ Concurrencia y Workers (Background Processing)
+
+**Problema**: Un escaneo de red puede tardar 10 minutos. El backend no puede bloquear esperando.
+
+**Solución - Sistema de Workers**:
+
+#### Arquitectura de Jobs Asíncronos
+
+```python
+# En routes/chat.py - execute_tool_call()
+
+if function_name == "execute_command":
+    command = function_args.get("command")
+    wait_time = function_args.get("wait_time")
+    
+    # Si wait_time > 30s, considerar background
+    if wait_time and wait_time > 30:
+        # Lanzar en background
+        job_id = await launch_background_job(
+            command=command,
+            conversation_id=conversation_id,
+            objective_id=current_objective_id
+        )
+        
+        # Marcar objetivo como IN_PROGRESS
+        db.update_objective_status(
+            current_objective_id, 
+            "IN_PROGRESS",
+            f"Ejecutando comando en background (job: {job_id})"
+        )
+        
+        return json.dumps({
+            "status": "JOB_LAUNCHED",
+            "job_id": job_id,
+            "message": "Comando ejecutándose en background. Serás notificado al completarse.",
+            "estimated_time": f"{wait_time}s"
+        })
+```
+
+#### Worker de Monitoreo
+
+```python
+# En job_monitor.py (ya existe pero extender)
+
+async def monitor_mission_jobs():
+    """
+    Worker que verifica jobs en background y actualiza objetivos.
+    """
+    while True:
+        await asyncio.sleep(5)
+        
+        # Obtener jobs en progreso
+        running_jobs = db.get_running_jobs_with_objectives()
+        
+        for job in running_jobs:
+            # Verificar estado en sandbox
+            status = await check_job_status(job["job_id"])
+            
+            if status["completed"]:
+                # Actualizar objetivo
+                db.update_objective_status(
+                    job["objective_id"],
+                    "COMPLETED",
+                    f"Comando finalizado. Exit code: {status['exit_code']}"
+                )
+                
+                # Guardar output (resumido si es largo)
+                if len(status["output"]) > 1000:
+                    summary = await summarize_output(status["output"])
+                    db.save_tool_summary(
+                        job["message_id"],
+                        job["tool_call_id"],
+                        status["output"],
+                        summary
+                    )
+                
+                # Notificar al frontend via SSE
+                await notify_mission_update(job["conversation_id"])
+```
+
+#### Persistencia de Estado
+
+```sql
+-- Tabla para tracking de jobs de misiones
+CREATE TABLE mission_jobs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    job_id TEXT NOT NULL,
+    mission_id TEXT NOT NULL,
+    objective_id INTEGER NOT NULL,
+    command TEXT NOT NULL,
+    status TEXT DEFAULT 'RUNNING', -- RUNNING | COMPLETED | FAILED
+    started_at TIMESTAMP,
+    completed_at TIMESTAMP,
+    FOREIGN KEY (mission_id) REFERENCES missions(id),
+    FOREIGN KEY (objective_id) REFERENCES objectives(id)
+);
+```
+
+**Beneficio**: Si el usuario cierra el navegador durante un escaneo de 10 minutos, al volver verá que el objetivo sigue en progreso y el job continuará hasta completarse.
+
+---
+
 ### Optimización de Contexto
 
 **Problema**: Un nmap puede generar 5000 tokens, empujando la misión fuera del contexto.
 
 **Solución Multi-Capa**:
 1. **Resumen inmediato**: Outputs >1000 chars se resumen antes de pasar al LLM
-2. **Estado explícito**: La misión y objetivos se reinyectan en cada turno (via tool calls)
-3. **History compression**: Después de 10 turnos, resumir historial manteniendo solo:
+2. **Zoom In disponible**: Si el resumen no es suficiente, recuperar original con `get_original_output`
+3. **Estado explícito**: La misión y objetivos se reinyectan en cada turno (via tool calls)
+4. **History compression**: Después de 10 turnos, resumir historial manteniendo solo:
    - Estado actual de la misión
    - Últimos 2-3 comandos
    - Hallazgos críticos
@@ -632,12 +1176,15 @@ El agente debe ser robusto ante:
 - **Comandos que fallan**: Actualizar objetivo como FAILED y proponer alternativa
 - **Timeouts**: Marcar como IN_PROGRESS y permitir reanudar
 - **Conexión perdida**: Guardar estado en BD para retomar
+- **Plan obsoleto**: Reorganizar objetivos dinámicamente con `modify_objectives`
 
 ### Seguridad
 
 - **Validación de targets**: Verificar que IPs están en rangos autorizados
 - **Rate limiting**: Evitar bucles infinitos de comandos
 - **Auditoría**: Log completo de todos los comandos ejecutados en modo agéntico
+- **Human-in-the-Loop**: Aprobación obligatoria para comandos peligrosos
+- **Sandbox aislado**: Todos los comandos se ejecutan en contenedor controlado
 
 ---
 
@@ -703,7 +1250,94 @@ Este diseño transforma tu asistente en un **verdadero agente autónomo** que:
 ✅ **Se auto-supervisa** actualizando su checklist  
 ✅ **Optimiza contexto** resumiendo outputs técnicos  
 ✅ **Es resiliente** ante fallos y timeouts  
+✅ **Plan dinámico**: Reorganiza objetivos según descubrimientos  
+✅ **Control ético**: Aprobación humana para comandos peligrosos  
+✅ **Zoom In**: Recupera detalles técnicos cuando el resumen no basta  
+✅ **Background Jobs**: Comandos largos no bloquean el sistema  
 
-El sistema es **incremental**: puedes implementar Fase 1 y ya tener un MVP funcional, luego añadir el summarizer, etc.
+---
 
-**Next Step**: Empezar por Sprint 1 - crear las tablas de BD y la tool básica de `manage_mission`.
+## 🔥 Puntos Críticos Implementados (vs. Diseño Original)
+
+### ⚠️ Lo que faltaba y ahora está cubierto:
+
+| Problema Original | Solución Implementada | Sprint |
+|-------------------|----------------------|--------|
+| **Plan estático** → El agente no puede adaptarse | `modify_objectives`: Insertar/borrar/actualizar objetivos dinámicamente | Sprint 1 |
+| **Comandos peligrosos sin control** → Riesgo ético/legal | Sistema de aprobación `AWAITING_AUTHORIZATION` + detector de patrones | Sprint 3 |
+| **Resúmenes pierden detalles** → Agente "amnésico" | Tool `get_original_output`: Recupera logs completos cuando es necesario | Sprint 1 |
+| **Comandos largos bloquean** → UX horrible | Background jobs + worker asíncrono + tabla `mission_jobs` | Sprint 2 |
+| **Chat sobrecargado** → Difícil seguir misión | Sidebar persistente + Acordeón de pensamiento + Vista de jobs | Sprint 5 |
+
+### 🎯 Diferencias Clave para el Tribunal
+
+**Antes**: "Es un chatbot con comandos Linux"  
+**Ahora**: "Es un agente autónomo que planifica, ejecuta y se supervisa, con control ético sobre acciones destructivas"
+
+**Argumentos Técnicos Sólidos**:
+1. **Estado persistente** → No depende solo del contexto del LLM
+2. **Plan evolutivo** → Se adapta a descubrimientos inesperados
+3. **Human-in-the-Loop** → Responsabilidad ética clara
+4. **Optimización de contexto multi-capa** → Escalable a misiones largas
+5. **UX profesional** → No es solo consola, tiene visualización de progreso
+
+---
+
+## 🚧 Limitaciones Conocidas y Trabajo Futuro
+
+### Limitaciones Actuales (v1.0)
+
+1. **Un solo agente**: No hay especialización (reconocimiento vs explotación)
+2. **Sin memoria entre misiones**: Cada pentesting empieza de cero
+3. **No genera informes PDF**: Output solo en la UI
+4. **Sin paralelización real**: Los objetivos se ejecutan secuencialmente
+
+### Roadmap Post-TFG (v2.0+)
+
+#### V2: Multi-Agent System
+- **Agente Coordinador**: Delega tareas a especialistas
+- **Agente Reconocimiento**: Experto en escaneos y enumeración
+- **Agente Explotación**: Base de conocimiento de CVEs y exploits
+- **Agente Reportes**: Genera informes técnicos automáticos (Markdown/PDF)
+
+#### V3: Aprendizaje Continuo
+- **RAG con historial**: Vectorstore de misiones anteriores
+- **Estrategias exitosas**: "La última vez que vi vsftpd 2.3.4 funcionó X"
+- **Fine-tuning**: Entrenar con logs de pentesting reales (con permiso)
+
+#### V4: Paralelización Real
+- **Objetivos paralelos**: Escaneo de puertos + búsqueda de exploits simultáneos
+- **Job queue distribuida**: Celery + Redis para comandos pesados
+- **Multi-target**: Pentesting de red completa en paralelo
+
+---
+
+## 📚 Referencias Técnicas
+
+### Papers y Recursos
+
+1. **ReAct: Reasoning and Acting** (Yao et al., 2023)
+   - Base teórica del loop pensamiento → acción → observación
+
+2. **AutoGPT Architecture**
+   - Sistema de objetivos y auto-supervisión
+
+3. **LangChain Agents**
+   - Inspiración para tool calling y state management
+
+4. **Metasploit Framework**
+   - Referencia para estructura de explotación automatizada
+
+### Herramientas Utilizadas
+
+- **FastAPI**: Backend asíncrono
+- **SQLite**: Persistencia de estado
+- **Shadcn/UI**: Componentes de React
+- **OpenAI SDK**: Compatibilidad con múltiples LLMs
+- **Docker**: Sandbox aislado (Kali Linux)
+
+---
+
+El sistema es **incremental**: puedes implementar Sprint 1 y ya tener valor funcional, luego ir añadiendo capas de sofisticación.
+
+**Next Step**: Empezar por Sprint 1 - crear las tablas de BD y las tools básicas (`manage_mission` + `get_original_output`).

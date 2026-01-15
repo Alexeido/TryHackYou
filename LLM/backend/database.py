@@ -92,6 +92,106 @@ def init_db():
         cursor.execute("ALTER TABLE pending_jobs ADD COLUMN tool_call_id TEXT")
         print("🔧 Añadida columna 'tool_call_id' a pending_jobs")
     
+    # ==========================================================================
+    # TABLAS PARA MODO AGÉNTICO (Sprint 1)
+    # ==========================================================================
+    
+    # Tabla de misiones - Estado global de una tarea autónoma
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS missions (
+            id TEXT PRIMARY KEY,
+            conversation_id TEXT NOT NULL,
+            goal TEXT NOT NULL,
+            current_phase TEXT,
+            status TEXT DEFAULT 'PLANNING',
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME,
+            metadata TEXT,
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+        )
+    """)
+    
+    # Tabla de objetivos - Checklist de la misión
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS objectives (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mission_id TEXT NOT NULL,
+            order_index INTEGER NOT NULL,
+            task TEXT NOT NULL,
+            status TEXT DEFAULT 'PENDING',
+            result_summary TEXT,
+            reflection TEXT,
+            requires_approval INTEGER DEFAULT 0,
+            approval_status TEXT,
+            pending_command TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME,
+            FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE CASCADE
+        )
+    """)
+    
+    # Tabla de resúmenes de tools - Cache para optimización de contexto
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS tool_summaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            message_id INTEGER NOT NULL,
+            tool_call_id TEXT NOT NULL,
+            original_output TEXT NOT NULL,
+            original_length INTEGER NOT NULL,
+            summary TEXT NOT NULL,
+            compression_ratio REAL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+        )
+    """)
+    
+    # Tabla de jobs de misión - Tracking de comandos en background
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS mission_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            job_id TEXT NOT NULL,
+            mission_id TEXT NOT NULL,
+            objective_id INTEGER NOT NULL,
+            command TEXT NOT NULL,
+            status TEXT DEFAULT 'RUNNING',
+            started_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            completed_at DATETIME,
+            FOREIGN KEY (mission_id) REFERENCES missions(id) ON DELETE CASCADE,
+            FOREIGN KEY (objective_id) REFERENCES objectives(id) ON DELETE CASCADE
+        )
+    """)
+    
+    # Tabla de auditoría de comandos - Sprint 3: Security
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS command_audit (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id TEXT NOT NULL,
+            mission_id TEXT,
+            objective_id INTEGER,
+            command TEXT NOT NULL,
+            risk_level TEXT NOT NULL,
+            requires_approval INTEGER DEFAULT 0,
+            reason TEXT,
+            status TEXT DEFAULT 'PENDING',
+            result_summary TEXT,
+            approved_by TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            executed_at DATETIME
+        )
+    """)
+    
+    # Índices para tablas agénticas
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_missions_conversation ON missions(conversation_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_missions_status ON missions(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_objectives_mission ON objectives(mission_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_objectives_status ON objectives(status)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_tool_summaries_tool_call ON tool_summaries(tool_call_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_mission_jobs_mission ON mission_jobs(mission_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_command_audit_conversation ON command_audit(conversation_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_command_audit_status ON command_audit(status)")
+    
+    print("🎯 Tablas de modo agéntico inicializadas")
+    
     conn.commit()
     conn.close()
     print("✅ Base de datos inicializada correctamente")
@@ -458,6 +558,91 @@ def update_message_content(message_id: int, new_content: str) -> bool:
 MAX_MESSAGES_FOR_LLM = 30  # Máximo de mensajes a enviar al LLM
 MAX_TOOL_RESPONSE_LENGTH = 2000  # Máximo de caracteres para respuestas de tools
 
+
+def smart_truncate_messages(messages: List[Dict], max_messages: int) -> List[Dict]:
+    """
+    Trunca mensajes de forma inteligente, preservando pares de tool_call/tool_response.
+    
+    REGLAS:
+    1. Siempre preservar el system prompt (si existe)
+    2. Nunca separar un assistant con tool_calls de sus tool responses
+    3. Eliminar bloques completos de interacción, no mensajes sueltos
+    
+    Un "bloque" es:
+    - Un mensaje user + assistant (conversación normal)
+    - Un mensaje assistant con tool_calls + todos sus tool responses
+    """
+    if len(messages) <= max_messages:
+        return messages
+    
+    # Separar system prompt
+    system_msg = None
+    if messages and messages[0].get('role') == 'system':
+        system_msg = messages[0]
+        messages = messages[1:]
+    
+    # Identificar bloques de interacción
+    blocks = []
+    i = 0
+    while i < len(messages):
+        msg = messages[i]
+        
+        if msg.get('role') == 'assistant' and msg.get('tool_calls'):
+            # Este assistant tiene tool_calls, necesitamos incluir todos los tool responses
+            block = [msg]
+            tool_call_ids = {tc.get('id') for tc in msg.get('tool_calls', [])}
+            
+            # Buscar los tool responses que corresponden a estos tool_calls
+            j = i + 1
+            while j < len(messages):
+                next_msg = messages[j]
+                if next_msg.get('role') == 'tool' and next_msg.get('tool_call_id') in tool_call_ids:
+                    block.append(next_msg)
+                    tool_call_ids.discard(next_msg.get('tool_call_id'))
+                    j += 1
+                else:
+                    # Si no es un tool response correspondiente, salir
+                    break
+            
+            blocks.append(block)
+            i = j
+        else:
+            # Mensaje normal (user o assistant sin tools)
+            blocks.append([msg])
+            i += 1
+    
+    # Calcular cuántos mensajes podemos incluir
+    available_slots = max_messages - (1 if system_msg else 0)
+    
+    # Tomar los bloques más recientes que quepan
+    selected_blocks = []
+    total_msgs = 0
+    
+    for block in reversed(blocks):
+        if total_msgs + len(block) <= available_slots:
+            selected_blocks.insert(0, block)
+            total_msgs += len(block)
+        elif total_msgs == 0:
+            # Si es el primer bloque y no cabe completo, tenemos un problema
+            # Incluir solo lo que podamos (esto no debería pasar normalmente)
+            truncated_block = block[:available_slots]
+            selected_blocks.insert(0, truncated_block)
+            total_msgs += len(truncated_block)
+            break
+        else:
+            # No cabe más
+            break
+    
+    # Reconstruir la lista
+    result = []
+    if system_msg:
+        result.append(system_msg)
+    
+    for block in selected_blocks:
+        result.extend(block)
+    
+    return result
+
 def get_conversation_for_llm(leaf_id: int) -> List[Dict[str, str]]:
     """
     Reconstruye el historial en formato para enviar al LLM.
@@ -465,6 +650,8 @@ def get_conversation_for_llm(leaf_id: int) -> List[Dict[str, str]]:
     
     OPTIMIZACIÓN: Limita el número de mensajes y trunca respuestas largas
     para evitar exceder límites de tokens.
+    
+    IMPORTANTE: Usa truncado inteligente que preserva pares tool_call/tool_response.
     """
     thread = reconstruct_thread(leaf_id)
     
@@ -489,17 +676,11 @@ def get_conversation_for_llm(leaf_id: int) -> List[Dict[str, str]]:
         
         messages.append(message)
     
-    # Limitar número de mensajes (mantener system prompt si existe + últimos N)
+    # Usar truncado inteligente que preserva pares tool_call/tool_response
     if len(messages) > MAX_MESSAGES_FOR_LLM:
-        # Preservar el system prompt si existe
-        if messages and messages[0]['role'] == 'system':
-            system_msg = [messages[0]]
-            recent_msgs = messages[-(MAX_MESSAGES_FOR_LLM - 1):]
-            messages = system_msg + recent_msgs
-            print(f"⚠️ Contexto truncado: {len(thread)} msgs -> {len(messages)} msgs")
-        else:
-            messages = messages[-MAX_MESSAGES_FOR_LLM:]
-            print(f"⚠️ Contexto truncado: {len(thread)} msgs -> {len(messages)} msgs")
+        original_len = len(messages)
+        messages = smart_truncate_messages(messages, MAX_MESSAGES_FOR_LLM)
+        print(f"⚠️ Contexto truncado inteligente: {original_len} msgs -> {len(messages)} msgs")
     
     return messages
 
@@ -596,3 +777,819 @@ def delete_pending_job(job_id: str) -> bool:
         cursor.execute("DELETE FROM pending_jobs WHERE job_id = ?", (job_id,))
         conn.commit()
         return cursor.rowcount > 0
+
+
+# =============================================================================
+# MODO AGÉNTICO - GESTIÓN DE MISIONES
+# =============================================================================
+
+def generate_mission_id() -> str:
+    """Genera un ID único para misiones."""
+    return f"mission_{uuid.uuid4().hex[:12]}"
+
+
+def create_mission(conversation_id: str, goal: str, metadata: dict = None) -> str:
+    """
+    Crea una nueva misión autónoma.
+    
+    Args:
+        conversation_id: ID de la conversación asociada
+        goal: Objetivo de alto nivel de la misión
+        metadata: Info adicional (target, tipo de test, etc)
+    
+    Returns:
+        ID de la misión creada
+    """
+    import json
+    mission_id = generate_mission_id()
+    now = datetime.utcnow().isoformat()
+    metadata_json = json.dumps(metadata) if metadata else None
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO missions (id, conversation_id, goal, status, created_at, metadata)
+            VALUES (?, ?, ?, 'PLANNING', ?, ?)
+        """, (mission_id, conversation_id, goal, now, metadata_json))
+        conn.commit()
+    
+    print(f"🎯 Misión creada: {mission_id[:20]}... - Goal: {goal[:50]}...")
+    return mission_id
+
+
+def get_mission(mission_id: str) -> Optional[Dict[str, Any]]:
+    """Obtiene los datos de una misión por ID."""
+    import json
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM missions WHERE id = ?", (mission_id,))
+        row = cursor.fetchone()
+        if row:
+            result = dict(row)
+            # Parsear metadata JSON
+            if result.get('metadata'):
+                try:
+                    result['metadata'] = json.loads(result['metadata'])
+                except:
+                    pass
+            return result
+        return None
+
+
+def get_active_mission(conversation_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Obtiene la misión activa (no completada) de una conversación.
+    Solo puede haber una misión activa por conversación.
+    """
+    import json
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM missions 
+            WHERE conversation_id = ? AND status IN ('PLANNING', 'IN_PROGRESS')
+            ORDER BY created_at DESC
+            LIMIT 1
+        """, (conversation_id,))
+        row = cursor.fetchone()
+        if row:
+            result = dict(row)
+            if result.get('metadata'):
+                try:
+                    result['metadata'] = json.loads(result['metadata'])
+                except:
+                    pass
+            return result
+        return None
+
+
+def update_mission_phase(mission_id: str, phase: str) -> bool:
+    """Actualiza la fase actual de una misión."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE missions SET current_phase = ?, status = 'IN_PROGRESS'
+            WHERE id = ?
+        """, (phase, mission_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def update_mission_status(mission_id: str, status: str) -> bool:
+    """Actualiza el estado de una misión."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE missions SET status = ? WHERE id = ?
+        """, (status, mission_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def complete_mission(mission_id: str, status: str = 'COMPLETED') -> bool:
+    """
+    Marca una misión como completada (COMPLETED/FAILED/CANCELLED).
+    """
+    now = datetime.utcnow().isoformat()
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE missions SET status = ?, completed_at = ?
+            WHERE id = ?
+        """, (status, now, mission_id))
+        conn.commit()
+        print(f"🏁 Misión {mission_id[:12]}... completada con estado: {status}")
+        return cursor.rowcount > 0
+
+
+# =============================================================================
+# MODO AGÉNTICO - GESTIÓN DE OBJETIVOS
+# =============================================================================
+
+def add_objectives(mission_id: str, tasks: List[str]) -> List[int]:
+    """
+    Añade una lista de objetivos a una misión.
+    
+    Args:
+        mission_id: ID de la misión
+        tasks: Lista de descripciones de tareas
+    
+    Returns:
+        Lista de IDs de los objetivos creados
+    """
+    now = datetime.utcnow().isoformat()
+    objective_ids = []
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Obtener el último order_index existente
+        cursor.execute("""
+            SELECT COALESCE(MAX(order_index), -1) FROM objectives WHERE mission_id = ?
+        """, (mission_id,))
+        last_index = cursor.fetchone()[0]
+        
+        for i, task in enumerate(tasks):
+            order_index = last_index + 1 + i
+            cursor.execute("""
+                INSERT INTO objectives (mission_id, order_index, task, status, created_at)
+                VALUES (?, ?, ?, 'PENDING', ?)
+            """, (mission_id, order_index, task, now))
+            objective_ids.append(cursor.lastrowid)
+        
+        conn.commit()
+    
+    print(f"📋 {len(tasks)} objetivos añadidos a misión {mission_id[:12]}...")
+    return objective_ids
+
+
+def get_objectives(mission_id: str) -> List[Dict[str, Any]]:
+    """Obtiene todos los objetivos de una misión ordenados por order_index."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM objectives 
+            WHERE mission_id = ? 
+            ORDER BY order_index ASC
+        """, (mission_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_objective_by_id(objective_id: int) -> Optional[Dict[str, Any]]:
+    """Obtiene un objetivo específico por ID."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM objectives WHERE id = ?", (objective_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def update_objective_status(objective_id: int, status: str, result: str = None, reflection: str = None) -> bool:
+    """
+    Actualiza el estado de un objetivo.
+    
+    Args:
+        objective_id: ID del objetivo
+        status: PENDING | IN_PROGRESS | COMPLETED | FAILED | SKIPPED | AWAITING_AUTHORIZATION
+        result: Resumen del resultado (opcional)
+        reflection: Reflexión del agente sobre por qué funcionó/falló (opcional)
+    """
+    now = datetime.utcnow().isoformat()
+    completed_at = now if status in ('COMPLETED', 'FAILED', 'SKIPPED') else None
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE objectives 
+            SET status = ?, result_summary = COALESCE(?, result_summary), 
+                reflection = COALESCE(?, reflection), completed_at = ?
+            WHERE id = ?
+        """, (status, result, reflection, completed_at, objective_id))
+        conn.commit()
+        
+        if cursor.rowcount > 0:
+            print(f"📝 Objetivo {objective_id} actualizado: {status}")
+        return cursor.rowcount > 0
+
+
+def update_objective_task(objective_id: int, new_task: str) -> bool:
+    """Actualiza la descripción de un objetivo."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE objectives SET task = ? WHERE id = ?
+        """, (new_task, objective_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def insert_objective_after(mission_id: str, after_id: int, task: str) -> int:
+    """
+    Inserta un nuevo objetivo después de uno existente.
+    Reordena los order_index de los objetivos siguientes.
+    
+    Args:
+        mission_id: ID de la misión
+        after_id: ID del objetivo después del cual insertar
+        task: Descripción del nuevo objetivo
+    
+    Returns:
+        ID del nuevo objetivo
+    """
+    now = datetime.utcnow().isoformat()
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Obtener el order_index del objetivo de referencia
+        cursor.execute("SELECT order_index FROM objectives WHERE id = ?", (after_id,))
+        row = cursor.fetchone()
+        if not row:
+            raise ValueError(f"Objetivo {after_id} no encontrado")
+        
+        insert_after_index = row[0]
+        new_index = insert_after_index + 1
+        
+        # Desplazar los objetivos siguientes
+        cursor.execute("""
+            UPDATE objectives 
+            SET order_index = order_index + 1 
+            WHERE mission_id = ? AND order_index > ?
+        """, (mission_id, insert_after_index))
+        
+        # Insertar el nuevo objetivo
+        cursor.execute("""
+            INSERT INTO objectives (mission_id, order_index, task, status, created_at)
+            VALUES (?, ?, ?, 'PENDING', ?)
+        """, (mission_id, new_index, task, now))
+        
+        new_id = cursor.lastrowid
+        conn.commit()
+        
+        print(f"➕ Objetivo insertado después de {after_id}: {task[:50]}...")
+        return new_id
+
+
+def delete_objective(objective_id: int) -> bool:
+    """
+    Elimina un objetivo de una misión.
+    NO reordena los índices (pueden quedar huecos).
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM objectives WHERE id = ?", (objective_id,))
+        conn.commit()
+        
+        if cursor.rowcount > 0:
+            print(f"🗑️ Objetivo {objective_id} eliminado")
+        return cursor.rowcount > 0
+
+
+def get_mission_progress(mission_id: str) -> Dict[str, Any]:
+    """
+    Calcula el progreso de una misión.
+    
+    Returns:
+        Dict con total, completed, failed, pending, in_progress, percentage
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT 
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'COMPLETED' THEN 1 ELSE 0 END) as completed,
+                SUM(CASE WHEN status = 'FAILED' THEN 1 ELSE 0 END) as failed,
+                SUM(CASE WHEN status = 'PENDING' THEN 1 ELSE 0 END) as pending,
+                SUM(CASE WHEN status = 'IN_PROGRESS' THEN 1 ELSE 0 END) as in_progress,
+                SUM(CASE WHEN status = 'SKIPPED' THEN 1 ELSE 0 END) as skipped,
+                SUM(CASE WHEN status = 'AWAITING_AUTHORIZATION' THEN 1 ELSE 0 END) as awaiting
+            FROM objectives WHERE mission_id = ?
+        """, (mission_id,))
+        
+        row = cursor.fetchone()
+        if not row or row[0] == 0:
+            return {"total": 0, "completed": 0, "percentage": 0}
+        
+        total = row[0]
+        completed = row[1] or 0
+        
+        return {
+            "total": total,
+            "completed": completed,
+            "failed": row[2] or 0,
+            "pending": row[3] or 0,
+            "in_progress": row[4] or 0,
+            "skipped": row[5] or 0,
+            "awaiting_authorization": row[6] or 0,
+            "percentage": round((completed / total) * 100, 1)
+        }
+
+
+def get_current_objective(mission_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Obtiene el objetivo actualmente en progreso de una misión.
+    Si no hay ninguno IN_PROGRESS, devuelve el primer PENDING.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Primero buscar IN_PROGRESS
+        cursor.execute("""
+            SELECT * FROM objectives 
+            WHERE mission_id = ? AND status = 'IN_PROGRESS'
+            ORDER BY order_index ASC
+            LIMIT 1
+        """, (mission_id,))
+        row = cursor.fetchone()
+        if row:
+            return dict(row)
+        
+        # Si no hay, buscar primer PENDING
+        cursor.execute("""
+            SELECT * FROM objectives 
+            WHERE mission_id = ? AND status = 'PENDING'
+            ORDER BY order_index ASC
+            LIMIT 1
+        """, (mission_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+# =============================================================================
+# MODO AGÉNTICO - GESTIÓN DE RESÚMENES DE TOOLS
+# =============================================================================
+
+def save_tool_summary(message_id: int, tool_call_id: str, original: str, summary: str) -> int:
+    """
+    Guarda un resumen de output de tool junto con el original.
+    
+    Args:
+        message_id: ID del mensaje que contiene el tool result
+        tool_call_id: ID del tool_call específico
+        original: Output original completo
+        summary: Resumen generado
+    
+    Returns:
+        ID del registro creado
+    """
+    now = datetime.utcnow().isoformat()
+    original_length = len(original)
+    compression_ratio = len(summary) / original_length if original_length > 0 else 1.0
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO tool_summaries 
+            (message_id, tool_call_id, original_output, original_length, summary, compression_ratio, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, (message_id, tool_call_id, original, original_length, summary, compression_ratio, now))
+        conn.commit()
+        
+        print(f"📦 Summary guardado: {original_length} chars → {len(summary)} chars ({compression_ratio:.1%})")
+        return cursor.lastrowid
+
+
+def get_tool_summary_entry(tool_call_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Obtiene el registro completo de un tool summary por tool_call_id.
+    Incluye el output original (para zoom in).
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM tool_summaries WHERE tool_call_id = ?
+        """, (tool_call_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def get_tool_summary(message_id: int, tool_call_id: str) -> Optional[str]:
+    """
+    Obtiene solo el resumen de un tool (sin el original).
+    Útil para reconstruir historial optimizado.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT summary FROM tool_summaries 
+            WHERE message_id = ? AND tool_call_id = ?
+        """, (message_id, tool_call_id))
+        row = cursor.fetchone()
+        return row[0] if row else None
+
+
+# =============================================================================
+# MODO AGÉNTICO - GESTIÓN DE JOBS DE MISIÓN
+# =============================================================================
+
+def add_mission_job(job_id: str, mission_id: str, objective_id: int, command: str) -> int:
+    """
+    Registra un job en background asociado a una misión/objetivo.
+    """
+    now = datetime.utcnow().isoformat()
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO mission_jobs (job_id, mission_id, objective_id, command, status, started_at)
+            VALUES (?, ?, ?, ?, 'RUNNING', ?)
+        """, (job_id, mission_id, objective_id, command, now))
+        conn.commit()
+        
+        print(f"🚀 Mission job registrado: {job_id[:8]}... para objetivo {objective_id}")
+        return cursor.lastrowid
+
+
+def complete_mission_job(job_id: str, status: str = 'COMPLETED') -> bool:
+    """
+    Marca un job de misión como completado.
+    """
+    now = datetime.utcnow().isoformat()
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE mission_jobs SET status = ?, completed_at = ?
+            WHERE job_id = ?
+        """, (status, now, job_id))
+        conn.commit()
+        return cursor.rowcount > 0
+
+
+def get_running_mission_jobs(mission_id: str = None) -> List[Dict[str, Any]]:
+    """
+    Obtiene jobs de misión en ejecución.
+    Si mission_id es None, devuelve todos los jobs running.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        if mission_id:
+            cursor.execute("""
+                SELECT mj.*, o.task as objective_task
+                FROM mission_jobs mj
+                JOIN objectives o ON o.id = mj.objective_id
+                WHERE mj.mission_id = ? AND mj.status = 'RUNNING'
+            """, (mission_id,))
+        else:
+            cursor.execute("""
+                SELECT mj.*, o.task as objective_task
+                FROM mission_jobs mj
+                JOIN objectives o ON o.id = mj.objective_id
+                WHERE mj.status = 'RUNNING'
+            """)
+        
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_mission_jobs(mission_id: str) -> List[Dict[str, Any]]:
+    """
+    Obtiene todos los jobs de una misión (cualquier estado).
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT mj.*, o.task as objective_task
+            FROM mission_jobs mj
+            JOIN objectives o ON o.id = mj.objective_id
+            WHERE mj.mission_id = ?
+            ORDER BY mj.started_at DESC
+        """, (mission_id,))
+        return [dict(row) for row in cursor.fetchall()]
+
+
+# =============================================================================
+# SPRINT 3: SISTEMA DE APROBACIÓN Y AUDITORÍA
+# =============================================================================
+
+def update_objective_approval(
+    objective_id: int, 
+    requires_approval: bool,
+    approval_status: Optional[str] = None,
+    pending_command: Optional[str] = None
+) -> bool:
+    """
+    Actualiza el estado de aprobación de un objetivo.
+    
+    Args:
+        objective_id: ID del objetivo
+        requires_approval: Si requiere aprobación
+        approval_status: Estado de aprobación (AWAITING_AUTHORIZATION, APPROVED, REJECTED)
+        pending_command: Comando pendiente de aprobación
+    
+    Returns:
+        True si se actualizó correctamente
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE objectives 
+            SET requires_approval = ?,
+                approval_status = ?,
+                pending_command = ?
+            WHERE id = ?
+        """, (1 if requires_approval else 0, approval_status, pending_command, objective_id))
+        conn.commit()
+        
+        if approval_status:
+            print(f"🔐 Objetivo {objective_id} → approval_status={approval_status}")
+        return cursor.rowcount > 0
+
+
+def get_pending_approval_objectives(conversation_id: str = None) -> List[Dict[str, Any]]:
+    """
+    Obtiene objetivos pendientes de aprobación.
+    
+    Args:
+        conversation_id: Filtrar por conversación (opcional)
+    
+    Returns:
+        Lista de objetivos con estado AWAITING_AUTHORIZATION
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        if conversation_id:
+            cursor.execute("""
+                SELECT o.*, m.goal as mission_goal, m.conversation_id
+                FROM objectives o
+                JOIN missions m ON m.id = o.mission_id
+                WHERE o.approval_status = 'AWAITING_AUTHORIZATION'
+                  AND m.conversation_id = ?
+                ORDER BY o.id DESC
+            """, (conversation_id,))
+        else:
+            cursor.execute("""
+                SELECT o.*, m.goal as mission_goal, m.conversation_id
+                FROM objectives o
+                JOIN missions m ON m.id = o.mission_id
+                WHERE o.approval_status = 'AWAITING_AUTHORIZATION'
+                ORDER BY o.id DESC
+            """)
+        
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def approve_objective_command(objective_id: int, approved: bool, approved_by: str = "user") -> Dict[str, Any]:
+    """
+    Aprueba o rechaza un comando pendiente.
+    
+    Args:
+        objective_id: ID del objetivo
+        approved: True para aprobar, False para rechazar
+        approved_by: Identificador de quién aprobó
+    
+    Returns:
+        Dict con el comando y el nuevo estado
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Obtener el comando pendiente Y el conversation_id de la misión
+        cursor.execute("""
+            SELECT o.pending_command, o.mission_id, o.task, m.conversation_id
+            FROM objectives o
+            JOIN missions m ON m.id = o.mission_id
+            WHERE o.id = ? AND o.approval_status = 'AWAITING_AUTHORIZATION'
+        """, (objective_id,))
+        row = cursor.fetchone()
+        
+        if not row:
+            return {"error": "No pending command found or already processed"}
+        
+        pending_command = row['pending_command']
+        mission_id = row['mission_id']
+        conversation_id = row['conversation_id']
+        
+        if approved:
+            # Marcar como aprobado
+            cursor.execute("""
+                UPDATE objectives 
+                SET approval_status = 'APPROVED',
+                    status = 'IN_PROGRESS'
+                WHERE id = ?
+            """, (objective_id,))
+            print(f"✅ Objetivo {objective_id} APROBADO por {approved_by}")
+            
+            new_status = "APPROVED"
+        else:
+            # Marcar como rechazado y saltar el objetivo
+            cursor.execute("""
+                UPDATE objectives 
+                SET approval_status = 'REJECTED',
+                    status = 'SKIPPED',
+                    result_summary = 'Comando rechazado por el usuario',
+                    completed_at = ?
+                WHERE id = ?
+            """, (datetime.utcnow().isoformat(), objective_id))
+            print(f"❌ Objetivo {objective_id} RECHAZADO por {approved_by}")
+            
+            new_status = "REJECTED"
+        
+        conn.commit()
+        
+        return {
+            "objective_id": objective_id,
+            "command": pending_command,
+            "status": new_status,
+            "mission_id": mission_id,
+            "conversation_id": conversation_id  # Añadido para poder reanudar
+        }
+
+
+# =============================================================================
+# AUDITORÍA DE COMANDOS
+# =============================================================================
+
+def add_audit_log(
+    conversation_id: str,
+    command: str,
+    risk_level: str,
+    requires_approval: bool,
+    reason: str,
+    mission_id: Optional[str] = None,
+    objective_id: Optional[int] = None,
+    status: str = "PENDING"
+) -> int:
+    """
+    Añade un registro de auditoría para un comando.
+    
+    Returns:
+        ID del registro de auditoría
+    """
+    now = datetime.utcnow().isoformat()
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO command_audit 
+            (conversation_id, mission_id, objective_id, command, risk_level, 
+             requires_approval, reason, status, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (conversation_id, mission_id, objective_id, command, risk_level,
+              1 if requires_approval else 0, reason, status, now))
+        conn.commit()
+        
+        audit_id = cursor.lastrowid
+        
+        # Log según el riesgo
+        risk_emoji = {"critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🟢", "safe": "✅"}
+        emoji = risk_emoji.get(risk_level, "⚪")
+        print(f"{emoji} Audit #{audit_id}: {command[:50]}... ({risk_level})")
+        
+        return audit_id
+
+
+def update_audit_log(
+    audit_id: int,
+    status: str,
+    result_summary: Optional[str] = None,
+    approved_by: Optional[str] = None
+) -> bool:
+    """
+    Actualiza un registro de auditoría con el resultado.
+    
+    Args:
+        audit_id: ID del registro
+        status: Nuevo estado (EXECUTED, APPROVED, REJECTED, FAILED)
+        result_summary: Resumen del resultado (opcional)
+        approved_by: Quién aprobó (si aplica)
+    
+    Returns:
+        True si se actualizó
+    """
+    now = datetime.utcnow().isoformat()
+    
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE command_audit
+            SET status = ?,
+                result_summary = ?,
+                approved_by = ?,
+                executed_at = ?
+            WHERE id = ?
+        """, (status, result_summary, approved_by, now, audit_id))
+        conn.commit()
+        
+        return cursor.rowcount > 0
+
+
+def get_audit_logs(
+    conversation_id: Optional[str] = None,
+    mission_id: Optional[str] = None,
+    status: Optional[str] = None,
+    objective_id: Optional[int] = None,
+    limit: int = 100
+) -> List[Dict[str, Any]]:
+    """
+    Obtiene registros de auditoría con filtros opcionales.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        query = "SELECT * FROM command_audit WHERE 1=1"
+        params = []
+        
+        if conversation_id:
+            query += " AND conversation_id = ?"
+            params.append(conversation_id)
+        if mission_id:
+            query += " AND mission_id = ?"
+            params.append(mission_id)
+        if status:
+            query += " AND status = ?"
+            params.append(status)
+        if objective_id:
+            query += " AND objective_id = ?"
+            params.append(objective_id)
+        
+        query += " ORDER BY created_at DESC LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        return [dict(row) for row in cursor.fetchall()]
+
+
+def get_audit_by_objective(objective_id: int) -> Optional[Dict[str, Any]]:
+    """
+    Obtiene el registro de auditoría más reciente para un objetivo.
+    
+    Útil para actualizar el audit cuando se aprueba/rechaza un comando.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT * FROM command_audit 
+            WHERE objective_id = ? 
+            ORDER BY created_at DESC 
+            LIMIT 1
+        """, (objective_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+
+def get_audit_statistics(conversation_id: Optional[str] = None) -> Dict[str, Any]:
+    """
+    Obtiene estadísticas de auditoría.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        where_clause = "WHERE conversation_id = ?" if conversation_id else ""
+        params = [conversation_id] if conversation_id else []
+        
+        # Total de comandos
+        cursor.execute(f"SELECT COUNT(*) as total FROM command_audit {where_clause}", params)
+        total = cursor.fetchone()['total']
+        
+        # Por estado
+        cursor.execute(f"""
+            SELECT status, COUNT(*) as count 
+            FROM command_audit {where_clause}
+            GROUP BY status
+        """, params)
+        by_status = {row['status']: row['count'] for row in cursor.fetchall()}
+        
+        # Por riesgo
+        cursor.execute(f"""
+            SELECT risk_level, COUNT(*) as count 
+            FROM command_audit {where_clause}
+            GROUP BY risk_level
+        """, params)
+        by_risk = {row['risk_level']: row['count'] for row in cursor.fetchall()}
+        
+        # Comandos que requirieron aprobación
+        cursor.execute(f"""
+            SELECT COUNT(*) as count 
+            FROM command_audit 
+            WHERE requires_approval = 1 {' AND conversation_id = ?' if conversation_id else ''}
+        """, params if conversation_id else [])
+        required_approval = cursor.fetchone()['count']
+        
+        return {
+            "total": total,
+            "by_status": by_status,
+            "by_risk": by_risk,
+            "required_approval": required_approval,
+            "approval_rate": by_status.get("APPROVED", 0) / required_approval if required_approval > 0 else 0
+        }

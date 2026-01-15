@@ -43,18 +43,34 @@ import { cn } from "@/lib/utils";
 
 // Función para hacer los mensajes de error más legibles
 function parseErrorMessage(error: string): string {
+  // Primero: Detectar códigos de error específicos del backend
+  // INVALID_REQUEST - Error de formato/validación (400)
+  if (error.includes('INVALID_REQUEST') || error.includes('INVALID_ARGUMENT')) {
+    return '🔧 Error de formato en la petición. Intenta de nuevo o reinicia la conversación.';
+  }
+  
+  // PROVIDER_ERROR - Error del proveedor (500/503)
+  if (error.includes('PROVIDER_ERROR') || error.includes('503') || error.includes('500')) {
+    return '🔄 El proveedor de IA está experimentando problemas. Intenta de nuevo en unos segundos.';
+  }
+  
+  // MAX_ITERATIONS - Límite de iteraciones alcanzado
+  if (error.includes('MAX_ITERATIONS')) {
+    return '🔄 Se alcanzó el límite de iteraciones. La tarea es muy compleja o el agente entró en un bucle.';
+  }
+  
   // OpenRouter - No endpoints / Data policy
   if (error.includes('No endpoints found') || error.includes('data policy')) {
     return '⚠️ Este modelo requiere configuración adicional en OpenRouter. Configura tu política de datos en https://openrouter.ai/settings/privacy o prueba con otro modelo.';
   }
   
-  // Rate limit
-  if (error.includes('429') || error.includes('rate') || error.includes('Rate')) {
+  // Rate limit - Solo código 429 explícito (no "rate" genérico que podría ser "generate")
+  if (error.includes('429') || error.toLowerCase().includes('rate limit') || error.toLowerCase().includes('rate_limit')) {
     return '⏳ Has alcanzado el límite de peticiones. Espera unos segundos antes de intentarlo de nuevo.';
   }
   
-  // API key inválida
-  if (error.includes('401') || error.includes('Invalid') || error.includes('invalid') || error.includes('API key')) {
+  // API key inválida - Solo 401 y "API key" explícito
+  if (error.includes('401') || error.includes('API key invalid') || error.includes('Unauthorized')) {
     return '🔑 API key inválida o expirada. Verifica tu configuración en el panel de ajustes.';
   }
   
@@ -63,8 +79,8 @@ function parseErrorMessage(error: string): string {
     return '💳 Sin créditos disponibles. Recarga tu cuenta del proveedor para continuar.';
   }
   
-  // Modelo no disponible
-  if (error.includes('404') || error.includes('not found') || error.includes('Not Found')) {
+  // Modelo no disponible - Solo 404 explícito
+  if (error.includes('404') || error.includes('model not found') || error.includes('Model not found')) {
     return '🚫 Modelo no disponible. Puede estar en mantenimiento o haber sido descontinuado. Prueba con otro modelo.';
   }
   

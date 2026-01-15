@@ -5,6 +5,7 @@ routes/chat.py - Endpoint de chat con soporte para streaming.
 import json
 import asyncio
 import httpx
+import re
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from openai import AsyncOpenAI
@@ -17,6 +18,134 @@ router = APIRouter(tags=["Chat"])
 
 # URL del sandbox para ejecutar comandos
 SANDBOX_URL = "http://localhost:5000"
+
+# =============================================================================
+# MODO AGÉNTICO - DETECCIÓN Y SYSTEM PROMPT
+# =============================================================================
+
+# Palabras clave que indican intención agéntica
+AGENTIC_KEYWORDS = [
+    # Español
+    r"de forma autónoma", r"automáticamente", r"autónomamente",
+    r"hazlo completo", r"haz todo", r"realiza todo",
+    r"pentesting completo", r"assessment completo", r"audit[ao]ría completa",
+    r"desde cero hasta", r"de principio a fin",
+    r"accede a root", r"consigue root", r"obtén root", r"logra root",
+    r"compromete el sistema", r"explota el sistema",
+    r"sin mi intervención", r"sin intervención",
+    r"totalmente autónom[oa]",
+    # Inglés
+    r"autonomous(ly)?", r"automatically",
+    r"full assessment", r"comprehensive (test|audit|scan)",
+    r"start to finish", r"end.to.end",
+    r"get root", r"achieve root", r"gain root",
+    r"complete pentest", r"full pentest",
+]
+
+# Pattern compilado para eficiencia
+AGENTIC_PATTERN = re.compile("|".join(AGENTIC_KEYWORDS), re.IGNORECASE)
+
+
+def is_agentic_request(user_message: str) -> bool:
+    """
+    Detecta si el mensaje del usuario indica una intención agéntica.
+    """
+    return bool(AGENTIC_PATTERN.search(user_message))
+
+
+# System prompt especializado para modo agéntico
+AGENTIC_SYSTEM_PROMPT = """You are an **Autonomous Offensive Security Agent** running inside a specialized Kali Linux Docker sandbox. 
+Your goal is to audit targets, identify vulnerabilities, and document your findings.
+
+## 🔐 OPERATIONAL ENVIRONMENT
+1. **Identity**: You are ROOT. You have full control over the sandbox.
+2. **Privileges**: Do NOT use `sudo`. Do NOT ask for permission. Execute directly.
+3. **Network**: You have access to a local lab network.
+4. **Filesystem**: Your working directory is persistent.
+
+## 📋 CRITICAL: AGENTIC MISSION PROTOCOL
+
+When you receive a complex autonomous task, you MUST follow this protocol:
+
+### STEP 1: CREATE A MISSION PLAN
+Before ANY technical action, you MUST call `manage_mission` with action="create":
+
+```json
+{
+  "action": "create",
+  "goal": "Your high-level mission goal",
+  "objectives": [
+    "1. Reconnaissance - Network and service discovery",
+    "2. Enumeration - Version detection and vulnerability scanning",
+    "3. Exploitation - Identify and exploit vulnerabilities",
+    "4. Post-exploitation - Privilege escalation and persistence",
+    "5. Documentation - Report findings"
+  ],
+  "metadata": {"target": "10.x.x.x", "type": "autonomous_pentest"}
+}
+```
+
+### STEP 2: EXECUTE WITH STATE TRACKING
+For EACH objective:
+
+a) **Mark IN_PROGRESS** before starting:
+```json
+{"action": "update_objective", "objective_id": 1, "status": "IN_PROGRESS"}
+```
+
+b) **Execute** the technical commands
+
+c) **Mark COMPLETED/FAILED** immediately after with results:
+```json
+{
+  "action": "update_objective",
+  "objective_id": 1,
+  "status": "COMPLETED",
+  "result": "Port 80 open, Apache 2.4.49 vulnerable to CVE-2021-41773",
+  "reflection": "Found critical path traversal vulnerability"
+}
+```
+
+### STEP 3: ADAPT DYNAMICALLY
+If you discover unexpected information, modify your plan:
+```json
+{
+  "action": "modify_objectives",
+  "mission_id": "...",
+  "modifications": [
+    {"type": "insert", "after_id": 2, "task": "Exploit PHP file upload vulnerability"}
+  ]
+}
+```
+
+### STEP 4: COMPLETE THE MISSION
+When done:
+```json
+{"action": "complete", "mission_id": "...", "status": "COMPLETED"}
+```
+
+## 🛠️ TOOL PROTOCOL
+
+1. **NON-INTERACTIVE ONLY**: No nano, vim, interactive shells.
+2. **ASYNC AWARENESS**: Long commands return `job_id` + status `running`. Poll with `check_job_status`.
+3. **ERROR RECOVERY**: Read stderr, fix syntax, retry. Don't apologize.
+
+## ⚠️ CRITICAL RULES
+
+1. **ALWAYS create a mission FIRST** - Never start technical work without a plan
+2. **ALWAYS update objective status** - After each step, update the mission state
+3. **NEVER mark complete without verification** - Only mark COMPLETED if you verified success
+4. **ONE objective at a time** - Don't skip steps
+5. **STATE = TRUTH** - Your mission state is the source of truth, not chat history
+
+## 📝 RESPONSE FORMAT
+
+For each action:
+1. Show your reasoning briefly
+2. Execute tool calls
+3. Interpret results for the user (in Spanish)
+
+Remember: The user is watching your mission progress in a panel. Keep it updated!"""
 
 
 async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, leaf_id: Optional[int] = None) -> str:
@@ -47,6 +176,76 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, lea
         
         if not command:
             return "Error: comando no especificado"
+        
+        # ====================================================================
+        # SPRINT 3: ANÁLISIS DE SEGURIDAD DEL COMANDO
+        # ====================================================================
+        from security import analyze_command, is_dangerous_command, get_approval_message
+        
+        analysis = analyze_command(command)
+        
+        # Obtener info de misión activa para tracking
+        active_mission = db.get_active_mission(conversation_id)
+        mission_id = active_mission['id'] if active_mission else None
+        current_objective_id = None
+        
+        if active_mission:
+            objectives = db.get_objectives(mission_id)
+            current_obj = next(
+                (obj for obj in objectives if obj['status'] == 'IN_PROGRESS'),
+                objectives[0] if objectives else None
+            )
+            current_objective_id = current_obj['id'] if current_obj else None
+        
+        # Registrar en auditoría
+        audit_id = db.add_audit_log(
+            conversation_id=conversation_id,
+            command=command,
+            risk_level=analysis["risk_level"],
+            requires_approval=analysis["requires_approval"],
+            reason=analysis["reason"],
+            mission_id=mission_id,
+            objective_id=current_objective_id,
+            status="PENDING" if analysis["requires_approval"] else "ALLOWED"
+        )
+        
+        # Si requiere aprobación, NO ejecutar y marcar objetivo como pendiente
+        if analysis["requires_approval"]:
+            print(f"🛑 Comando BLOQUEADO - Requiere aprobación ({analysis['risk_level']})")
+            
+            # Marcar objetivo como esperando autorización
+            if current_objective_id:
+                db.update_objective_approval(
+                    objective_id=current_objective_id,
+                    requires_approval=True,
+                    approval_status="AWAITING_AUTHORIZATION",
+                    pending_command=command
+                )
+                db.update_objective_status(current_objective_id, "AWAITING_AUTHORIZATION")
+            
+            # Devolver mensaje al LLM explicando la situación
+            return json.dumps({
+                "status": "AWAITING_AUTHORIZATION",
+                "risk_level": analysis["risk_level"],
+                "command": command,
+                "reason": analysis["reason"],
+                "message": "Este comando requiere aprobación humana antes de ejecutarse.",
+                "matched_patterns": [p["description"] for p in analysis["matched_patterns"]],
+                "objective_id": current_objective_id,
+                "audit_id": audit_id,
+                "next_steps": [
+                    "El usuario debe aprobar o rechazar el comando",
+                    "Usa manage_mission para verificar el estado del objetivo",
+                    "Si es rechazado, considera una alternativa o salta el objetivo"
+                ]
+            })
+        
+        # ====================================================================
+        # COMANDO SEGURO - EJECUTAR NORMALMENTE
+        # ====================================================================
+        
+        # Actualizar auditoría a EXECUTING
+        db.update_audit_log(audit_id, "EXECUTING")
         
         # Log del comando que vamos a ejecutar
         print(f"📤 Enviando a sandbox: {command[:200]}{'...' if len(command) > 200 else ''}")
@@ -84,6 +283,20 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, lea
                         try:
                             db.add_pending_job(job_id, conversation_id, leaf_id, command, tool_call_id)
                             print(f"📋 Job {job_id[:8]} registrado para seguimiento (tool_call_id={tool_call_id})")
+                            
+                            # SPRINT 2: Registrar también en mission_jobs si hay misión activa
+                            active_mission = db.get_active_mission(conversation_id)
+                            if active_mission:
+                                mission_id = active_mission['id']
+                                # Obtener el objetivo actual en progreso
+                                objectives = db.get_objectives(mission_id)
+                                current_objective = next(
+                                    (obj for obj in objectives if obj['status'] == 'IN_PROGRESS'),
+                                    objectives[0] if objectives else None  # Fallback al primero
+                                )
+                                if current_objective:
+                                    db.add_mission_job(job_id, mission_id, current_objective['id'], command)
+                                    print(f"🎯 Job vinculado a misión {mission_id[:12]} objetivo {current_objective['id']}")
                         except Exception as e:
                             print(f"⚠️ Error registrando job: {e}")
                 
@@ -94,25 +307,39 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, lea
                 if result.get("return_code") is not None:
                     output_parts.append(f"EXIT CODE: {result['return_code']}")
                 
-                return "\n\n".join(output_parts) if output_parts else "Command executed (no output)"
+                final_output = "\n\n".join(output_parts) if output_parts else "Command executed (no output)"
+                
+                # Actualizar auditoría con resultado
+                result_summary = f"Exit code: {result.get('return_code', 'N/A')}"
+                if result.get("status") == "running":
+                    result_summary = f"Job running: {result.get('job_id', 'unknown')[:12]}"
+                db.update_audit_log(audit_id, "COMPLETED", result_summary)
+                
+                return final_output
                 
             except httpx.TimeoutException as e:
                 print(f"⏱️ Timeout ejecutando comando: {command[:100]}")
+                db.update_audit_log(audit_id, "FAILED", "Timeout (>120s)")
                 return f"Error: Timeout ejecutando comando (más de 120s)"
             except httpx.ConnectError as e:
                 print(f"🔌 Error de conexión al sandbox: {e}")
+                db.update_audit_log(audit_id, "FAILED", f"Connection error: {str(e)[:100]}")
                 return f"Error: No se pudo conectar al sandbox - {str(e)}"
             except httpx.HTTPStatusError as e:
                 print(f"🚫 Error HTTP del sandbox: {e.response.status_code}")
+                db.update_audit_log(audit_id, "FAILED", f"HTTP {e.response.status_code}")
                 return f"Error HTTP {e.response.status_code} del sandbox: {str(e)}"
             except httpx.HTTPError as e:
                 print(f"❌ Error HTTP genérico: {e}")
+                db.update_audit_log(audit_id, "FAILED", f"HTTP error: {str(e)[:100]}")
                 return f"Error ejecutando comando: {str(e)}"
             except json.JSONDecodeError as e:
                 print(f"📄 Error parseando respuesta JSON del sandbox: {e}")
+                db.update_audit_log(audit_id, "FAILED", "Invalid JSON response")
                 return f"Error: Respuesta inválida del sandbox (no es JSON válido)"
             except Exception as e:
                 print(f"💥 Error inesperado ejecutando comando: {type(e).__name__}: {e}")
+                db.update_audit_log(audit_id, "FAILED", f"{type(e).__name__}: {str(e)[:80]}")
                 return f"Error inesperado: {type(e).__name__}: {str(e)}"
     
     elif function_name == "check_job_status":
@@ -152,6 +379,281 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, lea
                 return f"JOB_ID: {job_id}\nSTATUS: error\nERROR: Error HTTP {e.response.status_code} consultando el job"
             except httpx.HTTPError as e:
                 return f"JOB_ID: {job_id}\nSTATUS: error\nERROR: No se pudo conectar con el sandbox"
+    
+    # ==========================================================================
+    # TOOLS AGÉNTICAS - GESTIÓN DE MISIONES
+    # ==========================================================================
+    
+    elif function_name == "manage_mission":
+        """
+        Tool para que el LLM gestione su propia misión autónoma.
+        
+        Actions:
+            - create: Crea una nueva misión con objetivos
+            - update_objective: Actualiza estado de un objetivo
+            - update_phase: Cambia la fase actual de la misión
+            - complete: Finaliza la misión
+            - get_status: Consulta el estado actual
+            - modify_objectives: Reorganiza el plan (insertar/borrar/actualizar)
+        """
+        action = function_args.get("action")
+        
+        if action == "create":
+            goal = function_args.get("goal")
+            objectives_list = function_args.get("objectives", [])
+            metadata = function_args.get("metadata")
+            
+            if not goal:
+                return json.dumps({"error": "Se requiere 'goal' para crear una misión"})
+            
+            # Crear misión
+            mission_id = db.create_mission(conversation_id, goal, metadata)
+            
+            # Añadir objetivos
+            obj_ids = []
+            if objectives_list:
+                obj_ids = db.add_objectives(mission_id, objectives_list)
+            
+            # Actualizar estado a IN_PROGRESS
+            db.update_mission_status(mission_id, "IN_PROGRESS")
+            
+            return json.dumps({
+                "status": "success",
+                "message": "Misión creada exitosamente",
+                "mission_id": mission_id,
+                "objective_ids": obj_ids,
+                "objectives_count": len(obj_ids),
+                "NEXT_ACTION": "IMPORTANTE: Ahora DEBES ejecutar el primer objetivo del plan. Usa execute_command para comenzar."
+            })
+        
+        elif action == "update_objective":
+            objective_id = function_args.get("objective_id")
+            status = function_args.get("status")
+            result = function_args.get("result")
+            reflection = function_args.get("reflection")
+            
+            if not objective_id or not status:
+                return json.dumps({"error": "Se requiere 'objective_id' y 'status'"})
+            
+            # Validar status
+            valid_statuses = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'SKIPPED', 'AWAITING_AUTHORIZATION']
+            if status not in valid_statuses:
+                return json.dumps({"error": f"Status inválido. Válidos: {valid_statuses}"})
+            
+            # Actualizar
+            success = db.update_objective_status(objective_id, status, result, reflection)
+            
+            if not success:
+                return json.dumps({"error": f"Objetivo {objective_id} no encontrado"})
+            
+            # Obtener progreso actualizado
+            objective = db.get_objective_by_id(objective_id)
+            if objective:
+                progress = db.get_mission_progress(objective['mission_id'])
+                
+                # Determinar siguiente acción según el estado
+                next_action = ""
+                if status == "COMPLETED":
+                    if progress['pending'] > 0 or progress['in_progress'] < progress['total']:
+                        next_action = "CONTINÚA: Pasa al siguiente objetivo pendiente de la misión."
+                    else:
+                        next_action = "MISIÓN CASI COMPLETA: Usa manage_mission con action='complete' para finalizar."
+                elif status == "IN_PROGRESS":
+                    next_action = "CONTINÚA: Ejecuta los comandos necesarios para completar este objetivo."
+                elif status == "FAILED" or status == "SKIPPED":
+                    next_action = "CONTINÚA: Pasa al siguiente objetivo disponible."
+                
+                return json.dumps({
+                    "status": "success",
+                    "message": f"Objetivo {objective_id} actualizado a {status}",
+                    "progress": progress,
+                    "NEXT_ACTION": next_action
+                })
+            
+            return json.dumps({
+                "status": "success", 
+                "message": f"Objetivo {objective_id} actualizado",
+                "NEXT_ACTION": "CONTINÚA: Verifica el estado de la misión y continúa con el siguiente paso."
+            })
+        
+        elif action == "update_phase":
+            mission_id = function_args.get("mission_id")
+            phase = function_args.get("phase")
+            
+            if not mission_id or not phase:
+                return json.dumps({"error": "Se requiere 'mission_id' y 'phase'"})
+            
+            db.update_mission_phase(mission_id, phase)
+            
+            # Obtener siguiente objetivo pendiente para dar contexto
+            objectives = db.get_objectives(mission_id)
+            next_pending = next((obj for obj in objectives if obj['status'] in ['PENDING', 'IN_PROGRESS']), None)
+            next_task = next_pending['task'] if next_pending else "Verificar estado final"
+            
+            return json.dumps({
+                "status": "success",
+                "message": f"Fase actualizada a: {phase}",
+                "new_phase": phase,
+                "NEXT_ACTION": f"CONTINÚA INMEDIATAMENTE: Ejecuta la siguiente tarea - {next_task}"
+            })
+        
+        elif action == "complete":
+            mission_id = function_args.get("mission_id")
+            final_status = function_args.get("status", "COMPLETED")
+            
+            if not mission_id:
+                return json.dumps({"error": "Se requiere 'mission_id'"})
+            
+            # Validar status
+            if final_status not in ['COMPLETED', 'FAILED', 'CANCELLED']:
+                final_status = 'COMPLETED'
+            
+            db.complete_mission(mission_id, final_status)
+            
+            # Obtener resumen final
+            progress = db.get_mission_progress(mission_id)
+            
+            return json.dumps({
+                "status": "success",
+                "message": f"Misión finalizada con estado: {final_status}",
+                "final_progress": progress
+            })
+        
+        elif action == "get_status":
+            mission_id = function_args.get("mission_id")
+            
+            # Si no se proporciona mission_id, buscar la activa de esta conversación
+            if not mission_id:
+                active_mission = db.get_active_mission(conversation_id)
+                if not active_mission:
+                    return json.dumps({
+                        "status": "no_active_mission",
+                        "message": "No hay misión activa en esta conversación"
+                    })
+                mission_id = active_mission['id']
+            
+            mission = db.get_mission(mission_id)
+            if not mission:
+                return json.dumps({"error": f"Misión {mission_id} no encontrada"})
+            
+            objectives = db.get_objectives(mission_id)
+            progress = db.get_mission_progress(mission_id)
+            
+            return json.dumps({
+                "status": "success",
+                "mission": {
+                    "id": mission['id'],
+                    "goal": mission['goal'],
+                    "current_phase": mission['current_phase'],
+                    "status": mission['status']
+                },
+                "objectives": [
+                    {
+                        "id": obj['id'],
+                        "order": obj['order_index'],
+                        "task": obj['task'],
+                        "status": obj['status'],
+                        "result": obj['result_summary']
+                    }
+                    for obj in objectives
+                ],
+                "progress": progress
+            })
+        
+        elif action == "modify_objectives":
+            mission_id = function_args.get("mission_id")
+            modifications = function_args.get("modifications", [])
+            
+            if not mission_id:
+                # Buscar misión activa
+                active_mission = db.get_active_mission(conversation_id)
+                if not active_mission:
+                    return json.dumps({"error": "No hay misión activa y no se proporcionó mission_id"})
+                mission_id = active_mission['id']
+            
+            results = []
+            for mod in modifications:
+                mod_type = mod.get("type")
+                
+                if mod_type == "insert":
+                    after_id = mod.get("after_id")
+                    task = mod.get("task")
+                    if after_id and task:
+                        try:
+                            new_id = db.insert_objective_after(mission_id, after_id, task)
+                            results.append({"type": "insert", "new_id": new_id, "task": task})
+                        except ValueError as e:
+                            results.append({"type": "insert", "error": str(e)})
+                
+                elif mod_type == "delete":
+                    obj_id = mod.get("objective_id")
+                    if obj_id:
+                        db.delete_objective(obj_id)
+                        results.append({"type": "delete", "objective_id": obj_id})
+                
+                elif mod_type == "update":
+                    obj_id = mod.get("objective_id")
+                    new_task = mod.get("new_task")
+                    if obj_id and new_task:
+                        db.update_objective_task(obj_id, new_task)
+                        results.append({"type": "update", "objective_id": obj_id, "new_task": new_task})
+            
+            # Obtener objetivos actualizados
+            objectives = db.get_objectives(mission_id)
+            
+            return json.dumps({
+                "status": "success",
+                "message": f"Plan reorganizado con {len(results)} modificaciones",
+                "modifications": results,
+                "updated_objectives": [
+                    {"id": obj['id'], "order": obj['order_index'], "task": obj['task'], "status": obj['status']}
+                    for obj in objectives
+                ]
+            })
+        
+        else:
+            return json.dumps({
+                "error": f"Action '{action}' no reconocida",
+                "valid_actions": ["create", "update_objective", "update_phase", "complete", "get_status", "modify_objectives"]
+            })
+    
+    # ==========================================================================
+    # TOOLS AGÉNTICAS - RECUPERACIÓN DE OUTPUTS ORIGINALES (ZOOM IN)
+    # ==========================================================================
+    
+    elif function_name == "get_original_output":
+        """
+        Recupera el output original completo de un tool_call anterior.
+        Útil cuando el resumen no contiene suficiente información.
+        
+        Args:
+            tool_call_id: ID del tool_call cuyo output original se necesita
+        """
+        tool_call_id_to_find = function_args.get("tool_call_id")
+        
+        if not tool_call_id_to_find:
+            return json.dumps({"error": "Se requiere 'tool_call_id'"})
+        
+        # Buscar en la tabla de summaries
+        summary_entry = db.get_tool_summary_entry(tool_call_id_to_find)
+        
+        if not summary_entry:
+            return json.dumps({
+                "error": "No se encontró el output original",
+                "tool_call_id": tool_call_id_to_find,
+                "note": "El output puede no haber sido resumido o el ID es incorrecto"
+            })
+        
+        original = summary_entry['original_output']
+        
+        return json.dumps({
+            "status": "success",
+            "tool_call_id": tool_call_id_to_find,
+            "original_length": len(original),
+            "summary_length": len(summary_entry['summary']),
+            "output": original,
+            "note": "Este es el output COMPLETO sin resumir. Analiza el detalle que necesitabas."
+        })
     
     return f"Error: tool '{function_name}' no implementada"
 
@@ -321,6 +823,67 @@ async def chat_completion(req: ChatRequest):
     messages_for_llm = db.get_conversation_for_llm(user_msg_id)
     
     # ==========================================================================
+    # 4.5 DETECCIÓN DE MODO AGÉNTICO
+    # ==========================================================================
+    
+    is_agentic = is_agentic_request(req.user_message)
+    
+    if is_agentic:
+        print("🤖 MODO AGÉNTICO DETECTADO - Inyectando system prompt especializado")
+        
+        # Modificar el system prompt (primer mensaje) para incluir instrucciones agénticas
+        if messages_for_llm and messages_for_llm[0].get("role") == "system":
+            # Combinar el prompt original con el agéntico
+            original_prompt = messages_for_llm[0].get("content", "")
+            messages_for_llm[0]["content"] = AGENTIC_SYSTEM_PROMPT + "\n\n---\nADDITIONAL CONTEXT:\n" + original_prompt
+        else:
+            # Si no hay system prompt, insertar uno nuevo
+            messages_for_llm.insert(0, {
+                "role": "system",
+                "content": AGENTIC_SYSTEM_PROMPT
+            })
+        
+        # Añadir un mensaje de contexto sobre la misión activa si existe
+        active_mission = db.get_active_mission(conversation_id)
+        if active_mission:
+            objectives = db.get_objectives(active_mission['id'])
+            progress = db.get_mission_progress(active_mission['id'])
+            
+            mission_context = f"""
+## 🎯 ACTIVE MISSION STATE
+- **Mission ID**: {active_mission['id']}
+- **Goal**: {active_mission['goal']}
+- **Phase**: {active_mission.get('current_phase', 'Not set')}
+- **Progress**: {progress['completed']}/{progress['total']} objectives
+
+### Objectives:
+"""
+            for obj in objectives:
+                status_emoji = {
+                    'PENDING': '⏸️',
+                    'IN_PROGRESS': '🔄',
+                    'COMPLETED': '✅',
+                    'FAILED': '❌',
+                    'SKIPPED': '⏭️',
+                    'AWAITING_AUTHORIZATION': '🛑'
+                }.get(obj['status'], '❓')
+                mission_context += f"\n{status_emoji} [{obj['id']}] {obj['task']} - {obj['status']}"
+                if obj.get('result_summary'):
+                    mission_context += f"\n   Result: {obj['result_summary'][:100]}..."
+            
+            mission_context += "\n\n**CONTINUE from where you left off. Check objective statuses and proceed.**"
+            
+            # Insertar como segundo mensaje (después del system)
+            messages_for_llm.insert(1, {
+                "role": "user",
+                "content": mission_context
+            })
+            messages_for_llm.insert(2, {
+                "role": "assistant",
+                "content": "Understood. I'll continue the mission from the current state."
+            })
+    
+    # ==========================================================================
     # 5. LLAMAR AL LLM
     # ==========================================================================
     
@@ -352,7 +915,9 @@ async def chat_completion(req: ChatRequest):
                     user_msg_id=user_msg_id,
                     temperature=req.temperature,
                     top_p=req.top_p,
-                    max_tokens=req.max_tokens
+                    max_tokens=req.max_tokens,
+                    auto_summarize=req.auto_summarize,
+                    summarizer_model=req.summarizer_model
                 ),
                 media_type="text/event-stream",
                 headers={
@@ -477,7 +1042,10 @@ async def stream_chat_response(
     user_msg_id: int,
     temperature: Optional[float] = None,
     top_p: Optional[float] = None,
-    max_tokens: Optional[int] = None
+    max_tokens: Optional[int] = None,
+    # Parámetros de auto-summarize (Sprint 2)
+    auto_summarize: bool = True,
+    summarizer_model: Optional[str] = None
 ):
     """
     Generador asíncrono para streaming con Server-Sent Events (SSE).
@@ -713,6 +1281,9 @@ async def stream_chat_response(
             
             # Ejecutar cada tool call y guardar resultados
             tool_results = []
+            has_awaiting_authorization_first = False  # Track si hay comando pendiente de aprobación
+            has_mission_state_change_first = False  # Track si hubo cambio de estado de misión
+            
             for tc in reconstructed_tool_calls:
                 tc_id = tc['id']
                 func_name = tc['function']['name']
@@ -736,27 +1307,99 @@ async def stream_chat_response(
                     print(f"💥 Excepción en execute_tool_call: {type(e).__name__}: {e}")
                     result = f"Error ejecutando herramienta: {type(e).__name__}: {str(e)}"
                 
-                # Guardar mensaje de tool
+                # Detectar si el comando requiere aprobación
+                if "AWAITING_AUTHORIZATION" in result:
+                    has_awaiting_authorization_first = True
+                    print(f"🛑 Detectado AWAITING_AUTHORIZATION - pausando después del primer bloque")
+                
+                # Detectar si fue una operación de manage_mission
+                if func_name == "manage_mission":
+                    has_mission_state_change_first = True
+                    print(f"📋 Detectado manage_mission - forzar continuación después del primer bloque")
+                
+                # ============================================================
+                # AUTO-SUMMARIZE: Resumir outputs largos automáticamente
+                # ============================================================
+                result_for_llm = result
+                was_summarized = False
+                
+                # Solo resumir si:
+                # 1. auto_summarize está activo
+                # 2. El resultado es lo suficientemente largo
+                # 3. Es un comando de ejecución (no manage_mission u otras tools internas)
+                should_summarize = (
+                    auto_summarize and 
+                    len(result) > SUMMARIZE_THRESHOLD and
+                    func_name == "execute_command"
+                )
+                
+                if should_summarize:
+                    print(f"📦 Auto-resumiendo output de {len(result)} chars...")
+                    
+                    # Notificar al frontend que estamos resumiendo
+                    summarize_event = json.dumps({
+                        "type": "tool_summarizing",
+                        "tool_call_id": tc_id,
+                        "original_length": len(result),
+                        "done": False
+                    })
+                    yield f"event: tool_summarizing\ndata: {summarize_event}\n\n"
+                    
+                    # Usar summarizer_model si se especificó, sino el mismo modelo
+                    summary_model = summarizer_model if summarizer_model else model_id
+                    
+                    try:
+                        summary_result = await summarize_tool_output(
+                            output=result,
+                            client=client,
+                            model_id=summary_model
+                        )
+                        
+                        if summary_result["compressed"]:
+                            result_for_llm = summary_result["summary"]
+                            was_summarized = True
+                            
+                            print(f"✅ Comprimido: {len(result)} → {len(result_for_llm)} chars ({summary_result['compression_ratio']:.1%})")
+                            
+                    except Exception as e:
+                        print(f"⚠️ Error al resumir, usando original: {e}")
+                        result_for_llm = result
+                
+                # Guardar mensaje de tool (siempre el resultado original)
                 tool_msg_id = db.add_message(
                     conversation_id=conversation_id,
                     role="tool",
-                    content=result,
+                    content=result,  # Guardamos el ORIGINAL completo
                     parent_id=assistant_msg_id,
                     tool_call_id=tc_id
                 )
                 
-                # Enviar resultado completo al LLM (la primera vez necesita verlo todo)
+                # Si se resumió, guardar en tool_summaries para zoom-in
+                if was_summarized:
+                    try:
+                        db.save_tool_summary(
+                            message_id=tool_msg_id,
+                            tool_call_id=tc_id,
+                            original=result,
+                            summary=result_for_llm
+                        )
+                    except Exception as e:
+                        print(f"⚠️ Error guardando summary: {e}")
+                
+                # Para el LLM usamos el resumen si existe
                 tool_results.append({
                     "tool_call_id": tc_id,
                     "role": "tool",
-                    "content": result
+                    "content": result_for_llm
                 })
                 
                 # Notificar al frontend del resultado
                 result_event = json.dumps({
                     "type": "tool_result",
                     "tool_call_id": tc_id,
-                    "result": result[:500],  # Truncar para el evento
+                    "result": result[:500],  # Truncar para el evento (siempre original)
+                    "result_summarized": was_summarized,
+                    "summary_length": len(result_for_llm) if was_summarized else None,
                     "tool_message_id": tool_msg_id,
                     "done": False
                 })
@@ -764,6 +1407,27 @@ async def stream_chat_response(
             
             # Actualizar active_leaf al último mensaje de tool
             db.update_conversation_leaf(conversation_id, tool_msg_id)
+            
+            # =================================================================
+            # VERIFICAR SI DEBEMOS PAUSAR O CONTINUAR
+            # =================================================================
+            
+            # Si hay un comando esperando aprobación, PAUSAR antes de iniciar el loop
+            if has_awaiting_authorization_first:
+                print(f"⏸️ Loop pausado (primer bloque) esperando aprobación humana")
+                done_data = json.dumps({
+                    "type": "awaiting_approval",  # Evento especial
+                    "conversation_id": conversation_id,
+                    "user_message_id": user_msg_id,
+                    "assistant_message_id": assistant_msg_id,
+                    "finish_reason": "awaiting_approval",
+                    "had_tool_calls": True,
+                    "message": "El loop está pausado esperando aprobación del comando",
+                    "done": True
+                })
+                yield f"event: done\ndata: {done_data}\n\n"
+                print(f"⏸️ Loop de tools pausado [{stream_id}] - esperando aprobación")
+                return
             
             # =================================================================
             # CONTINUAR LA CONVERSACIÓN CON LOS RESULTADOS (LOOP)
@@ -790,21 +1454,18 @@ async def stream_chat_response(
             for tr in tool_results:
                 current_messages.append(tr)
             
-            # Limitar mensajes si hay demasiados
+            # Usar truncado inteligente que preserva pares tool_call/tool_response
             if len(current_messages) > MAX_MESSAGES_IN_LOOP:
-                # Preservar system prompt
-                if current_messages and current_messages[0]['role'] == 'system':
-                    system_msg = [current_messages[0]]
-                    current_messages = system_msg + current_messages[-(MAX_MESSAGES_IN_LOOP - 1):]
-                else:
-                    current_messages = current_messages[-MAX_MESSAGES_IN_LOOP:]
-                print(f"⚠️ Contexto del loop truncado a {len(current_messages)} mensajes")
+                original_len = len(current_messages)
+                current_messages = db.smart_truncate_messages(current_messages, MAX_MESSAGES_IN_LOOP)
+                print(f"⚠️ Contexto del loop truncado inteligente: {original_len} -> {len(current_messages)} mensajes")
             
             # Variables para el loop
             current_parent_id = tool_msg_id
             current_assistant_msg_id = assistant_msg_id
-            max_iterations = 50  # Límite alto de seguridad (normalmente no debería llegar)
+            max_iterations = 15  # Límite REDUCIDO para evitar loops infinitos
             iteration = 0
+            last_was_mission_state_change = has_mission_state_change_first  # Heredar del primer bloque
             
             while iteration < max_iterations:
                 iteration += 1
@@ -879,8 +1540,36 @@ async def stream_chat_response(
                 
                 print(f"📊 Iteración {iteration}: content_len={len(loop_content)}, tool_calls={len(loop_tool_calls)}")
                 
-                # Si no hay más tool calls, terminamos
+                # Si no hay más tool calls, verificar si debemos forzar continuación
                 if not loop_tool_calls:
+                    # Si la última iteración fue solo manage_mission y no hay contenido sustancial,
+                    # inyectar mensaje de continuación para forzar que el LLM siga
+                    if last_was_mission_state_change and len(loop_content.strip()) < 50:
+                        print(f"🔄 manage_mission detectado sin acción siguiente - inyectando mensaje de continuación")
+                        
+                        # Añadir mensaje de usuario que fuerce continuación
+                        continuation_msg = "[SISTEMA] Estado actualizado. CONTINÚA INMEDIATAMENTE con la siguiente acción del plan. Ejecuta el siguiente comando necesario."
+                        
+                        current_messages.append({
+                            "role": "user",
+                            "content": continuation_msg
+                        })
+                        
+                        # Guardar este mensaje de continuación
+                        continuation_msg_id = db.add_message(
+                            conversation_id=conversation_id,
+                            role="user",
+                            content=continuation_msg,
+                            parent_id=loop_assistant_msg_id
+                        )
+                        current_parent_id = continuation_msg_id
+                        db.update_conversation_leaf(conversation_id, continuation_msg_id)
+                        
+                        # Reset flag y continuar el loop
+                        last_was_mission_state_change = False
+                        print(f"🔄 Mensaje de continuación inyectado, continuando loop...")
+                        continue  # Continuar con la siguiente iteración
+                    
                     print(f"✅ Loop terminado: LLM no pidió más tools")
                     done_data = json.dumps({
                         "type": "done",
@@ -948,6 +1637,9 @@ async def stream_chat_response(
                 # Ejecutar tools de esta iteración
                 loop_tool_results = []
                 loop_tool_msg_id = None
+                has_awaiting_authorization = False  # Track si hay comando pendiente de aprobación
+                has_mission_state_change = False  # Track si hubo cambio de estado de misión
+                
                 for tc in loop_reconstructed:
                     tc_id = tc['id']
                     func_name = tc['function']['name']
@@ -968,6 +1660,16 @@ async def stream_chat_response(
                     except Exception as e:
                         print(f"💥 Excepción en execute_tool_call: {type(e).__name__}: {e}")
                         result = f"Error ejecutando herramienta: {type(e).__name__}: {str(e)}"
+                    
+                    # Detectar si el comando requiere aprobación
+                    if "AWAITING_AUTHORIZATION" in result:
+                        has_awaiting_authorization = True
+                        print(f"🛑 Detectado AWAITING_AUTHORIZATION - pausando loop")
+                    
+                    # Detectar si fue una operación de manage_mission
+                    if func_name == "manage_mission":
+                        has_mission_state_change = True
+                        print(f"📋 Detectado manage_mission - forzar continuación")
                     
                     loop_tool_msg_id = db.add_message(
                         conversation_id=conversation_id,
@@ -993,6 +1695,26 @@ async def stream_chat_response(
                     })
                     yield f"event: tool_result\ndata: {result_event}\n\n"
                 
+                # Si hay un comando esperando aprobación, PAUSAR el loop
+                if has_awaiting_authorization:
+                    print(f"⏸️ Loop pausado esperando aprobación humana")
+                    done_data = json.dumps({
+                        "type": "awaiting_approval",  # Evento especial
+                        "conversation_id": conversation_id,
+                        "user_message_id": user_msg_id,
+                        "assistant_message_id": loop_assistant_msg_id,
+                        "finish_reason": "awaiting_approval",
+                        "had_tool_calls": True,
+                        "message": "El loop está pausado esperando aprobación del comando",
+                        "done": True
+                    })
+                    yield f"event: done\ndata: {done_data}\n\n"
+                    print(f"⏸️ Loop de tools pausado [{stream_id}] - esperando aprobación")
+                    return
+                
+                # Actualizar flag de estado de misión para la siguiente iteración
+                last_was_mission_state_change = has_mission_state_change
+                
                 # Actualizar mensajes para la siguiente iteración
                 current_messages.append({
                     "role": "assistant",
@@ -1002,14 +1724,11 @@ async def stream_chat_response(
                 for tr in loop_tool_results:
                     current_messages.append(tr)
                 
-                # Limitar contexto para evitar exceder tokens
+                # Usar truncado inteligente para evitar romper pares tool_call/tool_response
                 if len(current_messages) > MAX_MESSAGES_IN_LOOP:
-                    if current_messages and current_messages[0]['role'] == 'system':
-                        system_msg = [current_messages[0]]
-                        current_messages = system_msg + current_messages[-(MAX_MESSAGES_IN_LOOP - 1):]
-                    else:
-                        current_messages = current_messages[-MAX_MESSAGES_IN_LOOP:]
-                    print(f"⚠️ Contexto del loop truncado a {len(current_messages)} mensajes (iteración {iteration})")
+                    original_len = len(current_messages)
+                    current_messages = db.smart_truncate_messages(current_messages, MAX_MESSAGES_IN_LOOP)
+                    print(f"⚠️ Contexto truncado inteligente (iter {iteration}): {original_len} -> {len(current_messages)} msgs")
                 
                 current_parent_id = loop_tool_msg_id
                 db.update_conversation_leaf(conversation_id, loop_tool_msg_id)
@@ -1049,18 +1768,34 @@ async def stream_chat_response(
         error_msg = str(e)
         print(f"❌ Error en streaming [{stream_id}]: {error_msg}")
         
-        # Determinar código de error
+        # Determinar código de error más específico
         if "401" in error_msg:
             code = "INVALID_API_KEY"
+            friendly_msg = "API Key inválida o expirada"
         elif "429" in error_msg:
             code = "RATE_LIMITED"
+            friendly_msg = "Has alcanzado el límite de peticiones. Espera unos segundos."
+        elif "400" in error_msg:
+            code = "INVALID_REQUEST"
+            # Detectar errores específicos de formato
+            if "Name cannot be empty" in error_msg or "function_response" in error_msg:
+                friendly_msg = "Error de formato en respuesta de herramienta. Intenta de nuevo o inicia nueva conversación."
+            elif "INVALID_ARGUMENT" in error_msg:
+                friendly_msg = "Argumento inválido en la petición al modelo."
+            else:
+                friendly_msg = f"Petición malformada: {error_msg[:100]}"
+        elif "500" in error_msg or "503" in error_msg:
+            code = "PROVIDER_ERROR"
+            friendly_msg = "Error del proveedor (Google/OpenAI). Intenta de nuevo en unos segundos."
         else:
             code = "STREAM_ERROR"
+            friendly_msg = error_msg[:150]
         
         error_data = json.dumps({
             "type": "error",
             "code": code,
-            "message": error_msg[:200],
+            "message": friendly_msg,
+            "technical_details": error_msg[:300],
             "done": True
         })
         yield f"event: error\ndata: {error_data}\n\n"
@@ -1107,3 +1842,190 @@ async def tool_response(
         "tool_message_id": tool_msg_id,
         "conversation_id": conversation_id
     }
+
+
+# =============================================================================
+# TOOL SUMMARIZER - OPTIMIZACIÓN DE CONTEXTO (Sprint 2)
+# =============================================================================
+
+# Configuración del summarizer
+SUMMARIZE_THRESHOLD = 800  # Caracteres mínimos para activar resumido
+SUMMARIZE_MAX_LINES = 20   # Máximo de líneas en el resumen
+
+SUMMARY_PROMPT_TEMPLATE = """Resume este output técnico de herramienta de ciberseguridad.
+
+**REGLAS CRÍTICAS** (el Agente depende de esta información):
+1. PRESERVAR OBLIGATORIAMENTE:
+   - Direcciones IP, puertos, hosts
+   - Versiones de servicios (ej: "Apache 2.4.49", "OpenSSH 7.9")
+   - CVEs, vulnerabilidades nombradas
+   - Credenciales, tokens, cookies, hashes
+   - Rutas de archivos, URLs descubiertas
+   - Nombres de usuario, dominios
+   - Cualquier dato que parezca una credencial o secreto
+
+2. ELIMINAR:
+   - Líneas de progreso repetitivas ("Scanning...", "Progress: 50%")
+   - Banners y ASCII art
+   - Timestamps redundantes
+   - Advertencias genéricas de herramientas
+   - Explicaciones de uso de la herramienta
+
+3. FORMATO:
+   - Máximo {max_lines} líneas
+   - Bullets para listar hallazgos
+   - Una línea de resumen al inicio
+   - Si hay muchos puertos/hosts, agrupar por relevancia
+
+OUTPUT A RESUMIR:
+```
+{output}
+```
+
+RESUMEN (conciso, técnico, preservando datos críticos):"""
+
+
+from pydantic import BaseModel
+
+class SummarizeRequest(BaseModel):
+    """Request para el endpoint de summarize."""
+    output: str
+    provider: str
+    api_key: str
+    model_id: str
+    max_lines: int = SUMMARIZE_MAX_LINES
+
+
+class SummarizeResponse(BaseModel):
+    """Response del endpoint de summarize."""
+    summary: str
+    compressed: bool
+    original_length: int
+    summary_length: int
+    compression_ratio: float
+
+
+async def summarize_tool_output(
+    output: str,
+    client: AsyncOpenAI,
+    model_id: str,
+    max_lines: int = SUMMARIZE_MAX_LINES
+) -> dict:
+    """
+    Resume un output largo de herramienta de forma inteligente.
+    
+    Args:
+        output: Output original de la herramienta
+        client: Cliente AsyncOpenAI configurado
+        model_id: ID del modelo a usar para resumir
+        max_lines: Máximo de líneas en el resumen
+    
+    Returns:
+        dict con summary, compressed, compression_ratio, etc.
+    """
+    # Si es corto, no resumir
+    if len(output) < SUMMARIZE_THRESHOLD:
+        return {
+            "summary": output,
+            "compressed": False,
+            "original_length": len(output),
+            "summary_length": len(output),
+            "compression_ratio": 1.0
+        }
+    
+    # Generar prompt de resumen
+    prompt = SUMMARY_PROMPT_TEMPLATE.format(
+        output=output,
+        max_lines=max_lines
+    )
+    
+    try:
+        response = await client.chat.completions.create(
+            model=model_id,
+            messages=[{"role": "user", "content": prompt}],
+            stream=False,
+            temperature=0.2,  # Baja temperatura para respuestas deterministas
+            max_tokens=800    # Suficiente para un resumen extenso
+        )
+        
+        summary = response.choices[0].message.content.strip()
+        compression_ratio = len(summary) / len(output) if len(output) > 0 else 1.0
+        
+        return {
+            "summary": summary,
+            "compressed": True,
+            "original_length": len(output),
+            "summary_length": len(summary),
+            "compression_ratio": compression_ratio
+        }
+        
+    except Exception as e:
+        print(f"⚠️ Error al resumir output: {e}")
+        # En caso de error, devolver el original truncado
+        truncated = output[:2000] + "\n\n[... output truncado por error de resumen ...]"
+        return {
+            "summary": truncated,
+            "compressed": False,
+            "original_length": len(output),
+            "summary_length": len(truncated),
+            "compression_ratio": len(truncated) / len(output),
+            "error": str(e)
+        }
+
+
+@router.post("/summarize-tool-output", response_model=SummarizeResponse)
+async def summarize_tool_output_endpoint(req: SummarizeRequest):
+    """
+    Endpoint para resumir outputs largos de herramientas.
+    
+    Útil para:
+    - Outputs de nmap extensos
+    - Resultados de fuzzing (ffuf, gobuster)
+    - Escaneos de vulnerabilidades (nuclei, nikto)
+    
+    El resumen preserva información crítica (IPs, puertos, CVEs)
+    mientras elimina ruido y líneas repetitivas.
+    """
+    # Crear cliente para el proveedor
+    client = get_client_for_provider(req.provider, req.api_key)
+    
+    result = await summarize_tool_output(
+        output=req.output,
+        client=client,
+        model_id=req.model_id,
+        max_lines=req.max_lines
+    )
+    
+    return SummarizeResponse(**result)
+
+
+def get_client_for_provider(provider: str, api_key: str) -> AsyncOpenAI:
+    """
+    Crea un cliente AsyncOpenAI configurado para el proveedor.
+    Reutiliza la lógica del chat pero como función standalone.
+    """
+    PROVIDER_CONFIG = {
+        "openai": {"base_url": None},
+        "google": {"base_url": "https://generativelanguage.googleapis.com/v1beta/openai/"},
+        "deepseek": {"base_url": "https://api.deepseek.com/v1"},
+        "openrouter": {"base_url": "https://openrouter.ai/api/v1"},
+        "anthropic": {"base_url": "https://api.anthropic.com/v1"},
+    }
+    
+    config = PROVIDER_CONFIG.get(provider, {})
+    base_url = config.get("base_url")
+    
+    # Caso especial: Ollama (extraer URL del api_key o usar default)
+    if provider == "ollama":
+        # El api_key para Ollama puede contener la URL: "http://localhost:11434|dummy"
+        if "|" in api_key:
+            base_url, api_key = api_key.split("|", 1)
+            base_url = f"{base_url.rstrip('/')}/v1"
+        else:
+            base_url = "http://localhost:11434/v1"
+            api_key = "ollama"  # Ollama no requiere key real
+    
+    return AsyncOpenAI(
+        api_key=api_key,
+        base_url=base_url
+    )

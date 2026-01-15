@@ -214,6 +214,10 @@ class ChatRequest(BaseModel):
     tools: Optional[List[Dict[str, Any]]] = None
     stream: bool = False  # Parámetro clave para streaming
     system_prompt: Optional[str] = None  # Override system prompt para nueva conv
+    
+    # Modo Agéntico - Optimización de contexto
+    auto_summarize: bool = True  # Resumir automáticamente outputs largos
+    summarizer_model: Optional[str] = None  # Modelo para resumir (None = mismo modelo)
 
 
 class ChatResponse(BaseModel):

@@ -11,6 +11,9 @@
 
 
 
+from typing import Self
+
+
 TOOLS_SECHEMA = [
     # -------------------------------------------------------------------------
     # HERRAMIENTA 1: EJECUCIÓN (Lanza el proceso)
@@ -103,6 +106,121 @@ TOOLS_SECHEMA = [
                 "required": ["job_id"]
             }
         }
+    },
+    
+    # =========================================================================
+    # HERRAMIENTAS AGÉNTICAS - MODO AUTÓNOMO
+    # =========================================================================
+    
+    # -------------------------------------------------------------------------
+    # HERRAMIENTA 4: GESTIÓN DE MISIONES
+    # -------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "manage_mission",
+            "description": (
+                "CRITICAL: Manages your autonomous mission state. "
+                "Use this tool to create plans, track progress, and update objectives. "
+                "For complex tasks, ALWAYS create a mission first with action='create'.\n\n"
+                "ACTIONS:\n"
+                "- 'create': Create a new mission with objectives\n"
+                "- 'update_objective': Update objective status (PENDING/IN_PROGRESS/COMPLETED/FAILED)\n"
+                "- 'update_phase': Change current mission phase\n"
+                "- 'complete': Finalize the mission\n"
+                "- 'get_status': Get current mission state\n"
+                "- 'modify_objectives': Reorganize plan (insert/delete/update objectives)"
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["create", "update_objective", "update_phase", "complete", "get_status", "modify_objectives"],
+                        "description": "The action to perform on the mission."
+                    },
+                    "mission_id": {
+                        "type": "string",
+                        "description": "Mission ID. Required for most actions except 'create'."
+                    },
+                    "goal": {
+                        "type": "string",
+                        "description": "High-level mission goal. Required for 'create'."
+                    },
+                    "objectives": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                        "description": "List of objective descriptions. Required for 'create'."
+                    },
+                    "objective_id": {
+                        "type": "integer",
+                        "description": "Objective ID to update. Required for 'update_objective'."
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["PENDING", "IN_PROGRESS", "COMPLETED", "FAILED", "SKIPPED"],
+                        "description": "New status for objective or mission."
+                    },
+                    "result": {
+                        "type": "string",
+                        "description": "Summary of objective result. Include key findings."
+                    },
+                    "reflection": {
+                        "type": "string",
+                        "description": "Why you believe this objective succeeded/failed. Critical for learning."
+                    },
+                    "phase": {
+                        "type": "string",
+                        "description": "New phase name (e.g., 'Reconnaissance', 'Exploitation', 'Post-Exploitation')."
+                    },
+                    "modifications": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "type": {"type": "string", "enum": ["insert", "delete", "update"]},
+                                "after_id": {"type": "integer", "description": "Insert after this objective ID"},
+                                "objective_id": {"type": "integer", "description": "Objective to delete/update"},
+                                "task": {"type": "string", "description": "New task description"},
+                                "new_task": {"type": "string", "description": "Updated task description"}
+                            }
+                        },
+                        "description": "List of modifications for 'modify_objectives' action."
+                    },
+                    "metadata": {
+                        "type": "object",
+                        "description": "Additional info: target IP, test type, etc."
+                    }
+                },
+                "required": ["action"]
+            }
+        }
+    },
+    
+    # -------------------------------------------------------------------------
+    # HERRAMIENTA 5: RECUPERAR OUTPUT ORIGINAL (ZOOM IN)
+    # -------------------------------------------------------------------------
+    {
+        "type": "function",
+        "function": {
+            "name": "get_original_output",
+            "description": (
+                "Retrieves the FULL original output of a previous tool call. "
+                "Use this when a summarized output doesn't contain the detail you need "
+                "(e.g., specific IP, port, cookie, or hash that was omitted). "
+                "The tool_call_id can be found in the conversation history."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "tool_call_id": {
+                        "type": "string",
+                        "description": "The ID of the tool call whose original output you need."
+                    }
+                },
+                "required": ["tool_call_id"]
+            }
+        }
     }
 ]
 
@@ -119,6 +237,15 @@ Your goal is to audit targets, identify vulnerabilities, and document your findi
 2. **Privileges**: Do NOT use `sudo`. Do NOT ask for permission to run commands. Just do it.
 3. **Network**: You have access to a local lab network.
 4. **Filesystem**: Your working directory is persistent. You can create files, scripts, and save reports.
+
+
+### 📋 AGENTIC MISSION PROTOCOL
+You must strictly follow this mission protocol to ensure structured and effective operations: 
+1. **Plan First**: Before any technical action, you MUST create a mission plan using `manage_mission(action='create')`.
+2. **State Sync**: Every time an objective is reached or fails, you MUST update its status. Your internal state and the mission control state must always be synchronized.
+3. **Dynamic Planning**: If a tool output reveals new information (e.g., a new hidden directory or a specific service version), use `manage_mission(action='modify_objectives')` to adapt your plan immediately.
+4. **Self-Correction**: If a phase is going nowhere, stop, reflect in the `reflection` field, and pivot.
+ 
 
 ### 🛠️ TOOL USAGE PROTOCOL (CRITICAL)
 You have access to a REST API via function calling. Follow these rules strictly:
@@ -161,3 +288,4 @@ INITIAL_MESSAGE = {
     "role": "user", 
     "content": "Inicia el sistema. Confirma que tienes acceso a las herramientas ejecutando 'whoami' y 'id'. Dime si estás listo."
 }
+

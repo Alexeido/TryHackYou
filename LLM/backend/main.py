@@ -32,6 +32,7 @@ from routes.conversations import router as conversations_router
 from routes.chat import router as chat_router
 from routes.messages import router as messages_router
 from routes.jobs import router as jobs_router
+from routes.missions import router as missions_router
 
 # Importar la lógica de discovery que ya existe
 from routes_legacy import router as legacy_router
@@ -97,6 +98,7 @@ app.include_router(conversations_router)
 app.include_router(chat_router)
 app.include_router(messages_router)
 app.include_router(jobs_router)
+app.include_router(missions_router)
 
 # Endpoints legacy (discovery de modelos)
 app.include_router(legacy_router)

@@ -59,7 +59,8 @@ async def poll_pending_jobs():
     Cuando un job termina:
     1. Guarda el resultado en pending_jobs
     2. Crea el mensaje tool en la conversación
-    3. Notifica via callback
+    3. Actualiza mission_jobs si existe
+    4. Notifica via callback
     """
     pending = db.get_pending_jobs()
     
@@ -73,6 +74,16 @@ async def poll_pending_jobs():
             # Job completado - guardar resultado
             formatted_result = format_job_result(result)
             db.complete_pending_job(job_id, formatted_result)
+            
+            # SPRINT 2: Actualizar mission_job si existe
+            return_code = result.get("return_code", 0)
+            mission_job_status = "COMPLETED" if return_code == 0 else "FAILED"
+            try:
+                db.complete_mission_job(job_id, mission_job_status)
+                print(f"🎯 Mission job {job_id[:8]} marcado como {mission_job_status}")
+            except Exception as e:
+                # Es normal que falle si no hay mission_job asociado
+                pass
             
             conv_id = job['conversation_id']
             leaf_id = job['leaf_id']

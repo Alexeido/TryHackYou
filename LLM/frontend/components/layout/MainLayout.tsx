@@ -6,14 +6,15 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { useUIStore } from "@/store/useStore";
+import { useUIStore, useMissionStore } from "@/store/useStore";
 import { ChatSidebar } from "@/components/sidebar/ChatSidebar";
 import { ChatArea } from "@/components/chat/ChatArea";
 import { TerminalPanel } from "@/components/terminal/TerminalPanel";
 import { ConfigModal } from "@/components/config/ConfigModal";
 import { ModelSelector } from "@/components/models/ModelSelector";
+import { MissionPanel, ApprovalDialog } from "@/components/mission";
 import { Button } from "@/components/ui/button";
-import { Settings, PanelRight, Loader2 } from "lucide-react";
+import { Settings, PanelRight, Target, Loader2 } from "lucide-react";
 
 export function MainLayout() {
   const [isMounted, setIsMounted] = useState(false);
@@ -23,6 +24,8 @@ export function MainLayout() {
     isSidebarOpen,
     setConfigModalOpen 
   } = useUIStore();
+  
+  const { isPanelOpen, setPanelOpen } = useMissionStore();
 
   // Evitar errores de hidratación esperando al cliente
   useEffect(() => {
@@ -70,6 +73,15 @@ export function MainLayout() {
                 <Button
                   variant="ghost"
                   size="icon"
+                  onClick={() => setPanelOpen(!isPanelOpen)}
+                  className="text-muted-foreground"
+                  title="Panel de misión"
+                >
+                  <Target className="h-5 w-5" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setTerminalOpen(!isTerminalOpen)}
                   className="text-muted-foreground"
                 >
@@ -87,8 +99,16 @@ export function MainLayout() {
             </div>
             
             {/* Área de chat */}
-            <div className="flex-1 overflow-hidden">
-              <ChatArea />
+            <div className="flex-1 overflow-hidden flex">
+              <div className="flex-1">
+                <ChatArea />
+              </div>
+              {/* Panel de misión (lado derecho del chat) */}
+              {isPanelOpen && (
+                <div className="w-80 border-l overflow-hidden">
+                  <MissionPanel />
+                </div>
+              )}
             </div>
           </div>
         </ResizablePanel>
@@ -106,6 +126,7 @@ export function MainLayout() {
 
       {/* Modales */}
       <ConfigModal />
+      <ApprovalDialog />
     </div>
   );
 }

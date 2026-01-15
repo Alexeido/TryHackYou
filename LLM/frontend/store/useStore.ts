@@ -545,6 +545,198 @@ export const useTerminalStore = create<TerminalState>()((set) => ({
 }));
 
 // ============================================
+// MISSION STORE - Estado del modo agéntico
+// ============================================
+
+export type ObjectiveStatus = 
+  | 'PENDING' 
+  | 'IN_PROGRESS' 
+  | 'COMPLETED' 
+  | 'FAILED' 
+  | 'SKIPPED'
+  | 'AWAITING_AUTHORIZATION';
+
+export type MissionStatus = 
+  | 'PLANNING' 
+  | 'IN_PROGRESS' 
+  | 'COMPLETED' 
+  | 'FAILED' 
+  | 'CANCELLED';
+
+export type RiskLevel = 'safe' | 'low' | 'medium' | 'high' | 'critical';
+
+export interface MissionObjective {
+  id: number;
+  mission_id: string;
+  order_index: number;
+  task: string;
+  status: ObjectiveStatus;
+  result_summary: string | null;
+  reflection: string | null;
+  requires_approval: boolean;
+  approval_status: string | null;
+  pending_command: string | null;
+  approved_by: string | null;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface MissionProgress {
+  total: number;
+  completed: number;
+  failed: number;
+  skipped: number;
+  in_progress: number;
+  pending: number;
+  awaiting_authorization: number;
+  percentage: number;
+}
+
+export interface Mission {
+  id: string;
+  conversation_id: string;
+  goal: string;
+  current_phase: string | null;
+  status: MissionStatus;
+  created_at: string;
+  completed_at: string | null;
+  metadata: Record<string, unknown> | null;
+}
+
+export interface PendingApproval {
+  id: number;
+  mission_id: string;
+  mission_goal: string;
+  conversation_id: string;
+  task: string;
+  pending_command: string;
+  approval_status: string;
+  order_index: number;
+}
+
+interface MissionState {
+  // Misión activa por conversación
+  activeMissions: Record<string, Mission | null>;
+  
+  // Objetivos por misión
+  objectives: Record<string, MissionObjective[]>;
+  
+  // Progreso por misión
+  progress: Record<string, MissionProgress>;
+  
+  // Aprobaciones pendientes globales
+  pendingApprovals: PendingApproval[];
+  
+  // Estado de carga
+  isLoading: boolean;
+  error: string | null;
+  
+  // Panel de misión abierto
+  isPanelOpen: boolean;
+  
+  // Diálogo de aprobación abierto
+  approvalDialogOpen: boolean;
+  selectedApproval: PendingApproval | null;
+  
+  // Acciones
+  setActiveMission: (conversationId: string, mission: Mission | null) => void;
+  setObjectives: (missionId: string, objectives: MissionObjective[]) => void;
+  setProgress: (missionId: string, progress: MissionProgress) => void;
+  updateObjectiveStatus: (missionId: string, objectiveId: number, status: ObjectiveStatus, result?: string) => void;
+  setPendingApprovals: (approvals: PendingApproval[]) => void;
+  removePendingApproval: (objectiveId: number) => void;
+  setLoading: (loading: boolean) => void;
+  setError: (error: string | null) => void;
+  setPanelOpen: (open: boolean) => void;
+  openApprovalDialog: (approval: PendingApproval) => void;
+  closeApprovalDialog: () => void;
+  clearMission: (conversationId: string) => void;
+}
+
+export const useMissionStore = create<MissionState>()((set) => ({
+  activeMissions: {},
+  objectives: {},
+  progress: {},
+  pendingApprovals: [],
+  isLoading: false,
+  error: null,
+  isPanelOpen: false,
+  approvalDialogOpen: false,
+  selectedApproval: null,
+  
+  setActiveMission: (conversationId, mission) => set((state) => ({
+    activeMissions: {
+      ...state.activeMissions,
+      [conversationId]: mission,
+    }
+  })),
+  
+  setObjectives: (missionId, objectives) => set((state) => ({
+    objectives: {
+      ...state.objectives,
+      [missionId]: objectives,
+    }
+  })),
+  
+  setProgress: (missionId, progress) => set((state) => ({
+    progress: {
+      ...state.progress,
+      [missionId]: progress,
+    }
+  })),
+  
+  updateObjectiveStatus: (missionId, objectiveId, status, result) => set((state) => ({
+    objectives: {
+      ...state.objectives,
+      [missionId]: state.objectives[missionId]?.map((obj) =>
+        obj.id === objectiveId
+          ? { ...obj, status, result_summary: result ?? obj.result_summary }
+          : obj
+      ) || [],
+    }
+  })),
+  
+  setPendingApprovals: (approvals) => set({ pendingApprovals: approvals }),
+  
+  removePendingApproval: (objectiveId) => set((state) => ({
+    pendingApprovals: state.pendingApprovals.filter((a) => a.id !== objectiveId),
+  })),
+  
+  setLoading: (loading) => set({ isLoading: loading }),
+  
+  setError: (error) => set({ error }),
+  
+  setPanelOpen: (open) => set({ isPanelOpen: open }),
+  
+  openApprovalDialog: (approval) => set({ 
+    approvalDialogOpen: true, 
+    selectedApproval: approval 
+  }),
+  
+  closeApprovalDialog: () => set({ 
+    approvalDialogOpen: false, 
+    selectedApproval: null 
+  }),
+  
+  clearMission: (conversationId) => set((state) => {
+    const mission = state.activeMissions[conversationId];
+    const { [conversationId]: _, ...restMissions } = state.activeMissions;
+    
+    if (mission) {
+      const { [mission.id]: __, ...restObjectives } = state.objectives;
+      const { [mission.id]: ___, ...restProgress } = state.progress;
+      return {
+        activeMissions: restMissions,
+        objectives: restObjectives,
+        progress: restProgress,
+      };
+    }
+    
+    return { activeMissions: restMissions };
+  }),
+}));
+
+// ============================================
 // LEGACY EXPORT - Compatibilidad con código existente
 // ============================================
 
