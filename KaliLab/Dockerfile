@@ -1,94 +1,79 @@
 # -------------------------------------------------------------------
-# FASE 1: BASE Y HERRAMIENTAS CLÁSICAS
+# FASE 1: BASE Y HERRAMIENTAS CLÁSICAS + NETWORKING
 # -------------------------------------------------------------------
 FROM kalilinux/kali-rolling
 
-# Actualizamos repositorios
-RUN apt-get update
-
-# Instalación de herramientas básicas de auditoría y sistema
-RUN apt-get install -y \
+# Actualizamos repositorios e instalamos herramientas core
+RUN apt-get update && apt-get install -y \
     nmap sqlmap nikto hydra ffuf whatweb curl jq exploitdb wget \
     iputils-ping netcat-traditional dnsutils samba-client \
-    python3 python3-pip python3-flask wordlists \
-    # Limpieza de caché para reducir peso
-    && pip3 install flask-cors --break-system-packages \
-    && rm -rf /var/lib/apt/lists/*
+    python3 python3-pip python3-flask python3-setuptools wordlists \
+    git unzip lynx chromium 
 
-# Instalación de Nuclei (Escáner de vulnerabilidades moderno)
+# Actualizamos la base de datos de exploits (Searchsploit)
+
+# -------------------------------------------------------------------
+# FASE 2: RECONOCIMIENTO Y WEB MODERNA (ProjectDiscovery + Arjun)
+# -------------------------------------------------------------------
+
+# 1. Nuclei (Vulnerabilidades)
 RUN curl -L -o nuclei.zip https://github.com/projectdiscovery/nuclei/releases/download/v3.1.0/nuclei_3.1.0_linux_amd64.zip \
-    && apt-get install -y unzip \
-    && unzip -o nuclei.zip \
-    && mv nuclei /usr/local/bin/ \
-    && rm nuclei.zip
+    && unzip -o nuclei.zip && mv nuclei /usr/local/bin/ && rm nuclei.zip
 
-# Instalación de TLDR (Chuletas para que el LLM sepa usar comandos)
-RUN pip3 install tldr --break-system-packages && \
-    tldr --update_cache
+# 2. Katana (Spidering con soporte Headless/JS)
+RUN curl -L -o katana.zip https://github.com/projectdiscovery/katana/releases/download/v1.1.0/katana_1.1.0_linux_amd64.zip \
+    && unzip -o katana.zip && mv katana /usr/local/bin/ && rm katana.zip
 
-# Descomprimir el diccionario Rockyou (Estándar para fuerza bruta)
+# 3. Subfinder (Descubrimiento de subdominios)
+RUN curl -L -o subfinder.zip https://github.com/projectdiscovery/subfinder/releases/download/v2.6.3/subfinder_2.6.3_linux_amd64.zip \
+    && unzip -o subfinder.zip && mv subfinder /usr/local/bin/ && rm subfinder.zip
+
+# 4. Arjun (Descubrimiento de parámetros ocultos)
+RUN pip3 install arjun --break-system-packages
+
+# -------------------------------------------------------------------
+# FASE 3: EXTRACCIÓN Y ANÁLISIS DE JS
+# -------------------------------------------------------------------
+
+# pup (HTML parsing), tldr (ayuda para comandos)
+RUN curl -L -o pup.zip https://github.com/ericchiang/pup/releases/download/v0.4.0/pup_v0.4.0_linux_amd64.zip \
+    && unzip -o pup.zip && mv pup /usr/local/bin/ && rm pup.zip
+RUN pip3 install tldr --break-system-packages && tldr --update_cache
+
+# LinkFinder y SecretFinder
+RUN git clone https://github.com/GerbenJavado/LinkFinder.git /opt/linkfinder \
+    && cd /opt/linkfinder && pip3 install -r requirements.txt --break-system-packages \
+    && python3 setup.py install
+
+RUN git clone https://github.com/m4ll0k/SecretFinder.git /opt/secretfinder \
+    && cd /opt/secretfinder && pip3 install -r requirements.txt --break-system-packages
+
+# Instalación de OWASP ZAP (Versión Cross-Platform) y zap-cli
+# Usamos --ignore-installed para evitar conflictos con paquetes del sistema (click)
+RUN apt-get install -y zaproxy \
+    && pip3 install zapcli --ignore-installed --break-system-packages \
+    && pip3 install --upgrade urllib3 requests --break-system-packages 
+
+# -------------------------------------------------------------------
+# FASE 4: AISLAMIENTO, PERSISTENCIA Y API
+# -------------------------------------------------------------------
+
+# Instalación de librerías Python necesarias
+RUN pip3 install flask-cors gitpython --break-system-packages
+
+WORKDIR /app
+COPY script/ /app/
+
+# Configuración de carpetas y permisos
+RUN mkdir -p /workspace /workspace_persistent /workspace_sessions && \
+    chmod -R 777 /workspace_persistent /workspace_sessions
+
+# Descomprimir Rockyou
 RUN gzip -d /usr/share/wordlists/rockyou.txt.gz || true
 
 # -------------------------------------------------------------------
-# FASE 2: HERRAMIENTAS PARA WEB MODERNA (JUICE SHOP / APIS)
+# FASE 5: ARRANQUE
 # -------------------------------------------------------------------
-
-# 1. Instalamos Httpie, Git y SETUPTOOLS (Vital para instalar LinkFinder)
-# IMPORTANTE: Ejecutamos 'apt-get update' de nuevo porque borramos la caché en la Fase 1.
-RUN apt-get update && apt-get install -y \
-    httpie \
-    git \
-    python3-setuptools \
-    && rm -rf /var/lib/apt/lists/*
-
-# 2. Descargar LinkFinder (Para que el LLM encuentre endpoints en archivos JS)
-RUN git clone https://github.com/GerbenJavado/LinkFinder.git /opt/linkfinder \
-    && cd /opt/linkfinder \
-    && pip3 install -r requirements.txt --break-system-packages \
-    && python3 setup.py install
-
-# 3. Descargar Wordlists específicas de API (SecLists Mini)
-RUN mkdir -p /usr/share/wordlists/seclists/Discovery/Web-Content/ \
-    && curl -L -o /usr/share/wordlists/seclists/Discovery/Web-Content/api-endpoints.txt \
-    https://raw.githubusercontent.com/danielmiessler/SecLists/master/Discovery/Web-Content/api-endpoints.txt
-
-# -------------------------------------------------------------------
-# FASE 3: EMPAQUETADO DE TU CÓDIGO (AISLAMIENTO)
-# -------------------------------------------------------------------
-
-# 1. Definimos la carpeta protegida donde vivirá TU CÓDIGO (API)
-WORKDIR /app
-
-# 2. Copiamos el contenido de tu carpeta 'script' local a '/app' dentro del Docker
-COPY script/ /app/
-
-# 3. Creamos la carpeta donde trabajará EL AGENTE (Sandbox para ejecutar comandos)
-RUN mkdir -p /workspace
-
-# 4. Creamos un archivo de bienvenida
-RUN echo "Bienvenido al Agente de Ciberseguridad TFG" > /workspace/README.txt
-
-# 5. PERSISTENT STORAGE: Carpeta compartida entre todas las conversaciones
-RUN mkdir -p /workspace_persistent/tools && \
-    mkdir -p /workspace_persistent/wordlists && \
-    mkdir -p /workspace_persistent/downloads && \
-    chmod -R 777 /workspace_persistent
-
-# 6. WORKSPACE SESSIONS: Carpeta para repos git de cada conversación
-RUN mkdir -p /workspace_sessions && chmod 777 /workspace_sessions
-
-# 7. GitPython para control de versiones por conversación
-RUN pip3 install gitpython --break-system-packages
-
-# -------------------------------------------------------------------
-# FASE 4: ARRANQUE
-# -------------------------------------------------------------------
-
-# El agente siempre empezará "sentado" en el workspace, no en la carpeta del código
 WORKDIR /workspace
-
-# Exponemos el puerto de la API
 EXPOSE 5000
-
-# Arrancamos la API Flask (usando ruta absoluta)
 CMD ["python3", "/app/agent_api.py"]

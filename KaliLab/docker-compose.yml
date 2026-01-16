@@ -1,10 +1,11 @@
 services:
   # -------------------------------------------------------
-  # EL AGENTE (ATACANTE) - IP: 10.5.0.2
+  # EL AGENTE (ATACANTE) - IP: 10.10.0.2
   # -------------------------------------------------------
   attacker:
     build: .
     container_name: agente-tfg
+    privileged: true
     ports:
       - "5000:5000"
     volumes:
@@ -13,7 +14,7 @@ services:
       - sessions_storage:/workspace_sessions
     networks:
       hacking_net:
-        ipv4_address: 10.5.0.2
+        ipv4_address: 10.10.0.2
     command: python3 /app/agent_api.py
     tty: true
     restart: always
@@ -23,7 +24,7 @@ services:
       - juice_victim
 
   # -------------------------------------------------------
-  # VÍCTIMA 1: WEB CLÁSICA (DVWA) - IP: 10.5.0.3
+  # VÍCTIMA 1: WEB CLÁSICA (DVWA) - IP: 10.10.0.3
   # -------------------------------------------------------
   victim:
     image: vulnerables/web-dvwa
@@ -32,11 +33,11 @@ services:
       - "8010:80"
     networks:
       hacking_net:
-        ipv4_address: 10.5.0.3
+        ipv4_address: 10.10.0.3
     restart: always
 
   # -------------------------------------------------------
-  # VÍCTIMA 2: INFRAESTRUCTURA (METASPLOITABLE) - IP: 10.5.0.4
+  # VÍCTIMA 2: INFRAESTRUCTURA (METASPLOITABLE) - IP: 10.10.0.4
   # -------------------------------------------------------
   meta_victim:
     image: tleemcjr/metasploitable2
@@ -45,13 +46,13 @@ services:
       - "8030:80"
     networks:
       hacking_net:
-        ipv4_address: 10.5.0.4
+        ipv4_address: 10.10.0.4
     restart: always
     tty: true
     stdin_open: true
 
   # -------------------------------------------------------
-  # VÍCTIMA 3: WEB MODERNA (JUICE SHOP) - IP: 10.5.0.5
+  # VÍCTIMA 3: WEB MODERNA (JUICE SHOP) - IP: 10.10.0.5
   # -------------------------------------------------------
   juice_victim:
     image: bkimminich/juice-shop
@@ -60,7 +61,7 @@ services:
       - "8020:3000"
     networks:
       hacking_net:
-        ipv4_address: 10.5.0.5
+        ipv4_address: 10.10.0.5
     restart: always
 
 # -------------------------------------------------------
@@ -71,7 +72,7 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.5.0.0/24
+        - subnet: 10.10.0.0/24
 
 # -------------------------------------------------------
 # VOLÚMENES PERSISTENTES

@@ -24,32 +24,40 @@ TOOLS_SECHEMA = [
             "name": "execute_command",
             "description": (
                 "Executes a Linux shell command in the isolated sandbox (Root Access).\n"
+                "RESOURCEFULNESS: If a wordlist is missing, use 'find / -name *.txt' to search or 'wget' to download one from GitHub (e.g., SecLists).\n"
+                "WAF BYPASS: If you hit Cloudflare, use 'subfinder', 'dig', or 'censys' logic to find origin IPs."
                 "INSTALLED ARSENAL:\n"
-                "- Recon: nmap, netcat, ping, dig, curl, httpie\n"
-                "- Web: sqlmap, nikto, ffuf, whatweb, nuclei, LinkFinder (python3 /opt/linkfinder/linkfinder.py)\n"
+                "- Recon/Discovery: nmap, netcat, ping, dig, subfinder, arjun\n"
+                "- Web/JS Analysis: curl, httpie, nuclei, katana, zaproxy (use 'zap-cli' for headless scans like burpsuite), lynx, pup, "
+                "LinkFinder (python3 /opt/linkfinder/linkfinder.py), "
+                "SecretFinder (python3 /opt/secretfinder/SecretFinder.py)\n"
+                "- Vulnerability/Exploit: sqlmap, nikto, ffuf, whatweb, searchsploit\n"
                 "- Brute-force: hydra\n"
-                "- Utils: jq, python3, unzip, tldr (use 'tldr <tool>' for help)\n"
+                "- Utils: jq, python3, unzip, wget, tldr\n"
+                "- Browser: chromium --headless --disable-gpu --dump-dom https://ejemplo.com\n\n"
                 "\n"
+                "CRITICAL: If you are unfamiliar with a tool's flags, ALWAYS run 'tldr <tool_name>' first "
+                "to see usage examples and avoid syntax errors.\n\n"
                 "ASYNC BEHAVIOR:\n"
                 "For slow commands (like full port scans), use 'wait_time' to peek at the output. "
-                "If the response status is 'running', you will get a 'job_id'. "
-                "You must then use 'check_job_status' to poll for completion."
+                "If response status is 'running', you will get a 'job_id'. "
+                "Use 'check_job_status' to poll until finished."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "command": {
                         "type": "string",
-                        "description": "Bash command. NO interactive inputs. Ex: 'nmap -sV 10.5.0.4', 'nuclei -u http://target'."
+                        "description": "Bash command. NO interactive inputs. Ex: 'katana -u http://target', 'python3 /opt/secretfinder/SecretFinder.py -i http://target/app.js'."
                     },
                     "wait_time": {
                         "type": "integer",
-                        "description": "Seconds to wait for initial output. Recommended: 3 for fast cmds, 5-10 for slow cmds. If command takes longer, it returns 'running' status.",
+                        "description": "Seconds to wait for initial output. Recommended: 3-5 for discovery, 10+ for heavy scans.",
                         "default": 5
                     },
                     "exit_time": {
                         "type": "integer",
-                        "description": "Safety timeout (Kill Switch). The process will be FORCE KILLED after these seconds. Default 0 (no limit). Set this to 300 (5 mins) for heavy scans to prevent hangs.",
+                        "description": "Safety timeout in seconds. The process will be killed after this. Set 300+ for exhaustive scans.",
                         "default": 0
                     }
                 },
@@ -245,8 +253,14 @@ You must strictly follow this mission protocol to ensure structured and effectiv
 2. **State Sync**: Every time an objective is reached or fails, you MUST update its status. Your internal state and the mission control state must always be synchronized.
 3. **Dynamic Planning**: If a tool output reveals new information (e.g., a new hidden directory or a specific service version), use `manage_mission(action='modify_objectives')` to adapt your plan immediately.
 4. **Self-Correction**: If a phase is going nowhere, stop, reflect in the `reflection` field, and pivot.
- 
+    ## GOLDEN RULES OF VERIFICATION:
+    1. Never mark a target as COMPLETED based solely on the fact that the command did not return an error.
+    2. You MUST run a verification command (e.g., ‘ls’, ‘whoami’, ‘id’) to confirm the success of the exploit or access before updating the status.
+    3. If a command returns empty output, assume it has failed or that you need a noisier approach.
+    4. You may fail a status, but if someone tells you to exploit or access root, you must understand that your goal is to find vulnerabilities. If you cannot find them one way, try another. Do not place all your responsibility on your tools. Visit the website and manually search for vulnerabilities if the website is poorly designed.
+    5. If you are unsure about the success of an action, use `get_original_output` to retrieve the full output for analysis.
 
+    
 ### 🛠️ TOOL USAGE PROTOCOL (CRITICAL)
 You have access to a REST API via function calling. Follow these rules strictly:
 
@@ -264,7 +278,7 @@ You have access to a REST API via function calling. Follow these rules strictly:
 
 3. **ERROR RECOVERY**:
    - If a tool fails (exit code != 0), read the `stderr`.
-   - Analyze the error, fix your command syntax (use `tldr` if needed), and TRY AGAIN.
+   - Analyze the error, fix your command syntax (use `tldr` if needed, its a short alternative of man), and TRY AGAIN.
    - Do not apologize. Just fix it.
 
 ### 🧠 REASONING PROCESS (Chain of Thought)
@@ -284,8 +298,32 @@ Before taking any action, briefly analyze the situation:
 # VARIABLE INICIALIZACIÓN (Mensaje de bienvenida invisible)
 # ------------------------------------------------------------------------------
 
+# ------------------------------------------------------------------------------
+# VARIABLE INICIALIZACIÓN (Guía técnica integrada para el arranque)
+# ------------------------------------------------------------------------------
+
 INITIAL_MESSAGE = {
     "role": "user", 
-    "content": "Inicia el sistema. Confirma que tienes acceso a las herramientas ejecutando 'whoami' y 'id'. Dime si estás listo."
+    "content": (
+        "System Initialized. Access your environment and confirm readiness by running 'whoami' and 'id'.\n\n"
+        "### 🛡️ ADVANCED OPERATIONAL GUIDE\n\n"
+        "#### 1. Modern Web Vision & Interaction\n"
+        "- **katana**: For JS-heavy sites (like Juice Shop), use: `katana -u <url> -headless -sc -no-sandbox`. "
+        "Headless and no-sandbox are mandatory for root in Docker. Use `-sc` (system-chrome) to avoid external downloads.\n"
+        "- **chromium**: To get fully rendered HTML of a SPA, use: `chromium --headless --no-sandbox --disable-gpu --dump-dom <url>`.\n"
+        "- **lynx**: Use `lynx -dump <url>` for clean, text-only representation to save context tokens.\n"
+        "- **pup**: Pipe HTML to pup to extract structured data: `curl -s <url> | pup 'form json'`.\n\n"
+        "#### 2. Deep JavaScript Analysis\n"
+        "- **SecretFinder**: Analyze `.js` files for hardcoded credentials: `python3 /opt/secretfinder/SecretFinder.py -i <url_to_js> -o cli`.\n"
+        "- **LinkFinder**: Discover hidden API endpoints in JS: `python3 /opt/linkfinder/linkfinder.py -i <url_to_js> -o cli`.\n\n"
+        "#### 3. Critical Environment Constraints\n"
+        "- **Target Network**: 10.10.0.0/24.\n"
+        "- **Port Awareness**: \n"
+        "  * Juice Shop: Internally listens on **port 3000** (http://10.10.0.5:3000).\n"
+        "  * DVWA/Metasploitable: Usually on **port 80**.\n"
+        "- **Dependency Fail-safe**: If a Python tool fails with 'ModuleNotFoundError' for urllib3, execute: "
+        "`pip3 install --upgrade urllib3 requests --break-system-packages` immediately.\n"
+        "- **Help**: If unsure about syntax, ALWAYS run `tldr <tool>` first.\n\n"
+        "Verify your access and provide your initial assessment of the laboratory."
+    )
 }
-
