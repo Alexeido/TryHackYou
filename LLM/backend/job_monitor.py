@@ -86,29 +86,35 @@ async def poll_pending_jobs():
                 pass
             
             conv_id = job['conversation_id']
-            leaf_id = job['leaf_id']
+            original_leaf_id = job['leaf_id']  # El leaf_id cuando se lanzó el job
             tool_call_id = job.get('tool_call_id')
             
-            print(f"✅ Job {job_id[:8]} completado para conv {conv_id[:12]}")
+            # IMPORTANTE: Obtener el leaf_id ACTUAL de la conversación
+            # Porque mientras el job corría, la conversación puede haber avanzado
+            current_leaf_id = db.get_last_message_id(conv_id)
+            if current_leaf_id is None:
+                current_leaf_id = original_leaf_id
+            
+            print(f"✅ Job {job_id[:8]} completado para conv {conv_id[:12]} (leaf original={original_leaf_id}, actual={current_leaf_id})")
             
             # IMPORTANTE: Crear el mensaje tool en la conversación
-            # Esto permite que el LLM vea el resultado cuando se le envíe el contexto
+            # Usamos el leaf_id ACTUAL para que el resultado aparezca al final
             if tool_call_id:
                 tool_msg_id = db.add_message(
                     conversation_id=conv_id,
                     role="tool",
-                    content=formatted_result,
-                    parent_id=leaf_id,
+                    content=f"[RESULTADO DE JOB EN SEGUNDO PLANO]\nComando: {job['command']}\n\n{formatted_result}",
+                    parent_id=current_leaf_id,  # Usar el leaf ACTUAL, no el original
                     tool_call_id=tool_call_id
                 )
                 # Actualizar el leaf activo
                 db.update_conversation_leaf(conv_id, tool_msg_id)
-                print(f"📝 Mensaje tool creado (id={tool_msg_id}) para job {job_id[:8]}")
+                print(f"📝 Mensaje tool creado (id={tool_msg_id}) para job {job_id[:8]} - añadido al final del historial")
             
-            # Notificar si hay callback registrado
+            # Notificar si hay callback registrado (usar leaf actual para mantener contexto)
             if conv_id in _notification_callbacks:
                 try:
-                    await _notification_callbacks[conv_id](job_id, formatted_result, leaf_id)
+                    await _notification_callbacks[conv_id](job_id, formatted_result, current_leaf_id)
                 except Exception as e:
                     print(f"❌ Error notificando job {job_id}: {e}")
         

@@ -16,7 +16,12 @@ import {
   ChevronRight,
   RotateCcw,
   TerminalSquare,
-  Clock
+  Clock,
+  Target,
+  CheckCircle2,
+  XCircle,
+  AlertCircle,
+  ListTodo
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ReactMarkdown from "react-markdown";
@@ -87,6 +92,65 @@ function parseToolResponse(content: string | undefined): {
   if (currentSection === 'stderr') result.stderr = sectionContent.join('\n').trim();
   
   return result;
+}
+
+// Helper para detectar y parsear responses de manage_mission
+interface MissionResponse {
+  isMissionResponse: boolean;
+  status?: string;
+  message?: string;
+  missionId?: string;
+  progress?: {
+    total: number;
+    completed: number;
+    failed: number;
+    pending: number;
+    in_progress: number;
+  };
+  newPhase?: string;
+  objectiveIds?: number[];
+  objectivesCount?: number;
+  nextAction?: string;
+  error?: string;
+}
+
+function parseMissionResponse(content: string | undefined): MissionResponse {
+  if (!content) return { isMissionResponse: false };
+  
+  // Intentar parsear como JSON
+  try {
+    const parsed = JSON.parse(content);
+    
+    // Verificar si es un response de manage_mission
+    if (parsed.status === 'success' || parsed.error) {
+      const isMissionRelated = 
+        parsed.mission_id || 
+        parsed.message?.includes('Misión') || 
+        parsed.message?.includes('Objetivo') ||
+        parsed.message?.includes('Fase') ||
+        parsed.progress ||
+        parsed.objective_ids;
+      
+      if (isMissionRelated || parsed.error) {
+        return {
+          isMissionResponse: true,
+          status: parsed.status,
+          message: parsed.message,
+          missionId: parsed.mission_id,
+          progress: parsed.progress || parsed.final_progress,
+          newPhase: parsed.new_phase,
+          objectiveIds: parsed.objective_ids,
+          objectivesCount: parsed.objectives_count,
+          nextAction: parsed.NEXT_ACTION,
+          error: parsed.error
+        };
+      }
+    }
+  } catch {
+    // No es JSON válido, probablemente es output de terminal
+  }
+  
+  return { isMissionResponse: false };
 }
 
 // Helper para parsear tool_calls que pueden venir como string JSON o array
@@ -169,7 +233,88 @@ export function MessageBubble({ message, isStreaming, streamContent, toolRespons
   };
 
   if (isTool) {
-    // Parsear el contenido del tool response
+    // Primero verificar si es un response de manage_mission
+    const missionParsed = parseMissionResponse(content);
+    
+    if (missionParsed.isMissionResponse) {
+      // Render especial para responses de misión
+      const isError = !!missionParsed.error;
+      const isSuccess = missionParsed.status === 'success';
+      
+      return (
+        <div className="flex justify-start my-2">
+          <div className={cn(
+            "max-w-[85%] rounded-xl p-3",
+            isError 
+              ? "bg-red-500/10 border border-red-500/20"
+              : "bg-blue-500/10 border border-blue-500/20"
+          )}>
+            {/* Header */}
+            <div className="flex items-center gap-2 mb-2">
+              {isError ? (
+                <XCircle className="h-4 w-4 text-red-500" />
+              ) : missionParsed.progress ? (
+                <Target className="h-4 w-4 text-blue-500" />
+              ) : (
+                <ListTodo className="h-4 w-4 text-blue-500" />
+              )}
+              <span className={cn(
+                "text-sm font-medium",
+                isError ? "text-red-500" : "text-blue-500"
+              )}>
+                {isError ? "Error de Misión" : 
+                 missionParsed.newPhase ? "Cambio de Fase" :
+                 missionParsed.objectivesCount ? "Misión Creada" :
+                 missionParsed.progress ? "Estado de Misión" : "Actualización"}
+              </span>
+            </div>
+            
+            {/* Mensaje principal */}
+            {(missionParsed.message || missionParsed.error) && (
+              <p className={cn(
+                "text-sm mb-2",
+                isError ? "text-red-400" : "text-foreground"
+              )}>
+                {missionParsed.message || missionParsed.error}
+              </p>
+            )}
+            
+            {/* Progreso si existe */}
+            {missionParsed.progress && (
+              <div className="flex flex-wrap gap-2 text-xs">
+                <span className="px-2 py-1 rounded bg-green-500/20 text-green-400">
+                  ✓ {missionParsed.progress.completed} completados
+                </span>
+                {missionParsed.progress.in_progress > 0 && (
+                  <span className="px-2 py-1 rounded bg-amber-500/20 text-amber-400">
+                    ⏳ {missionParsed.progress.in_progress} en progreso
+                  </span>
+                )}
+                {missionParsed.progress.pending > 0 && (
+                  <span className="px-2 py-1 rounded bg-zinc-500/20 text-zinc-400">
+                    ○ {missionParsed.progress.pending} pendientes
+                  </span>
+                )}
+                {missionParsed.progress.failed > 0 && (
+                  <span className="px-2 py-1 rounded bg-red-500/20 text-red-400">
+                    ✗ {missionParsed.progress.failed} fallidos
+                  </span>
+                )}
+              </div>
+            )}
+            
+            {/* Nueva fase */}
+            {missionParsed.newPhase && (
+              <div className="text-xs text-blue-400 mt-1">
+                Nueva fase: <span className="font-medium">{missionParsed.newPhase}</span>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+    
+    // Parsear el contenido del tool response (terminal)
     const parsed = parseToolResponse(content);
     
     // Si está running y no hay stdout ni error, no mostrar nada

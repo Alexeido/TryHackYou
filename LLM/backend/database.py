@@ -623,23 +623,55 @@ def smart_truncate_messages(messages: List[Dict], max_messages: int) -> List[Dic
             selected_blocks.insert(0, block)
             total_msgs += len(block)
         elif total_msgs == 0:
-            # Si es el primer bloque y no cabe completo, tenemos un problema
-            # Incluir solo lo que podamos (esto no debería pasar normalmente)
-            truncated_block = block[:available_slots]
-            selected_blocks.insert(0, truncated_block)
-            total_msgs += len(truncated_block)
+            # Si es el primer bloque y no cabe completo:
+            # - Si es un bloque de tools, NO truncar (causaría error de Gemini)
+            # - Si es un bloque normal, truncar con cuidado
+            has_tools = any(m.get('role') == 'tool' or m.get('tool_calls') for m in block)
+            if has_tools:
+                # Saltar este bloque por completo - es más seguro que truncarlo
+                print(f"⚠️ Bloque de tools demasiado grande ({len(block)} msgs), saltando...")
+                continue
+            else:
+                truncated_block = block[:available_slots]
+                selected_blocks.insert(0, truncated_block)
+                total_msgs += len(truncated_block)
             break
         else:
             # No cabe más
             break
     
-    # Reconstruir la lista
+    # VALIDACIÓN FINAL: Eliminar tool responses huérfanos
+    # (tool responses sin su tool_call correspondiente)
+    tool_call_ids_in_result = set()
+    for msg in result if 'result' in dir() else []:
+        if msg.get('tool_calls'):
+            for tc in msg.get('tool_calls', []):
+                tool_call_ids_in_result.add(tc.get('id'))
+    
+    # Reconstruir la lista con validación
     result = []
     if system_msg:
         result.append(system_msg)
     
+    # Recolectar todos los tool_call_ids de los bloques seleccionados
+    all_tool_call_ids = set()
     for block in selected_blocks:
-        result.extend(block)
+        for msg in block:
+            if msg.get('tool_calls'):
+                for tc in msg.get('tool_calls', []):
+                    all_tool_call_ids.add(tc.get('id'))
+    
+    # Ahora agregar mensajes, filtrando tool responses huérfanos
+    for block in selected_blocks:
+        for msg in block:
+            if msg.get('role') == 'tool':
+                # Solo incluir si existe el tool_call correspondiente
+                if msg.get('tool_call_id') in all_tool_call_ids:
+                    result.append(msg)
+                else:
+                    print(f"⚠️ Eliminando tool response huérfano: {msg.get('tool_call_id')}")
+            else:
+                result.append(msg)
     
     return result
 
@@ -654,6 +686,21 @@ def get_conversation_for_llm(leaf_id: int) -> List[Dict[str, str]]:
     IMPORTANTE: Usa truncado inteligente que preserva pares tool_call/tool_response.
     """
     thread = reconstruct_thread(leaf_id)
+    
+    # Crear un mapa de tool_call_id -> function_name para referencias rápidas
+    tool_call_names: Dict[str, str] = {}
+    for msg in thread:
+        if msg['tool_calls']:
+            import json
+            try:
+                tool_calls = json.loads(msg['tool_calls'])
+                for tc in tool_calls:
+                    tc_id = tc.get('id')
+                    func_name = tc.get('function', {}).get('name', '')
+                    if tc_id and func_name:
+                        tool_call_names[tc_id] = func_name
+            except:
+                pass
     
     messages = []
     for msg in thread:
@@ -670,9 +717,17 @@ def get_conversation_for_llm(leaf_id: int) -> List[Dict[str, str]]:
             import json
             message['tool_calls'] = json.loads(msg['tool_calls'])
         
-        # Si es respuesta de tool, añadir tool_call_id
+        # Si es respuesta de tool, añadir tool_call_id Y el nombre de la función
         if msg['tool_call_id']:
             message['tool_call_id'] = msg['tool_call_id']
+            # Google Gemini REQUIERE el nombre de la función en tool responses
+            if msg['tool_call_id'] in tool_call_names:
+                message['name'] = tool_call_names[msg['tool_call_id']]
+            else:
+                # Fallback: si no encontramos el nombre, usar un placeholder
+                # Esto puede pasar si el truncado eliminó el mensaje con el tool_call
+                message['name'] = 'unknown_function'
+                print(f"⚠️ Tool response sin tool_call correspondiente: {msg['tool_call_id']}")
         
         messages.append(message)
     

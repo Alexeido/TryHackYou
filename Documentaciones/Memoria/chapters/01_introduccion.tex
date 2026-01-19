@@ -1,44 +1,15 @@
 \chapter{\introductionname}
-Esta plantilla sirve como ejemplo de TFE. Las secciones son las que están en la normativa, aunque si el tutor lo considera se puede cambiar la estructura. Esta sección la aprovechamos para introducir brevemente \LaTeX.
-\par
 
-\section{Secciones}
-Las secciones se crean con \textit{section}. Las subsecciones y subsubsecciones con \textit{subsection} y \textit{subsubsection}, respectivamente. Si se desea que alguna subsección en concreto no salga en el índice se pueden usar los mismos comandos añadiéndoles un asterisco al final (\textit{subsection*} y \textit{subsubsection*}).
-\par
-\lipsum[1][1-4]
-\subsection{una subsección}
-\lipsum[1][1]
-\subsection{otra subsección}
-\lipsum[1][2]
-\subsubsection{subsubsecciones}
-¡Por defecto las subsubsecciones no aparecen en el índice! Este comportamiento se puede cambiar, pero lo recomendable es organizar los capítulos en 3 niveles para facilitar la lectura.
+En este primer capítulo presento la base conceptual y motivacional de mi Trabajo de Fin de Grado. Parto de una reflexión sobre el contraste de nuestra era tecnológica: un avance sin precedentes en comodidad y procesamiento de datos que no ha sido correspondido por una cultura de seguridad robusta. Planteo cómo, en un mundo donde cedemos nuestra privacidad de forma casi inercial, la Inteligencia Artificial surge no solo como un nuevo riesgo, sino como la herramienta definitiva para cerrar la brecha de inseguridad actual.
 
-\section{Citas y referencias}
-Para citar un texto hay que incluirlo en el fichero \textit{LocalBibliography.bib} de esta plantilla. Una vez hecho se puede referenciar usando el comando \textit{cite}~\cite{LaTeX_tutorials}.
-Para referenciar imágenes, secciones o tablas se usa el comando~\textit{autoref}. Por ejemplo~\autoref{fig:logoEpcc} o~\autoref{sec:objetivos}.
-\par
-Para facilitar la lectura, cuando se insertan citas y referencias es conveniente insertar un carácter de espacio sin salto de línea \textit{\~} antes del comando de cita o referencia.
+\section{La revolución de la Inteligencia Artificial}
+En esta sección analizo la evolución reciente de la IA, explicando cómo hemos pasado de modelos de nicho a una democratización masiva liderada por herramientas como ChatGPT. Mi objetivo es exponer que, detrás de la interfaz de un chatbot, reside un motor de razonamiento ideal para trabajar con lenguajes técnicos. Argumentaré que el verdadero potencial de estos modelos no es responder preguntas, sino actuar como el núcleo de aplicaciones agénticas capaces de tomar decisiones de forma autónoma.
 
+\section{El panorama de la ciberseguridad actual}
+Aquí describo la crisis de seguridad informática que vivimos, caracterizada por la asimetría entre la velocidad del ataque y la lentitud de la defensa. Hablaré de la frecuencia alarmante de los \textit{data breaches} y de la exposición de datos sensibles. Me centraré en el problema de la falta de profesionales cualificados y en cómo la superficie de ataque (IoT, nube, sistemas distribuidos) crece mucho más rápido que nuestra capacidad humana para auditarla.
 
-\section{Imágenes}
-Las imágenes se insertan así:
+\section{Contexto y motivación personal}
+En este apartado explico por qué este proyecto es el punto de convergencia de mis dos grandes pasiones: la IA y la ciberseguridad. Comento de forma honesta que, al no haber cursado asignaturas que profundizaran en el \textit{pentesting} avanzado o en arquitecturas agénticas al nivel que deseaba, utilizo este trabajo como mi propia vía de especialización académica. Presento este TFG como el puente necesario para mi futura carrera profesional, permitiéndome investigar de forma autónoma sobre la senda hacia la AGI aplicada a entornos reales.
 
-\begin{figure}[H]
-\centering
-% Importante ajustar la anchura o altura de la imagen para que encaje en la página
-\includegraphics[width=0.6\textwidth]{pictures/logoepcc.pdf}
-\caption[Logo EPCC]{Logo EPCC.\\Fuente: \url{https://politecnica.unex.es}}
-\label{fig:logoEpcc}
-\end{figure}
-
-\section{Código}
-El código se puede insertar así: 
-% linenos indica si se muestra el número de línea
-\begin{minted}[linenos=false]{bash}
-echo "Este es un ejemplo de cómo se inserta código con la plantilla de Trabajo Fin de Estudios de la Escuela Politécnica de Cáceres"
-\end{minted}
-
-También se puede seleccionar desde un fichero, por ejemplo:
-\inputminted[firstline=1,lastline=7]{cpp}{code/example.cpp}
-
-Los lenguajes reconocidos para marcar se pueden consultar en \url{https://pygments.org/docs/lexers/}. Aunque depende del tipo de trabajo, se recomienda incluir código sólo en anexos.
+\section{La unión: el Agente Autónomo de Seguridad}
+Para finalizar la introducción, presento la visión idealista y técnica de mi propuesta. Describo el concepto de un auditor digital autónomo que unifica la potencia cognitiva de los modelos de lenguaje con el arsenal técnico de distribuciones como Kali Linux. Mi objetivo es plantear un sistema que no solo automatice escaneos, sino que sea capaz de trazar planes de auditoría complejos, interpretar resultados y aprender de los errores en tiempo real, convirtiéndose en un colaborador estratégico para el auditor humano.

@@ -322,7 +322,7 @@
         \renewcommand{\appendixautorefname}{Anexo}%
         \renewcommand{\mtctitle}{Contenidos}%
         \def\introductionname{Introducción}%
-        \def\objectivesname{Objetivos}%
+        \def\objectivesname{Alcance y objetivos}%
         \def\stateoftheartname{Estado del Arte}%
         \def\methodologyname{Metodología}%
         \def\implementationdevelopmentname{Implementación y desarrollo}%

@@ -1466,6 +1466,7 @@ async def stream_chat_response(
             max_iterations = 15  # Límite REDUCIDO para evitar loops infinitos
             iteration = 0
             last_was_mission_state_change = has_mission_state_change_first  # Heredar del primer bloque
+            last_had_terminal_error = False  # Track de errores de terminal
             
             while iteration < max_iterations:
                 iteration += 1
@@ -1542,14 +1543,23 @@ async def stream_chat_response(
                 
                 # Si no hay más tool calls, verificar si debemos forzar continuación
                 if not loop_tool_calls:
-                    # Si la última iteración fue solo manage_mission y no hay contenido sustancial,
-                    # inyectar mensaje de continuación para forzar que el LLM siga
+                    should_continue = False
+                    continuation_msg = ""
+                    
+                    # Caso 1: manage_mission sin acción siguiente
                     if last_was_mission_state_change and len(loop_content.strip()) < 50:
-                        print(f"🔄 manage_mission detectado sin acción siguiente - inyectando mensaje de continuación")
-                        
-                        # Añadir mensaje de usuario que fuerce continuación
+                        should_continue = True
                         continuation_msg = "[SISTEMA] Estado actualizado. CONTINÚA INMEDIATAMENTE con la siguiente acción del plan. Ejecuta el siguiente comando necesario."
-                        
+                        print(f"🔄 manage_mission detectado sin acción siguiente")
+                    
+                    # Caso 2: Error de terminal - forzar que el LLM intente corregir
+                    elif last_had_terminal_error and len(loop_content.strip()) < 100:
+                        should_continue = True
+                        continuation_msg = "[SISTEMA] El comando anterior falló con error. ANALIZA el error y CORRIGE el comando o intenta una alternativa. NO te detengas, continúa con el plan."
+                        print(f"🔄 Error de terminal detectado sin corrección")
+                    
+                    if should_continue:
+                        # Añadir mensaje de usuario que fuerce continuación
                         current_messages.append({
                             "role": "user",
                             "content": continuation_msg
@@ -1565,8 +1575,9 @@ async def stream_chat_response(
                         current_parent_id = continuation_msg_id
                         db.update_conversation_leaf(conversation_id, continuation_msg_id)
                         
-                        # Reset flag y continuar el loop
+                        # Reset flags y continuar el loop
                         last_was_mission_state_change = False
+                        last_had_terminal_error = False
                         print(f"🔄 Mensaje de continuación inyectado, continuando loop...")
                         continue  # Continuar con la siguiente iteración
                     
@@ -1639,6 +1650,7 @@ async def stream_chat_response(
                 loop_tool_msg_id = None
                 has_awaiting_authorization = False  # Track si hay comando pendiente de aprobación
                 has_mission_state_change = False  # Track si hubo cambio de estado de misión
+                has_terminal_error = False  # Track si hubo error en comando de terminal
                 
                 for tc in loop_reconstructed:
                     tc_id = tc['id']
@@ -1670,6 +1682,17 @@ async def stream_chat_response(
                     if func_name == "manage_mission":
                         has_mission_state_change = True
                         print(f"📋 Detectado manage_mission - forzar continuación")
+                    
+                    # Detectar errores de terminal (exit code != 0)
+                    if func_name == "execute_command" and "EXIT CODE:" in result:
+                        try:
+                            exit_code_line = [l for l in result.split('\n') if 'EXIT CODE:' in l][0]
+                            exit_code = int(exit_code_line.split(':')[1].strip())
+                            if exit_code != 0:
+                                has_terminal_error = True
+                                print(f"⚠️ Detectado error de terminal (exit code: {exit_code})")
+                        except:
+                            pass
                     
                     loop_tool_msg_id = db.add_message(
                         conversation_id=conversation_id,
@@ -1714,6 +1737,9 @@ async def stream_chat_response(
                 
                 # Actualizar flag de estado de misión para la siguiente iteración
                 last_was_mission_state_change = has_mission_state_change
+                
+                # Track de error de terminal para forzar continuación si LLM se detiene
+                last_had_terminal_error = has_terminal_error
                 
                 # Actualizar mensajes para la siguiente iteración
                 current_messages.append({
