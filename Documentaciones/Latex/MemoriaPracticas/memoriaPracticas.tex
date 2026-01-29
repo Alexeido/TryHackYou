@@ -1,0 +1,592 @@
+\documentclass[12pt,a4paper]{article}
+\usepackage[utf8]{inputenc}
+\usepackage[spanish]{babel}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{fancyhdr}
+\usepackage{lastpage}
+\usepackage{xcolor}
+\usepackage{tabularx}
+\usepackage{booktabs}
+\usepackage{parskip}
+
+% Configuración de hiperenlaces
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+}
+
+% Configuración de encabezados y pies de página
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{Memoria de Prácticas Externas}
+\lhead{Alejandro Vialard Santana}
+\rfoot{Página \thepage\ de \pageref{LastPage}}
+
+% Configuración de títulos
+\titleformat{\section}{\Large\bfseries}{\thesection.}{1em}{}
+\titleformat{\subsection}{\large\bfseries}{\thesubsection.}{1em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries}{\thesubsubsection.}{1em}{}
+
+\begin{document}
+
+%========================================
+% PORTADA
+%========================================
+\begin{titlepage}
+    \centering
+    \vspace*{2cm}
+    
+    {\Huge\bfseries Memoria de Prácticas Externas\par}
+    \vspace{1cm}
+    {\Large Prácticas Curriculares\par}
+    
+    \vspace{2cm}
+    
+    \begin{figure}[h]
+        \centering
+        % \includegraphics[width=0.4\textwidth]{logo_uex.png}
+    \end{figure}
+    
+    \vspace{2cm}
+    
+    {\LARGE\bfseries Alejandro Vialard Santana\par}
+    \vspace{0.5cm}
+    {\Large Grado en Ingeniería Informática en Ingeniería del Software\par}
+    
+    \vspace{2cm}
+    
+    {\large Escuela Politécnica de Cáceres\par}
+    {\large Universidad de Extremadura\par}
+    
+    \vspace{2cm}
+    
+    {\large\bfseries Fecha de entrega: 27 de enero de 2026\par}
+    
+    \vfill
+\end{titlepage}
+
+%========================================
+% ÍNDICE
+%========================================
+\tableofcontents
+\newpage
+
+%========================================
+% 1. DATOS PERSONALES DEL ESTUDIANTE
+%========================================
+\section{Datos Personales del Estudiante}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Nombre y Apellidos} & Alejandro Vialard Santana \\
+\hline
+\textbf{DNI} & XXXXXXXXX \\
+\hline
+\textbf{Titulación} & Grado en Ingeniería Informática en Ingeniería del Software \\
+\hline
+\textbf{Correo electrónico} & avialards@alumnos.unex.es \\
+\hline
+\end{tabularx}
+\end{table}
+
+%========================================
+% 2. DATOS DE LA EMPRESA/ENTIDAD
+%========================================
+\section{Datos de la Empresa/Entidad}
+
+\subsection{Información General}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Nombre de la Entidad} & Grupo de Investigación GICIS - Universidad de Extremadura \\
+\hline
+\textbf{Actividad} & Investigación en Ciberseguridad e Inteligencia Artificial aplicada a sistemas de seguridad informática \\
+\hline
+\textbf{Dirección} & Escuela Politécnica de Cáceres, Avda. de la Universidad s/n, 10003 Cáceres \\
+\hline
+\textbf{Departamento} & Grupo de Investigación en Ciberseguridad e Inteligencia de Sistemas (GICIS) \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Datos del Tutor en la Entidad}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Nombre} & [Nombre del Tutor] \\
+\hline
+\textbf{Cargo} & Investigador Principal / Profesor \\
+\hline
+\textbf{Correo electrónico} & [correo@unex.es] \\
+\hline
+\textbf{Teléfono de contacto} & [Teléfono] \\
+\hline
+\end{tabularx}
+\end{table}
+
+\subsection{Calendario y Características de las Prácticas}
+
+\begin{table}[h]
+\centering
+\begin{tabularx}{\textwidth}{|l|X|}
+\hline
+\textbf{Fecha de inicio} & 24 de noviembre de 2025 \\
+\hline
+\textbf{Fecha de finalización} & 20 de enero de 2026 \\
+\hline
+\textbf{Número total de horas} & 150 horas \\
+\hline
+\textbf{Carácter de las prácticas} & No remuneradas \\
+\hline
+\end{tabularx}
+\end{table}
+
+\newpage
+
+%========================================
+% 3. ACTIVIDADES DESARROLLADAS
+%========================================
+\section{Actividades Desarrolladas}
+
+\subsection{Descripción General del Proyecto}
+
+Durante el periodo de prácticas en el Grupo de Investigación GICIS, he participado en un proyecto de investigación centrado en el diseño y desarrollo de un \textbf{agente autónomo basado en Modelos de Lenguaje de Gran Escala (LLM)} aplicado al ámbito de la \textbf{ciberseguridad ofensiva}.
+
+El objetivo del proyecto es desarrollar un sistema capaz de realizar tareas de auditoría de seguridad de forma autónoma, utilizando la capacidad de razonamiento de los LLMs para planificar y ejecutar estrategias de pentesting. Este tipo de sistemas representa una línea de investigación emergente que combina las capacidades de razonamiento y generación de texto de los modelos de lenguaje con la ejecución de acciones en entornos reales.
+
+La arquitectura del sistema se compone de tres capas principales:
+
+\begin{itemize}
+    \item \textbf{Capa de ejecución (Sandbox):} Un entorno aislado basado en contenedores Docker donde el agente puede ejecutar comandos de forma segura sin afectar al sistema host.
+    
+    \item \textbf{Capa de inteligencia (Backend):} Un servidor que gestiona la comunicación con múltiples proveedores de LLMs, implementa la lógica de Tool Calling y mantiene el estado de las conversaciones.
+    
+    \item \textbf{Capa de interacción (Frontend):} Una interfaz web que permite a los investigadores monitorizar el comportamiento del agente, ajustar parámetros y analizar los resultados de las auditorías.
+\end{itemize}
+
+\subsection{Actividades Realizadas por Semanas}
+
+\subsubsection{Semanas 1-2 (24 noviembre -- 2 diciembre 2025): Infraestructura del Sandbox}
+
+Durante las dos primeras semanas me centré en la construcción del entorno de ejecución aislado, que constituye la base técnica sobre la que el agente podrá operar de forma segura.
+
+\paragraph{Diseño y construcción de la imagen Docker}
+
+Se diseñó una imagen Docker personalizada basada en \textbf{Kali Linux}, seleccionada por su amplio catálogo de herramientas de auditoría preinstaladas. La imagen incluye:
+
+\begin{itemize}
+    \item Herramientas de reconocimiento: \texttt{nmap}, \texttt{masscan}, \texttt{nikto}.
+    \item Herramientas de explotación: \texttt{metasploit}, \texttt{sqlmap}, \texttt{hydra}.
+    \item Utilidades de red: \texttt{curl}, \texttt{wget}, \texttt{httpie}.
+    \item Analizadores de APIs: \texttt{LinkFinder}, \texttt{nuclei}.
+\end{itemize}
+
+\paragraph{Desarrollo de la API de comunicación}
+
+Se implementó una \textbf{API REST en Python utilizando Flask} que actúa como interfaz entre el sistema externo y el contenedor. Las funcionalidades principales incluyen:
+
+\begin{itemize}
+    \item Ejecución remota de comandos con captura de stdout y stderr.
+    \item Gestión del directorio de trabajo actual (soporte para navegación con \texttt{cd}).
+    \item Retorno estructurado de outputs incluyendo códigos de salida.
+    \item Timeouts configurables para comandos de larga duración.
+\end{itemize}
+
+\paragraph{Orquestación del laboratorio de pruebas}
+
+Mediante \textbf{Docker Compose} se desplegó una red aislada con segmento \texttt{10.5.0.0/24} que integra el agente con tres entornos vulnerables de referencia:
+
+\begin{itemize}
+    \item \textbf{DVWA (Damn Vulnerable Web Application):} Aplicación web diseñada para practicar vulnerabilidades clásicas como SQL Injection, XSS y CSRF.
+    \item \textbf{Metasploitable 2:} Máquina virtual con múltiples servicios vulnerables a nivel de infraestructura (FTP, SSH, Samba, etc.).
+    \item \textbf{OWASP Juice Shop:} Aplicación web moderna con vulnerabilidades representativas del OWASP Top 10.
+\end{itemize}
+
+\paragraph{Validación del entorno}
+
+Se realizaron pruebas de comunicación y se ejecutó con éxito un ataque automatizado de \textbf{SQL Injection contra DVWA}, validando que el agente podía:
+\begin{itemize}
+    \item Realizar login automático en la aplicación.
+    \item Evadir tokens CSRF mediante scripts personalizados.
+    \item Extraer información de la base de datos mediante inyección SQL.
+\end{itemize}
+
+\subsubsection{Semana 3 (3 -- 4 diciembre 2025): Planificación y Coordinación}
+
+Semana dedicada a la preparación de la siguiente fase del proyecto, con énfasis en la coordinación con recursos externos y la planificación técnica.
+
+\begin{itemize}
+    \item \textbf{Reunión con Computaex:} Se mantuvo una reunión con Daniel Flores para consultar la disponibilidad de GPUs en el supercomputador \textbf{Lusitania}. Se identificaron nodos con 2 NVIDIA RTX A4500 (20GB VRAM cada una) como objetivo para el despliegue de modelos de mayor escala.
+    
+    \item \textbf{Análisis de requisitos:} Se definieron las interfaces API necesarias, las estructuras de datos para el almacenamiento de conversaciones y los flujos de comunicación entre componentes.
+    
+    \item \textbf{Selección de modelos LLM:} Se elaboró un análisis de modelos compatibles con diferentes configuraciones de hardware, evaluando aspectos como ventana de contexto, soporte para Tool Calling y rendimiento en tareas de razonamiento.
+    
+    \item \textbf{Organización del repositorio:} Se estructuró el repositorio Git con ramas alineadas a las tareas planificadas, siguiendo un flujo de trabajo basado en feature branches.
+\end{itemize}
+
+\subsubsection{Semana 4 (5 -- 11 diciembre 2025)}
+
+Periodo sin avances significativos en el proyecto debido a la priorización de entregas académicas de la asignatura de Procesamiento de Big Data (PBD).
+
+\subsubsection{Semanas 5-6 (12 -- 23 diciembre 2025): Desarrollo del Backend e Integración con LLMs}
+
+Periodo intensivo de desarrollo que abarcó tanto la investigación teórica como la implementación práctica del núcleo del sistema.
+
+\paragraph{Investigación de APIs de LLMs}
+
+Se realizó un estudio exhaustivo del formato de comunicación con modelos de lenguaje, incluyendo:
+
+\begin{itemize}
+    \item \textbf{Estructura de mensajes:} Análisis del sistema de roles (system, user, assistant) y gestión del contexto conversacional.
+    \item \textbf{Tool Calling (Function Calling):} Estudio del mecanismo que permite a los LLMs invocar funciones externas, incluyendo la definición de esquemas JSON y el flujo de parámetros.
+    \item \textbf{Diferencias entre proveedores:} Pruebas con OpenAI, Google Gemini, Anthropic, DeepSeek y OpenRouter para identificar particularidades en formato de respuestas y manejo de errores.
+\end{itemize}
+
+\paragraph{Implementación del Backend}
+
+Se desarrolló un servidor \textbf{FastAPI} con las siguientes características:
+
+\begin{itemize}
+    \item \textbf{Endpoint de descubrimiento:} \texttt{/models/discover} que consulta múltiples proveedores en paralelo y devuelve una lista unificada de modelos disponibles.
+    \item \textbf{Endpoint de chat:} \texttt{/chat} que implementa una interfaz universal compatible con tool calling, abstrayendo las diferencias entre proveedores.
+    \item \textbf{Sistema de ranking:} Integración de puntuaciones ELO basadas en el LMArena Leaderboard, con fuzzy matching para identificar modelos por nombre.
+    \item \textbf{Streaming de respuestas:} Soporte para Server-Sent Events (SSE) que permite visualizar las respuestas token a token.
+\end{itemize}
+
+\paragraph{Desarrollo del Frontend Web}
+
+Se seleccionó un stack tecnológico moderno para la interfaz:
+
+\begin{itemize}
+    \item \textbf{Next.js 14:} Framework React con App Router para optimización y enrutamiento.
+    \item \textbf{Tailwind CSS:} Framework de utilidades para estilos consistentes.
+    \item \textbf{Shadcn/UI:} Biblioteca de componentes accesibles basada en Radix UI.
+    \item \textbf{Zustand:} Gestión de estado global ligera y persistente.
+\end{itemize}
+
+Se implementó una interfaz de chat con renderizado de Markdown, resaltado de código y selección dinámica de modelos.
+
+\paragraph{Diseño de la capa de persistencia}
+
+Se diseñó una estructura de base de datos basada en \textbf{árboles N-arios} que permite:
+
+\begin{itemize}
+    \item Almacenar conversaciones de forma relacional.
+    \item Implementar ``branching'' para explorar diferentes caminos de respuesta sin perder el historial original.
+    \item Vincular el estado del sandbox a cada nodo del árbol de conversación.
+\end{itemize}
+
+\paragraph{Integración Sandbox-LLM}
+
+Se desarrolló la conexión entre el modelo de lenguaje y el entorno de ejecución:
+
+\begin{itemize}
+    \item Cada conversación posee su propia carpeta aislada en el sandbox.
+    \item Se implementó un sistema de versionado con Git que realiza commits automáticos por cada acción.
+    \item Al navegar entre ramas del chat, el sandbox ejecuta \texttt{git checkout} al estado correspondiente.
+\end{itemize}
+
+\paragraph{Investigación de modelos locales}
+
+Se analizó la viabilidad de ejecutar modelos en hardware limitado (RTX 3050, 4GB VRAM):
+
+\begin{itemize}
+    \item Pruebas con formatos de cuantización GGUF y AWQ (4-bit, 3-bit).
+    \item Evaluación de modelos pequeños: Phi-3 Mini, Qwen-2.5-Coder, Gemma 2B.
+    \item Benchmarking de velocidad de inferencia y consumo de memoria.
+\end{itemize}
+
+\paragraph{Acceso a infraestructura HPC}
+
+Se estableció la primera conexión al supercomputador Lusitania de Computaex, estudiando su sistema de colas (SLURM) para planificar el despliegue futuro de modelos especializados en ciberseguridad.
+
+\subsubsection{Semanas 7-8 (8 -- 20 enero 2026): Autonomía, Optimización y Documentación}
+
+Fase final del proyecto centrada en dotar al agente de capacidades autónomas y en la documentación del trabajo realizado.
+
+\paragraph{Gestión de procesos asíncronos}
+
+Se implementaron funcionalidades para manejar procesos de larga duración:
+
+\begin{itemize}
+    \item Ejecución en segundo plano de comandos que no requieren respuesta inmediata.
+    \item Panel de monitorización de procesos activos con visualización de salida en tiempo real.
+    \item Sistema de callbacks que notifica automáticamente al LLM cuando un proceso finaliza.
+    \item Funciones para detener procesos en ejecución desde la interfaz.
+\end{itemize}
+
+\paragraph{Optimización de la gestión de contexto}
+
+Para mitigar las limitaciones de ventana de contexto de algunos modelos:
+
+\begin{itemize}
+    \item \textbf{Resumen automático:} Las salidas extensas de comandos son procesadas por un LLM auxiliar para generar resúmenes concisos.
+    \item \textbf{Mecanismo de ``Zoom In'':} Permite al modelo expandir bajo demanda mensajes previamente resumidos.
+    \item \textbf{Límite de contexto:} Sistema de recorte automático que mantiene los últimos 30 mensajes activos.
+    \item \textbf{Memoria selectiva:} Preservación de mensajes marcados como relevantes más allá del límite general.
+\end{itemize}
+
+\paragraph{Sistema de planificación agéntica}
+
+Se desarrolló un sistema de misiones que permite al agente mantener objetivos a largo plazo:
+
+\begin{itemize}
+    \item El LLM puede crear planes estructurados con subtareas y dependencias.
+    \item Interfaz visual (Mission Board) con checkboxes para seguimiento del progreso.
+    \item Memoria persistente independiente del contexto conversacional para almacenar hallazgos importantes.
+    \item Endpoints REST (\texttt{/missions}) para crear, actualizar y consultar planes.
+\end{itemize}
+
+\paragraph{Optimización del comportamiento}
+
+Se realizó una reingeniería del prompt del sistema para mejorar el comportamiento autónomo:
+
+\begin{itemize}
+    \item Instrucciones que fomentan la perseverancia ante fallos.
+    \item Directrices para analizar errores y adaptar estrategias.
+    \item Incentivos para buscar alternativas creativas cuando el enfoque directo no funciona.
+\end{itemize}
+
+\paragraph{Testing y documentación}
+
+La fase final incluyó:
+
+\begin{itemize}
+    \item Ejecución de pruebas funcionales con escenarios complejos de reconocimiento y explotación.
+    \item Generación de diagramas de arquitectura y flujos de datos.
+    \item Redacción de documentación técnica del proyecto.
+    \item Medición de métricas de rendimiento (tiempos de respuesta, tasas de éxito).
+\end{itemize}
+
+\newpage
+
+\subsection{Tecnologías y Herramientas Utilizadas}
+
+A lo largo del proyecto se han empleado diversas tecnologías que abarcan múltiples áreas de la ingeniería del software:
+
+\subsubsection{Infraestructura y DevOps}
+
+\begin{itemize}
+    \item \textbf{Docker:} Contenedorización del entorno de ejecución y de los servicios del proyecto.
+    \item \textbf{Docker Compose:} Orquestación del laboratorio de pruebas con múltiples contenedores.
+    \item \textbf{Kali Linux:} Sistema operativo base del sandbox con herramientas de pentesting.
+    \item \textbf{Git:} Control de versiones del código y del estado del sandbox.
+\end{itemize}
+
+\subsubsection{Desarrollo Backend}
+
+\begin{itemize}
+    \item \textbf{Python 3.11:} Lenguaje principal para el desarrollo del servidor y scripts.
+    \item \textbf{FastAPI:} Framework web asíncrono de alto rendimiento.
+    \item \textbf{SQLite:} Base de datos ligera para persistencia de conversaciones.
+    \item \textbf{Server-Sent Events:} Protocolo para streaming de respuestas en tiempo real.
+\end{itemize}
+
+\subsubsection{Desarrollo Frontend}
+
+\begin{itemize}
+    \item \textbf{Next.js 14:} Framework React con renderizado del lado del servidor.
+    \item \textbf{TypeScript:} Superset de JavaScript con tipado estático.
+    \item \textbf{Tailwind CSS:} Framework de utilidades CSS para diseño responsivo.
+    \item \textbf{Shadcn/UI:} Componentes de interfaz accesibles y personalizables.
+    \item \textbf{Zustand:} Biblioteca de gestión de estado minimalista.
+    \item \textbf{TanStack Query:} Gestión de datos asíncronos y caché.
+\end{itemize}
+
+\subsubsection{Inteligencia Artificial}
+
+\begin{itemize}
+    \item \textbf{APIs comerciales:} OpenAI (GPT-4), Google Gemini, Anthropic Claude, DeepSeek.
+    \item \textbf{Agregadores:} OpenRouter para acceso unificado a múltiples proveedores.
+    \item \textbf{Modelos locales:} Phi-3 Mini, Qwen-2.5-Coder, Gemma 2B en formatos cuantizados.
+    \item \textbf{Tool Calling:} Mecanismo de invocación de funciones desde el LLM.
+\end{itemize}
+
+\subsubsection{Herramientas de Ciberseguridad}
+
+\begin{itemize}
+    \item \textbf{Nmap:} Escaneo de redes, descubrimiento de hosts y detección de servicios.
+    \item \textbf{SQLMap:} Automatización de detección y explotación de SQL Injection.
+    \item \textbf{Metasploit:} Framework de pruebas de penetración y desarrollo de exploits.
+    \item \textbf{Hydra:} Herramienta de fuerza bruta para múltiples protocolos.
+    \item \textbf{Nuclei:} Escáner de vulnerabilidades basado en plantillas YAML.
+\end{itemize}
+
+\newpage
+
+\subsection{Valoración de las Tareas y Relación con la Titulación}
+
+Las prácticas han permitido aplicar de forma integrada conocimientos adquiridos en múltiples asignaturas del Grado en Ingeniería Informática:
+
+\begin{itemize}
+    \item \textbf{Ingeniería del Software:} Aplicación de metodologías ágiles con sprints y entregas incrementales. Gestión del proyecto mediante issues y control de versiones con Git. Documentación técnica siguiendo estándares profesionales.
+    
+    \item \textbf{Arquitectura de Software:} Diseño de un sistema distribuido con separación clara de responsabilidades entre capas (sandbox, backend, frontend). Comunicación mediante APIs REST y protocolos de streaming.
+    
+    \item \textbf{Bases de Datos:} Diseño de esquemas no convencionales utilizando estructuras de árbol N-ario para el almacenamiento de conversaciones con capacidad de ramificación.
+    
+    \item \textbf{Redes de Computadores:} Configuración de redes virtuales aisladas, asignación de direcciones IP y comunicación entre contenedores Docker.
+    
+    \item \textbf{Seguridad Informática:} Aplicación práctica de conceptos de pentesting, identificación de vulnerabilidades web (OWASP Top 10) y uso de herramientas de auditoría.
+    
+    \item \textbf{Inteligencia Artificial:} Integración de modelos de lenguaje, diseño de prompts efectivos y desarrollo de sistemas agénticos con capacidad de planificación.
+\end{itemize}
+
+\subsection{Aprendizaje Obtenido}
+
+Durante el periodo de prácticas he adquirido conocimientos y habilidades en las siguientes áreas:
+
+\subsubsection{Arquitectura de Sistemas con Inteligencia Artificial}
+
+\begin{itemize}
+    \item Comprensión profunda de la estructura de comunicación con LLMs: roles, tokens, ventanas de contexto.
+    \item Dominio del mecanismo de Tool Calling y su implementación en diferentes proveedores.
+    \item Estrategias para mitigar limitaciones de los modelos: alucinaciones, pérdida de contexto, falta de persistencia.
+    \item Importancia del diseño de prompts (prompt engineering) en el comportamiento del sistema.
+\end{itemize}
+
+\subsubsection{Desarrollo Full-Stack Moderno}
+
+\begin{itemize}
+    \item Implementación de backends asíncronos de alto rendimiento con FastAPI.
+    \item Desarrollo de frontends reactivos con Next.js y gestión de estado compleja.
+    \item Comunicación en tiempo real mediante Server-Sent Events.
+    \item Patrones de diseño para aplicaciones web escalables.
+\end{itemize}
+
+\subsubsection{Ciberseguridad Aplicada}
+
+\begin{itemize}
+    \item Metodologías de pentesting: reconocimiento, enumeración, explotación.
+    \item Uso práctico de herramientas especializadas (nmap, sqlmap, metasploit).
+    \item Configuración de entornos de laboratorio seguros y aislados.
+    \item Comprensión de vulnerabilidades web comunes y sus vectores de explotación.
+\end{itemize}
+
+\subsubsection{Gestión de Proyectos de Investigación}
+
+\begin{itemize}
+    \item Coordinación con recursos compartidos como infraestructuras HPC.
+    \item Documentación académica y técnica con rigor metodológico.
+    \item Planificación a largo plazo con adaptación ante imprevistos.
+    \item Investigación bibliográfica y análisis del estado del arte.
+\end{itemize}
+
+\newpage
+
+\subsection{Valoración General y Conclusiones}
+
+\subsubsection{Aspectos Positivos}
+
+Esta experiencia de prácticas ha sido \textbf{extraordinariamente enriquecedora} por múltiples razones:
+
+\begin{itemize}
+    \item \textbf{Proyecto innovador:} Trabajar en la intersección de IA y ciberseguridad representa una oportunidad única de contribuir a un campo emergente con gran potencial de impacto tanto en investigación como en aplicaciones prácticas.
+    
+    \item \textbf{Autonomía técnica:} He tenido libertad para tomar decisiones de diseño y arquitectura, lo que ha fomentado un aprendizaje profundo y responsable.
+    
+    \item \textbf{Stack tecnológico actual:} Las tecnologías utilizadas (Next.js 14, FastAPI, Docker, LLMs) representan el estado del arte en desarrollo de software, proporcionando competencias directamente aplicables en el mercado laboral.
+    
+    \item \textbf{Entorno de investigación:} Trabajar en un grupo de investigación proporciona una perspectiva diferente al desarrollo en empresa, con énfasis en la innovación, el rigor metodológico y la documentación.
+\end{itemize}
+
+\subsubsection{Retos Superados}
+
+Durante las prácticas me he enfrentado a diversos desafíos técnicos:
+
+\begin{itemize}
+    \item \textbf{Integración multi-proveedor:} Cada API de LLM tiene particularidades; diseñar una capa de abstracción efectiva requirió un estudio profundo y pruebas exhaustivas.
+    
+    \item \textbf{Sincronización de estado:} Mantener coherencia entre el estado del chat y el sistema de archivos del sandbox mediante Git fue un reto de ingeniería complejo.
+    
+    \item \textbf{Optimización de contexto:} Desarrollar estrategias para que el modelo mantenga coherencia con ventanas de contexto limitadas requirió experimentación iterativa.
+    
+    \item \textbf{Comportamiento del agente:} Lograr que el LLM sea persistente y proactivo ante obstáculos requirió múltiples iteraciones de ingeniería de prompts.
+\end{itemize}
+
+\subsubsection{Conclusión}
+
+En definitiva, las prácticas me han permitido consolidar conocimientos adquiridos durante la carrera, desarrollar competencias en tecnologías de vanguardia, cultivar el pensamiento crítico necesario para la toma de decisiones técnicas fundamentadas, y confirmar mi interés en la ciberseguridad e inteligencia artificial como área de especialización profesional.
+
+Considero que esta experiencia ha sido altamente formativa y recomendable, proporcionándome herramientas, conocimientos y una visión práctica que complementan de forma significativa mi formación académica.
+
+\newpage
+
+%========================================
+% REFERENCIAS
+%========================================
+\section{Referencias Utilizadas}
+
+\begin{enumerate}
+    \item \textbf{Documentación oficial de FastAPI:} \url{https://fastapi.tiangolo.com/}
+    
+    \item \textbf{Documentación de Next.js:} \url{https://nextjs.org/docs}
+    
+    \item \textbf{Shadcn/UI Components:} \url{https://ui.shadcn.com/}
+    
+    \item \textbf{Docker Documentation:} \url{https://docs.docker.com/}
+    
+    \item \textbf{OpenAI API Reference:} \url{https://platform.openai.com/docs/api-reference}
+    
+    \item \textbf{Google Gemini API:} \url{https://ai.google.dev/docs}
+    
+    \item \textbf{Anthropic Claude API:} \url{https://docs.anthropic.com/}
+    
+    \item \textbf{Kali Linux Tools:} \url{https://www.kali.org/tools/}
+    
+    \item \textbf{OWASP Testing Guide:} \url{https://owasp.org/www-project-web-security-testing-guide/}
+    
+    \item \textbf{LMArena Leaderboard:} \url{https://lmarena.ai/}
+    
+    \item \textbf{Zustand State Management:} \url{https://zustand-demo.pmnd.rs/}
+    
+    \item \textbf{TanStack Query:} \url{https://tanstack.com/query/latest}
+    
+    \item \textbf{DVWA Documentation:} \url{https://github.com/digininja/DVWA}
+    
+    \item \textbf{Metasploitable 2:} \url{https://sourceforge.net/projects/metasploitable/}
+    
+    \item \textbf{OWASP Juice Shop:} \url{https://owasp.org/www-project-juice-shop/}
+\end{enumerate}
+
+\newpage
+
+%========================================
+% 4. FECHA Y FIRMA
+%========================================
+\section{Fecha de Entrega y Firma}
+
+\vspace{2cm}
+
+\begin{center}
+    \textbf{Fecha de entrega:} 27 de enero de 2026
+\end{center}
+
+\vspace{3cm}
+
+\begin{center}
+    \textbf{Firma del estudiante:}
+\end{center}
+
+\vspace{3cm}
+
+\begin{center}
+    \rule{8cm}{0.4pt}\\
+    \vspace{0.5cm}
+    Alejandro Vialard Santana
+\end{center}
+
+\end{document}

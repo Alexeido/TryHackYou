@@ -1,2 +1,371 @@
-\chapter{\methodologyname}
-\lipsum[1][1-4]
+\chapter{\methodologyname} \label{cap:metodologia}
+%%\section{¡WORK IN PROGRESS! De aquí en adelante solo hay esquemas de lo que tengo planeado escribir más o menos}
+
+El desarrollo de un sistema que integra modelos de lenguaje de gran escala (LLM) en entornos de ciberseguridad conlleva una incertidumbre técnica inherente. Por ello, la elección de la metodología de trabajo y una planificación rigurosa son pilares fundamentales para garantizar la viabilidad del proyecto dentro de los plazos académicos establecidos.
+
+\section{Marco Metodológico: Scrum Adaptado}
+
+Para este Trabajo de Fin de Grado se ha optado por un marco de trabajo ágil basado en \textbf{Scrum}. A diferencia de las metodologías tradicionales en cascada (\textit{Waterfall}), donde los requisitos se fijan al inicio y cualquier cambio supone un alto coste, las metodologías ágiles permiten una respuesta rápida ante los imprevistos técnicos, algo crítico en el despliegue de agentes autónomos.
+
+\subsection{Justificación y Roles en Trabajo Individual}
+
+La elección de Scrum se justifica por la necesidad de realizar entregas funcionales e incrementales. Dado que se trata de un proyecto individual, se ha realizado una adaptación de los roles tradicionales, donde yo, el autor del proyecto, asumo las funciones de \textbf{Product Owner}, \textbf{Scrum Master} y \textbf{Development Team}. Esto implica que soy responsable tanto de la definición de los requisitos y la priorización del backlog, como de la ejecución técnica y la autoorganización del trabajo.
+
+Para la gestión operativa, se ha hecho uso de la herramienta \textbf{GitHub Projects}, permitiendo un seguimiento detallado de más de cien subtareas mediante un tablero \textit{Kanban}. Esto ha facilitado la trazabilidad del proyecto y ha permitido que las tutorías actúen como \textit{Sprint Reviews} externas.
+
+\section{Planificación Inicial y Estimación de Esfuerzo}
+
+El dimensionamiento del proyecto se ha realizado conforme a la carga lectiva del TFG, establecida en \textbf{12 créditos ECTS}. Bajo la normativa vigente que asigna 25 horas de trabajo por cada crédito, el proyecto se ha planificado para completarse en un intervalo aproximado de \textbf{300 horas}.
+
+\subsection{Cronograma Inicial y Roadmap Original}
+
+La planificación de partida se estructuró en siete ciclos de trabajo o \textit{Sprints} cuya duración varió dependiendo de la complejidad y objetivos específicos de cada fase, diseñados para cubrir desde la cimentación teórica hasta la defensa del trabajo. Esta planificación ideal se visualizó mediante un diagrama de Gantt inicial y contemplaba los siguientes hitos:
+
+\begin{description}[style=nextline, leftmargin=1.5cm, font=\bfseries]
+
+    \item[Sprint 1: Definición y Organización (Semana 1) 17 - 23 Nov] 
+    Establecimiento de las bases, requisitos funcionales y configuración del repositorio y entorno de trabajo.
+    
+    \item[Sprint 2: Entorno de Pruebas (Semanas 2 - 3) 24 Nov - 7 Dic] 
+    Despliegue de la infraestructura de \textit{sandbox} junto a la configuración del entorno de pruebas mediante contenedores Docker para garantizar un aislamiento total.
+    
+    \item[Sprint 3: Integración del LLM (Semanas 4 - 6) 8 - 28 Dic] 
+    Conexión del núcleo cognitivo (LLM) con el entorno de terminal y desarrollo del backend.
+    
+    \item[Sprint 4: Desarrollo del MVP (Semanas 7 - 8) 29 Dic - 11 Ene] 
+    Implementación de la lógica agéntica inicial y flujos de auditoría básica como el escaneo de servicios.
+    
+    \item[Sprint 5: Validación y Pruebas (Semana 9) 12 - 18 Ene] 
+    Consolidación del sistema y ejecución de auditorías \textit{end-to-end} para verificar la estabilidad.
+    
+    \item[Sprint 6: Documentación y Memoria (Semanas 10 - 11) 19 Ene - 1 Feb] 
+    Redacción académica de la memoria, incluyendo resultados, análisis y referencias bibliográficas.
+    
+    \item[Sprint 7: Defensa (Semana 12) 2 - 8 Feb] 
+    Preparación del material visual y ensayo de la presentación final.
+
+\end{description}
+
+
+\subsection{Diagrama de Gantt}
+
+El diagrama ilustra la distribución temporal relativa de los Sprints a lo largo de las 12 semanas.
+
+\begin{figure}[H]
+\centering
+\begin{ganttchart}[
+    hgrid,
+    vgrid,
+    x unit=1.1cm,              
+    y unit chart=0.6cm,
+    bar/.append style={fill=blue!40, draw=none}, 
+    bar height=0.6,
+    group right shift=0,
+    group top shift=0.7,
+    group height=.3,
+    title label font=\bfseries\footnotesize,
+    bar label font=\footnotesize
+]{1}{12}
+
+% Títulos de las semanas
+\gantttitle{Semanas de Desarrollo}{12} \\
+\gantttitlelist{1,...,12}{1} \\
+
+% Barras del cronograma
+\ganttbar{S1: Organización}{1}{1} \\
+\ganttbar{S2: Entorno Sandbox}{2}{3} \\
+\ganttbar{S3: Integración LLM}{4}{6} \\ 
+\ganttbar{S4: MVP Agente}{7}{8} \\
+\ganttbar{S5: Validación}{9}{9} \\
+\ganttbar{S6: Memoria}{10}{11} \\
+\ganttbar{S7: Defensa}{12}{12}      
+
+% Relaciones 
+\ganttlink{elem0}{elem1}
+\ganttlink{elem1}{elem2}
+\ganttlink{elem2}{elem3}
+\ganttlink{elem3}{elem4}
+\ganttlink{elem4}{elem5}
+\ganttlink{elem5}{elem6}
+
+\end{ganttchart}
+\caption{Cronograma general del proyecto.}
+\end{figure}
+
+
+
+Esta hoja de ruta inicial proporcionó la estructura necesaria para comenzar el desarrollo, permitiendo identificar tempranamente los componentes críticos del sistema antes de entrar en la fase de implementación profunda.
+
+
+
+\section{Adaptación y Evolución del Cronograma Real}
+
+A diferencia de un modelo de planificación estático, la metodología \textit{Scrum} permitió reevaluar el progreso del sistema al finalizar hitos clave. Durante la ejecución, se identificaron oportunidades técnicas que no estaban contempladas en el \textit{roadmap} inicial, pero que aportaban un valor diferencial al proyecto.
+
+\subsection{Aceleración del Entorno y Reinversión de Tiempo}
+
+El primer ajuste significativo ocurrió tras la finalización del \textbf{Sprint 2}. El despliegue de la infraestructura de red aislada y la orquestación mediante \texttt{docker-compose} se completó con una antelación de cinco días respecto a lo previsto. Este margen de maniobra, sumado a una validación gratificante del Producto Mínimo Viable (MVP) al término del \textbf{Sprint 4}, permitió pivotar los esfuerzos hacia la mejora de la calidad técnica y operativa del sistema.
+
+En lugar de proceder directamente a una fase de validación prolongada, se decidió dedicar un nuevo ciclo de trabajo a mejoras de \textit{Quality of Life} (QoL) y robustez arquitectónica, reestructurando el calendario para integrar funcionalidades de persistencia avanzada y alto rendimiento.
+
+\subsection{Integración de Infraestructura de Alto Rendimiento (COMPUTAEX)}
+
+Uno de los pilares de este reajuste fue la posibilidad de acceder a un nodo del centro de supercomputación \textbf{COMPUTAEX}. Esta oportunidad permitió superar la limitación técnica de los modelos locales convencionales (frecuentemente menos capaces en tareas de razonamiento complejo) sin incurrir en los riesgos de privacidad de los modelos en la nube.
+
+La configuración técnica en este entorno incluyó:
+\begin{itemize}
+    \item Uso de un nodo equipado con dos GPUs \textbf{NVIDIA RTX A4500 (20GB VRAM c/u)}.
+    \item Ejecución de modelos de lenguaje de gran tamaño (LLMs) que requieren una capacidad de cómputo superior a la de un equipo doméstico.
+    \item Establecimiento de un punto intermedio de evaluación entre la latencia de las APIs comerciales y la soberanía total del dato en infraestructura propia.
+\end{itemize}
+
+\subsection{Mejoras en la Gestión de Estado y Persistencia}
+
+El tiempo ganado en las primeras fases facilitó la implementación de tres mejoras críticas en la arquitectura del agente que no formaban parte del alcance original:
+
+\begin{enumerate}
+    \item \textbf{Gestión de conversaciones por ramas:} Se desarrolló un sistema que permite al usuario o al agente explorar diferentes líneas de razonamiento de forma no lineal. Esto soluciona el problema de las conversaciones largas que agotan la ventana de contexto, permitiendo volver a ``ramas'' anteriores si una estrategia de auditoría falla.
+    \item \textbf{Persistencia del Sandbox mediante Git:} Se integró un sistema de control de versiones dentro del entorno aislado. Tras cada ejecución de la terminal se ejecutan \textit{commits} del estado del sistema de archivos de esa conversación, permitiendo al redirigir la conversación por otra rama que automáticamente los cambios realizados en la anterior desaparezcan para evitar inconsistencias con el agente.
+    \item \textbf{Optimización de la Ventana de Contexto:} Se implementaron técnicas de truncado inteligente y resúmenes automáticos de salidas de terminal, evitando tener en la ventana de contexto información redundante o irrelevante procedente de curls, y a su vez reduciendo errores por olvido de contexto.
+\end{enumerate}
+
+Estas desviaciones respecto al plan original no solo no comprometieron la entrega final, sino que permitieron que el proyecto evolucionara de un prototipo funcional a una plataforma de auditoría robusta y técnicamente avanzada.
+
+\section{Desglose Operativo de los Sprints}
+
+A continuación, se detalla la ejecución técnica y el progreso alcanzado en cada ciclo de trabajo. Este desglose refleja la evolución del proyecto basándose en las más de cien subtareas registradas en el sistema de gestión, documentando cómo se transformó la arquitectura conceptual en un sistema operativo y resiliente.
+
+\subsection*{Sprint 1: Definición y Organización}
+
+El ciclo inicial se centró en la cimentación teórica y logística. Se realizó una investigación profunda del estado del arte, analizando arquitecturas de agentes autónomos y \textit{frameworks} de \textit{pentesting} existentes para identificar brechas en la interpretación semántica de resultados. Técnicamente, este sprint culminó con la definición de la estructura de microservicios (KaliSandbox, Backend y Frontend) y la especificación de requisitos funcionales y de seguridad. Se estableció el entorno de trabajo en GitHub, definiendo una metodología \textit{Scrum} adaptada que permitió una autoorganización eficiente mediante la priorización del \textit{backlog} inicial.
+
+\subsection*{Sprint 2: Entorno de Pruebas (Sandbox Terminal)}
+
+Este sprint transformó los requisitos de aislamiento en una infraestructura real. Se construyó una imagen Docker personalizada basada en \texttt{kali-rolling}, equipada con un arsenal completo de herramientas de auditoría (reconocimiento, escaneo, explotación y análisis de aplicaciones web). El hito técnico principal fue el desarrollo de una API REST mediante \textbf{Flask} dentro del contenedor, permitiendo la ejecución asíncrona de comandos y la gestión de procesos en segundo plano.
+
+La fase concluyó con la orquestación de una red \textit{bridge} aislada que interconectaba al agente con tres entornos víctimas (\textit{DVWA, Metasploitable2 y Juice Shop}). Se implementaron los primeros mecanismos de compresión de salida de terminal (busqueda de patrones repetitivos) para optimizar el consumo de \textit{tokens} y se validó la conectividad mediante pruebas de escaneo básico, garantizando que el agente tuviera un ``cuerpo'' operativo sobre el que ejecutar sus decisiones.
+
+\subsection*{Sprint 3: Integración del LLM y Abstracción del ``Cerebro''}
+
+Durante este ciclo de tres semanas se desarrolló el núcleo lógico del sistema utilizando \textbf{FastAPI}. Se implementó un cliente unificado compatible con múltiples proveedores (OpenAI, Anthropic, Google, DeepSeek y Ollama), permitiendo que el sistema fuera agnóstico al modelo. Un componente innovador de este sprint fue el sistema de \textbf{Ranking ELO}, que permite al auditor seleccionar modelos basándose en su rendimiento real en \textit{benchmarks} técnicos.
+
+En el plano de la persistencia, se diseñó un esquema de base de datos SQLite con una estructura de árbol para los mensajes, facilitando la reconstrucción de hilos y la navegación por ramas. Paralelamente, se inició el desarrollo de la primera versión del \textit{Frontend} con \textbf{Next.js}, integrando \textit{streaming} mediante \textit{Server-Sent Events} (SSE) para visualizar la generación de respuestas en tiempo real y un visor de terminal capaz de renderizar salidas ANSI complejas.
+
+\subsection*{Sprint 4: Desarrollo MVP - Agencia y Mission Board}
+
+El cuarto ciclo se enfocó en dotar al agente de capacidad estratégica y supervisión humana. Se implementó la arquitectura de estado global con \textbf{Zustand} y se desarrolló el \textbf{Mission Board}, una interfaz que permite al agente descomponer objetivos complejos en tareas granulares con estados visuales. Se introdujo el protocolo de misiones en el \textit{system prompt}, permitiendo que el modelo gestionara su propio plan de acción de forma autónoma. Se introdujo también la capacidad de ejecutar en segundo plano (\textit{background jobs}), permitiendo al agente continuar con otras tareas mientras espera resultados de comandos largos y al mismo tiempo mantener la interactividad con el usuario siendo capaz de revisar el estado de los trabajos en curso, y los mismos comandos son capaces de contactar al modelo al acabar para notificar su finalización.
+
+En cuanto a la seguridad, se desarrolló un motor de análisis de riesgos basado en patrones \textit{regex} y \textit{whitelists} para comandos de terminal. Este sistema clasifica cada acción según su peligrosidad, activando un diálogo de aprobación (\textit{Human-in-the-loop}) para comandos de riesgo alto. Esta fase consolidó el Producto Mínimo Viable, integrando por primera vez la toma de decisiones con la ejecución real supervisada.
+
+\subsection*{Sprint 5: Robustez, HPC y Persistencia con Git}
+
+Este sprint representó un gran salto técnico del proyecto al integrar la infraestructura de \textbf{COMPUTAEX}. Se optimizó el sistema para la ejecución de modelos locales masivos en el nodo con GPUs \textbf{NVIDIA RTX A4500}, evaluando la capacidad de modelos pesados para realizar \textit{tool calling}. La innovación más destacada fue la implementación de la \textbf{persistencia basada en Git} dentro del \textit{sandbox}: el sistema realiza \textit{commits} y \textit{tags} del estado del sistema de archivos vinculados a las ramas de la conversación, permitiendo revertir el entorno ante fallos técnicos o lógicos.
+
+Se implementaron mejoras críticas de optimización, como el truncado inteligente de contexto para preservar bloques de herramientas completos y un sistema de \textbf{Auto-Summarize} para salidas de terminal extensas. Estas mejoras permitieron que el agente mantuviera la coherencia en misiones de larga duración, reduciendo drásticamente las alucinaciones por desbordamiento de ventana de contexto, también se optimizó el prompt agregando instrucciones para que el modelo no se diera por vencido ante errores temporales o fallos en la ejecución de comandos, fomentando la resiliencia y la búsqueda de soluciones alternativas.
+
+\subsection*{Sprint 6: Validación y Pruebas Intensivas}
+
+Con la arquitectura estabilizada, se procedió a una validación exhaustiva de cuatro días. Se ejecutaron auditorías \textit{end-to-end} contra los objetivos vulnerables, documentando la tasa de éxito y el tiempo de ejecución. Se realizaron pruebas de estrés para validar la gestión de \textit{jobs} en segundo plano y la estabilidad del \textit{streaming} ante latencias elevadas.
+
+Además de corregir errores críticos identificados durante las pruebas (como la gestión de respuestas de herramientas huérfanas en el truncado), se realizó una comparativa multi-proveedor para analizar las diferencias de comportamiento entre modelos comerciales y locales.
+\subsection*{Sprint 7: Documentación y Cierre}
+
+El ciclo final se dedicó a la consolidación académica del proyecto. Se redactó la memoria técnica, integrando el análisis de los resultados obtenidos y se realizó una revisión crítica de los objetivos cumplidos. 
+
+\section{Seguimiento y Cronograma de Ejecución Real}
+
+La ejecución del proyecto se ha monitorizado de forma continua para asegurar que la calidad técnica no se viera comprometida por las restricciones temporales. En esta sección se detalla el flujo de trabajo real y las herramientas de gestión empleadas.
+
+\subsection{Gestión Operativa: GitHub Projects}
+
+Para la orquestación de las tareas, se ha utilizado \textbf{GitHub Projects} como centro neurálgico de gestión. Esta herramienta permitió desglosar el proyecto en un total de \textbf{107 subtareas}, clasificadas por su prioridad y el componente afectado (Backend, Frontend o Sandbox). 
+
+La gestión mediante tableros \textit{Kanban} facilitó la visualización del estado de cada funcionalidad, permitiendo identificar cuellos de botella en tiempo real. La granularidad de las subtareas permitió que, a pesar de la complejidad de componentes como la persistencia mediante Git o la integración con \textit{Ollama}, el desarrollo fuera fluido y medible.
+
+\begin{figure}[H]
+    \centering
+    % TO-DO:
+    % Aquí adjuntarás la captura de pantalla de tu GitHub Projects
+    % \includegraphics[width=\textwidth]{figuras/github_projects.png} 
+    \caption{Interfaz de gestión de tareas y subtareas en GitHub Projects.}
+    \label{fig:github_projects}
+\end{figure}
+
+\subsection{Calendario de Ejecución Diario}
+
+El desarrollo se llevó a cabo manteniendo un ritmo de trabajo intensivo. A continuación, se presenta la correspondencia real de los Sprints con el calendario de ejecución, consolidando un total de \textbf{313 horas} de trabajo efectivo, lo que valida el compromiso académico de 12 créditos ECTS.
+
+\begin{table}[H]
+\centering
+\small
+\renewcommand{\arraystretch}{1.5}
+\begin{tabular}{|c|l|c|c|c|c|c|c|c|c|}
+\hline
+\rowcolor[gray]{0.8} 
+\textbf{Sem.} & \textbf{Período} & \textbf{L} & \textbf{M} & \textbf{X} & \textbf{J} & \textbf{V} & \textbf{S} & \textbf{D} & \textbf{Total} \\ \hline
+
+% NOVIEMBRE
+1 & 17 Nov - 23 Nov & \cellcolor{cyan!15}5 & \cellcolor{cyan!15}5 & \cellcolor{cyan!15}5 & \cellcolor{cyan!15}5 & \cellcolor{cyan!15}5 & \cellcolor{cyan!15}- & \cellcolor{cyan!15}- & \textbf{25h} \\ \hline
+2 & 24 Nov - 30 Nov & \cellcolor{cyan!15}5 & \cellcolor{cyan!15}5 & \cellcolor{cyan!15}5 & \cellcolor{cyan!15}5 & \cellcolor{cyan!15}5 & \cellcolor{cyan!15}- & \cellcolor{cyan!15}- & \textbf{25h} \\ \hline
+
+% DICIEMBRE
+3 & 01 Dic - 07 Dic & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \textbf{25h} \\ \hline
+4 & 08 Dic - 14 Dic & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \textbf{25h} \\ \hline
+5 & 15 Dic - 21 Dic & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \textbf{25h} \\ \hline
+6 & 22 Dic - 28 Dic & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \cellcolor{orange!15}4 & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \textbf{14h} \\ \hline
+
+% TRANSICIÓN DICIEMBRE - ENERO (Miércoles 31 - Jueves 1)
+7 & 29 Dic - 04 Ene & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}2 & \cellcolor{green!15}2 & \cellcolor{green!15}5 & \cellcolor{green!15}- & \cellcolor{green!15}- & \textbf{19h} \\ \hline
+
+% ENERO
+8 & 05 Ene - 11 Ene & \cellcolor{green!15}5 & \cellcolor{green!15}- & \cellcolor{green!15}- & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}- & \cellcolor{green!15}- & \textbf{15h} \\ \hline
+9 & 12 Ene - 18 Ene & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}- & \cellcolor{green!15}- & \textbf{25h} \\ \hline
+10 & 19 Ene - 25 Ene & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \textbf{35h} \\ \hline
+
+% TRANSICIÓN ENERO - FEBRERO (Sábado 31 - Domingo 1)
+11 & 26 Ene - 01 Feb & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{yellow!15}5 & \textbf{35h} \\ \hline
+
+% FEBRERO
+12 & 02 Feb - 08 Feb & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}- & \cellcolor{yellow!15}- & \cellcolor{yellow!15}- & \textbf{20h} \\ \hline
+13 & 09 Feb - 15 Feb & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}- & \cellcolor{yellow!15}- & \textbf{25h} \\ \hline
+
+\rowcolor[HTML]{D5E8D4} 
+\multicolumn{9}{|r|}{\textbf{TOTAL HORAS ACUMULADAS}} & \textbf{313h} \\ \hline
+\end{tabular}
+\caption{Cómputo detallado de horas según el calendario real del proyecto.}
+\label{tab:calendario_ejecucion}
+\end{table}
+
+
+\subsection{Diagrama de Gantt: Ejecución Real Completa}
+
+El siguiente diagrama muestra todo el proyecto completado con fechas reales del calendario.
+
+\begin{figure}[H]
+\centering
+\begin{ganttchart}[
+    hgrid,
+    vgrid,
+    x unit=0.12cm,
+    y unit chart=0.8cm,
+    bar height=0.7,
+    time slot format=isodate,
+    time slot unit=day
+]{2025-11-17}{2026-02-15}
+
+% Títulos
+\gantttitle{Cronograma de Ejecución Final (2025-2026)}{91} \\
+\gantttitle{Nov}{14}\gantttitle{Dic}{31}\gantttitle{Ene}{31}\gantttitle{Feb}{15} \\
+
+% Sprints
+\ganttbar[bar/.append style={fill=ontime, draw=none}]{S1: Cimentación}{2025-11-17}{2025-11-23} \\
+\ganttbar[bar/.append style={fill=early, draw=none}]{S2: Sandbox KaliLinux}{2025-11-24}{2025-12-02} \\
+\ganttbar[bar/.append style={fill=ontime, draw=none}]{S3: Integración LLM}{2025-12-03}{2025-12-25} \\
+\ganttbar[bar/.append style={fill=ontime, draw=none}]{S4: Desarrollo MVP}{2025-12-26}{2026-01-08} \\
+\ganttbar[bar/.append style={fill=late, draw=none}]{\textcolor{black}{S5: HPC y Persistencia}}{2026-01-09}{2026-01-18} \\
+\ganttbar[bar/.append style={fill=early, draw=none}]{S6: Validación}{2026-01-19}{2026-01-22} \\
+\ganttbar[bar/.append style={fill=ontime, draw=none}]{S7: Memoria y Cierre}{2026-01-23}{2026-02-15} \\
+
+% Relaciones
+\ganttlink{elem0}{elem1}
+\ganttlink{elem1}{elem2}
+\ganttlink{elem2}{elem3}
+\ganttlink{elem3}{elem4}
+\ganttlink{elem4}{elem5}
+\ganttlink{elem5}{elem6}
+
+\end{ganttchart}
+\caption{Diagrama de Gantt de la ejecución real completa.}
+\end{figure}
+
+\vspace{-0.5em}
+\begin{center}
+\small
+\begin{tabular}{llll}
+\colorbox{ontime}{\rule{0.5cm}{0.3cm}} Completado a tiempo & \colorbox{early}{\rule{0.5cm}{0.3cm}} Finalizado anticipadamente & \colorbox{late}{\rule{0.5cm}{0.3cm}} Extensión técnica \\
+\end{tabular}
+\end{center}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|l|l|c|}
+\hline
+\rowcolor[gray]{0.9} \textbf{Sprint} & \textbf{Inicio} & \textbf{Fin} & \textbf{Estado} \\ \hline
+S1: Cimentación & 17 Nov & 23 Nov & Completado \\ \hline
+\rowcolor[HTML]{E2EFDA} S2: Sandbox Kali & 24 Nov & 02 Dic & \textbf{Anticipado} \\ \hline
+S3: Integración LLM & 03 Dic & 25 Dic & Completado \\ \hline
+S4: Desarrollo MVP & 26 Dic & 08 Ene & Completado \\ \hline
+\rowcolor[HTML]{FCE4D6} S5: Hardware y Git & 09 Ene & 18 Ene & \textbf{Extendido} \\ \hline
+\rowcolor[HTML]{E2EFDA} S6: Validación & 19 Ene & 22 Ene & \textbf{Acelerado} \\ \hline
+S7: Documentación & 23 Ene & 04 Feb & Completado \\ \hline
+\end{tabular}
+\caption{Cronograma real de ejecución y desviaciones observadas.}
+\end{table}
+
+\subsection{Análisis de Desviaciones y Carga de Trabajo}
+
+El análisis de la ejecución real revela tres momentos clave que definieron la madurez del sistema final:
+
+\begin{itemize}
+    \item \textbf{Finalización Anticipada del Sprint 2:} El diseño, Implementación y validación inicial de la API del Sandbox fue más rápido de lo esperado debido al uso de tecnologías previamente conocidas, la configuración del entorno de red y la selección de laboratorios de pruebas se completaron antes de lo previsto gracias a las facilidades proporcionadas por Docker. Este adelanto fue fundamental, ya que proporcionó el ``colchón'' de tiempo necesario para las fases más complejas.
+    
+    \item \textbf{Extensión Técnica del Sprint 5:} Esta fase representó el mayor desafío del proyecto. La integración de la persistencia mediante \texttt{GitPython} y la configuración del nodo en \textbf{COMPUTAEX} para la ejecución de modelos locales de gran tamaño requirieron una investigación profunda y múltiples iteraciones de prueba-error con distintos modelos de tamaños considerables. El esfuerzo se concentró en encontrar Modelos locales pesados que pudieran usar tool calling, y fuesen competentes.
+    
+    \item \textbf{Aceleración del Sprint 6:} Debido a que el sistema se construyó de forma robusta y modular durante el Sprint 5, la fase de validación y pruebas intensivas fue sumamente eficiente. El sistema ya era capaz de ejecutar auditorías \textit{end-to-end} con mínima supervisión, lo que permitió cerrar este ciclo en cuatro intensos días.
+\end{itemize}
+
+Estas desviaciones, lejos de ser obstáculos, se convirtieron en oportunidades para enriquecer el proyecto, demostrando la eficacia de la metodología ágil en entornos de alta incertidumbre técnica.
+
+\section{¡WORK IN PROGRESS! De aquí en adelante solo hay esquemas y cosas que se han quedado en el tintero}
+De hecho este capitulo no está terminado aún y está sujeto a cambios.
+
+\section{Entorno y Herramientas: Análisis y Justificación}
+\label{sec:herramientas}
+
+La robustez del agente depende directamente de la arquitectura que lo sustenta. En esta sección se justifica la elección del \textit{stack} tecnológico mediante una comparativa con las alternativas existentes en el mercado.
+
+\subsection{Arquitectura de Microservicios}
+%% Guía: Comparar Monolito vs Microservicios. 
+%% Justificar por qué separas Sandbox API (seguridad), Backend (lógica) y Frontend (interfaz).
+
+\subsection{Ecosistema de Backend y Sandbox}
+%% Guía: Comparativa técnica: FastAPI vs. Django/Node.js.
+%% Justificar FastAPI por asincronía (importante para streaming de LLMs).
+%% Justificar Flask para la Sandbox por su ligereza y simplicidad en ejecución de comandos.
+
+\subsection{Interfaz de Usuario (Next.js y Tailwind CSS)}
+%% Guía: Hablar de la reactividad y la gestión de estados. 
+%% Mencionar Shadcn UI para una interfaz profesional y funcional en poco tiempo.
+
+\subsection{Virtualización y Aislamiento de Red (Docker)}
+\label{subsec:docker_metodologia}
+%% Guía: Comparar Máquinas Virtuales vs Contenedores.
+%% EXPLICACIÓN TÉCNICA CLAVE: Docker Network (Modos Bridge vs Host).
+%% Justificar el aislamiento total para que el agente no comprometa el sistema anfitrión.
+
+\section{Evaluación de Modelos LLM y Recursos de Cómputo}
+\label{sec:evaluacion_modelos}
+
+La elección del ``cerebro'' del agente es un factor crítico. No todos los modelos presentan la misma capacidad para la generación de código o el seguimiento de planes complejos.
+
+\subsection{Criterios de Selección y Benchmarks}
+%% Guía: Definir qué métricas buscas (Ventana de contexto, razonamiento lógico, Function Calling).
+%% Mencionar benchmarks estándar como HumanEval o MMLU.
+
+\subsection{Análisis de Modelos Candidatos}
+%% Guía: Comparar Modelos Locales (Llama 3, Mistral, Phi-3) vs APIs (GPT-4o, Gemini).
+%% Hablar de la cuantización (GGUF/EXL2) y cómo afecta al rendimiento.
+
+\subsection{Infraestructura de Cómputo}
+\label{subsec:hardware}
+Para este proyecto se han utilizado dos entornos diferenciados que permiten evaluar la escalabilidad del sistema:
+
+\begin{itemize}
+    \item \textbf{Entorno de Desarrollo Local:} %% Poner aquí las specs de tu PC.
+    \item \textbf{Entorno de Alto Rendimiento (HPC):} Uso de un nodo en el centro de supercomputación \textbf{COMPUTAEX}, equipado con dos tarjetas gráficas \textbf{NVIDIA RTX A4500 (20GB VRAM cada una)}, permitiendo la ejecución de modelos de mayor escala y menor latencia.
+\end{itemize}
+
+\subsection{Matriz de Decisión Final}
+%% Guía: Incluir una tabla que compare: Modelo | Parámetros | Hardware Necesario | Decisión.
+%% Justificar por qué eliges unos para pruebas locales y otros para cloud/HPC.

@@ -1,2 +1,526 @@
 \chapter{\implementationdevelopmentname}
-\lipsum[1][1-4]
+
+% ============================================================================
+% ESQUEMA DE REDACCIÓN - CAPÍTULO 5: IMPLEMENTACIÓN Y DESARROLLO
+% Extensión estimada: ~40 páginas
+% ============================================================================
+
+% ----------------------------------------------------------------------------
+% 5.1 VISIÓN GENERAL DE LA ARQUITECTURA (~3 páginas)
+% ----------------------------------------------------------------------------
+\section{Visión General de la Arquitectura}
+
+% CONTENIDO A REDACTAR:
+% - Descripción del sistema completo y sus tres componentes principales
+% - Justificación de la arquitectura de microservicios
+% - Flujo de datos entre componentes
+%
+% ELEMENTOS VISUALES SUGERIDOS:
+% □ Diagrama de arquitectura general (ASCII art de las documentaciones → figura profesional)
+% □ Tabla resumen de tecnologías por componente
+%
+% JUSTIFICACIONES A INCLUIR:
+% - ¿Por qué separar en 3 componentes independientes?
+% - ¿Por qué Docker para el sandbox?
+% - ¿Por qué FastAPI para el backend?
+% - ¿Por qué Next.js para el frontend?
+
+\subsection{Componentes del Sistema}
+% Describir brevemente cada componente y su responsabilidad
+
+\subsection{Comunicación entre Componentes}
+% HTTP REST, SSE, puertos utilizados
+
+\subsection{Decisiones Arquitectónicas}
+% Justificar microservicios vs monolito, etc.
+
+
+% ----------------------------------------------------------------------------
+% 5.2 KALISANDBOX: ENTORNO DE EJECUCIÓN AISLADO (~8-10 páginas)
+% ----------------------------------------------------------------------------
+\section{KaliSandbox: Entorno de Ejecución Aislado}
+
+\subsection{Infraestructura Docker}
+% (~2 páginas)
+%
+% CONTENIDO:
+% - Descripción del docker-compose.yml
+% - Red aislada 10.10.0.0/24
+% - Máquinas víctima (DVWA, Metasploitable, Juice Shop)
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de red Docker (topología)
+% □ Tabla de servicios con IPs y puertos
+% □ Fragmento de código del docker-compose.yml
+%
+% JUSTIFICACIONES:
+% - ¿Por qué Kali Linux como base?
+% - ¿Por qué estas 3 máquinas víctima específicas?
+% - ¿Por qué red aislada vs bridge?
+
+\subsection{Imagen Docker del Agente}
+% (~2 páginas)
+%
+% CONTENIDO:
+% - Fases del Dockerfile
+% - Herramientas instaladas por categoría
+% - Estructura de directorios
+%
+% ELEMENTOS VISUALES:
+% □ Tabla de herramientas por fase/categoría
+% □ Diagrama de estructura de directorios
+% □ Fragmentos relevantes del Dockerfile
+%
+% JUSTIFICACIONES:
+% - ¿Por qué instalar herramientas en fases?
+% - ¿Por qué ProjectDiscovery tools?
+% - ¿Por qué volúmenes persistentes?
+
+\subsection{API REST Flask}
+% (~3 páginas)
+%
+% CONTENIDO:
+% - Endpoint /execute (el más importante)
+% - Manejo de jobs en background
+% - Endpoints de estado y cancelación
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de flujo de /execute
+% □ Diagrama de estados de un job (running → finished/stopped/error)
+% □ Tabla de todos los endpoints con métodos y descripciones
+% □ Fragmentos de código de la lógica de ejecución
+%
+% JUSTIFICACIONES:
+% - ¿Por qué Flask y no FastAPI aquí?
+% - ¿Por qué jobs en background vs síncrono?
+% - ¿Por qué la secuencia SIGINT→SIGTERM→SIGKILL?
+
+\subsection{Sistema de Sesiones Git}
+% (~2 páginas)
+%
+% CONTENIDO:
+% - Concepto de snapshot por mensaje
+% - Endpoints de sesión (init, checkpoint, switch)
+% - Navegación entre ramas del árbol de conversación
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de árbol de commits Git vs árbol de mensajes
+% □ Diagrama de flujo de checkpoint
+% □ Ejemplo de uso con comandos git
+%
+% JUSTIFICACIONES:
+% - ¿Por qué Git para versionado del filesystem?
+% - ¿Por qué un repo por conversación?
+% - Ventajas de poder "viajar en el tiempo"
+
+\subsection{Optimización de Output}
+% (~1 página)
+%
+% CONTENIDO:
+% - Función compress_output()
+% - Reducción de tokens para el LLM
+%
+% ELEMENTOS VISUALES:
+% □ Ejemplo antes/después de compresión
+% □ Pseudocódigo del algoritmo
+%
+% JUSTIFICACIONES:
+% - ¿Por qué comprimir output?
+% - Impacto en costes de API
+
+
+% ----------------------------------------------------------------------------
+% 5.3 BACKEND LLM: ORQUESTADOR CENTRAL (~12-14 páginas)
+% ----------------------------------------------------------------------------
+\section{Backend LLM: Orquestador Central}
+
+\subsection{Arquitectura FastAPI}
+% (~1.5 páginas)
+%
+% CONTENIDO:
+% - Estructura de routers modulares
+% - Lifespan (arranque/cierre)
+% - Middleware CORS
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de módulos/routers
+% □ Tabla de routers con sus prefijos
+%
+% JUSTIFICACIONES:
+% - ¿Por qué FastAPI?
+% - ¿Por qué estructura modular de routers?
+
+\subsection{Modelo de Datos}
+% (~3 páginas)
+%
+% CONTENIDO:
+% - Esquema SQLite completo
+% - Estructura de árbol de mensajes
+% - Tablas de misiones y objetivos
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama ER de la base de datos
+% □ Diagrama de árbol de mensajes con parent_id
+% □ Tabla de campos por tabla SQL
+%
+% JUSTIFICACIONES:
+% - ¿Por qué SQLite vs PostgreSQL?
+% - ¿Por qué estructura de árbol vs lista?
+% - Ventajas de la ramificación de conversaciones
+
+\subsection{Truncado Inteligente de Contexto}
+% (~1.5 páginas)
+%
+% CONTENIDO:
+% - Problema: ventana de contexto limitada
+% - Solución: smart_truncate_messages()
+% - Preservación de pares tool_call/tool_response
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama del problema (truncado naive vs inteligente)
+% □ Pseudocódigo del algoritmo
+%
+% JUSTIFICACIONES:
+% - ¿Por qué truncar?
+% - ¿Por qué preservar pares tool?
+% - Compatibilidad con Gemini
+
+\subsection{Integración Multi-Proveedor}
+% (~2 páginas)
+%
+% CONTENIDO:
+% - Factory de clientes (get_client())
+% - Proveedores soportados
+% - Normalización de APIs
+%
+% ELEMENTOS VISUALES:
+% □ Tabla de proveedores con base_urls
+% □ Diagrama de flujo de selección de cliente
+%
+% JUSTIFICACIONES:
+% - ¿Por qué múltiples proveedores?
+% - ¿Por qué usar SDK de OpenAI como base?
+% - Diferencias entre proveedores
+
+\subsection{Streaming y Server-Sent Events}
+% (~2 páginas)
+%
+% CONTENIDO:
+% - Flujo de streaming
+% - Tipos de eventos SSE
+% - Loop de tool execution
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de secuencia del streaming
+% □ Tabla de eventos SSE
+% □ Fragmento de código del generador
+%
+% JUSTIFICACIONES:
+% - ¿Por qué SSE vs WebSockets?
+% - ¿Por qué streaming vs respuesta completa?
+
+\subsection{Sistema de Tools (Function Calling)}
+% (~2.5 páginas)
+%
+% CONTENIDO:
+% - Definición de tools disponibles
+% - Ejecución de tool_calls
+% - Auto-summarize de outputs largos
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de flujo del loop de tools
+% □ Esquema JSON de una tool definition
+% □ Ejemplo de tool_call y tool_response
+%
+% JUSTIFICACIONES:
+% - ¿Por qué estas tools específicas?
+% - ¿Por qué auto-summarize?
+% - Límite de iteraciones (15)
+
+\subsection{Sistema de Seguridad}
+% (~2 páginas)
+%
+% CONTENIDO:
+% - Niveles de riesgo (SAFE → CRITICAL)
+% - Patrones de comandos peligrosos
+% - Flujo de aprobación
+%
+% ELEMENTOS VISUALES:
+% □ Tabla de niveles de riesgo con ejemplos
+% □ Diagrama de flujo de análisis de comando
+% □ Fragmentos de patrones regex
+%
+% JUSTIFICACIONES:
+% - ¿Por qué sistema de aprobación?
+% - ¿Por qué estos niveles de riesgo?
+% - Balance autonomía vs seguridad
+
+\subsection{Modo Agéntico: Misiones}
+% (~2 páginas)
+%
+% CONTENIDO:
+% - Detección de modo agéntico (keywords)
+% - System prompt especializado
+% - Estados de misión y objetivos
+% - Tool manage_mission
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de estados de misión
+% □ Diagrama de estados de objetivo
+% □ Ejemplo de plan de misión JSON
+%
+% JUSTIFICACIONES:
+% - ¿Por qué modo agéntico separado?
+% - ¿Por qué el LLM gestiona su propia misión?
+% - Adaptación dinámica del plan
+
+
+% ----------------------------------------------------------------------------
+% 5.4 FRONTEND LLM: INTERFAZ DE USUARIO (~10-12 páginas)
+% ----------------------------------------------------------------------------
+\section{Frontend LLM: Interfaz de Usuario}
+
+\subsection{Stack Tecnológico}
+% (~1 página)
+%
+% CONTENIDO:
+% - Next.js 16 + React 19
+% - TypeScript, Zustand, TailwindCSS
+%
+% ELEMENTOS VISUALES:
+% □ Tabla de dependencias principales
+%
+% JUSTIFICACIONES:
+% - ¿Por qué Next.js?
+% - ¿Por qué Zustand vs Redux?
+% - ¿Por qué TailwindCSS?
+
+\subsection{Arquitectura de Componentes}
+% (~2 páginas)
+%
+% CONTENIDO:
+% - Estructura de carpetas
+% - Jerarquía de componentes
+% - Componentes principales
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de árbol de componentes
+% □ Estructura de carpetas
+%
+% JUSTIFICACIONES:
+% - ¿Por qué esta estructura?
+% - Separación de responsabilidades
+
+\subsection{Gestión de Estado con Zustand}
+% (~2.5 páginas)
+%
+% CONTENIDO:
+% - Los 7 stores y sus responsabilidades
+% - Persistencia en localStorage
+% - Flujo de datos unidireccional
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de stores y sus relaciones
+% □ Tabla de stores con campos principales
+% □ Fragmentos de código de interfaces TypeScript
+%
+% JUSTIFICACIONES:
+% - ¿Por qué 7 stores separados?
+% - ¿Por qué persistir en localStorage?
+
+\subsection{Servicios de Comunicación}
+% (~2 páginas)
+%
+% CONTENIDO:
+% - api.ts: cliente HTTP principal
+% - terminal.ts: comunicación con sandbox
+% - missions.ts: API de misiones
+% - tools.ts: definiciones de tools
+%
+% ELEMENTOS VISUALES:
+% □ Tabla de funciones por servicio
+% □ Diagrama de flujo de una petición
+%
+% JUSTIFICACIONES:
+% - ¿Por qué separar servicios?
+% - Manejo de errores
+
+\subsection{Componentes de Chat}
+% (~2 páginas)
+%
+% CONTENIDO:
+% - ChatArea, MessageBubble, ChatInput
+% - Renderizado de Markdown y código
+% - Navegación de ramas
+%
+% ELEMENTOS VISUALES:
+% □ Capturas de pantalla de la UI
+% □ Diagrama de flujo del envío de mensaje
+%
+% JUSTIFICACIONES:
+% - ¿Por qué react-markdown?
+% - ¿Por qué syntax highlighting?
+
+\subsection{Panel de Misiones}
+% (~1.5 páginas)
+%
+% CONTENIDO:
+% - MissionPanel, ObjectiveList
+% - ApprovalDialog
+% - Estados visuales
+%
+% ELEMENTOS VISUALES:
+% □ Capturas de pantalla del panel
+% □ Mockup/wireframe del flujo de aprobación
+%
+% JUSTIFICACIONES:
+% - ¿Por qué panel separado?
+% - UX del sistema de aprobación
+
+\subsection{Terminal Integrado}
+% (~1 página)
+%
+% CONTENIDO:
+% - TerminalPanel
+% - Historial de comandos
+% - Ejecución directa
+%
+% ELEMENTOS VISUALES:
+% □ Captura de pantalla del terminal
+%
+% JUSTIFICACIONES:
+% - ¿Por qué terminal integrado?
+% - Casos de uso
+
+
+% ----------------------------------------------------------------------------
+% 5.5 INTEGRACIÓN Y FLUJOS COMPLETOS (~4-5 páginas)
+% ----------------------------------------------------------------------------
+\section{Integración y Flujos Completos}
+
+\subsection{Flujo de Chat Simple}
+% (~1.5 páginas)
+%
+% CONTENIDO:
+% - Desde input del usuario hasta respuesta renderizada
+% - Paso por cada componente
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de secuencia completo
+%
+% JUSTIFICACIONES:
+% - Decisiones de diseño en cada paso
+
+\subsection{Flujo de Ejecución de Comando}
+% (~1.5 páginas)
+%
+% CONTENIDO:
+% - LLM decide ejecutar comando
+% - Análisis de seguridad
+% - Ejecución en sandbox
+% - Respuesta al LLM
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de secuencia con decisiones
+%
+% JUSTIFICACIONES:
+% - Timeout vs background
+
+\subsection{Flujo de Misión Autónoma}
+% (~2 páginas)
+%
+% CONTENIDO:
+% - Detección de intent agéntico
+% - Creación de plan
+% - Ejecución iterativa
+% - Aprobaciones
+% - Completado
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de flujo completo de misión
+% □ Ejemplo real de misión ejecutada
+%
+% JUSTIFICACIONES:
+% - ¿Por qué este flujo?
+% - Puntos de control humano
+
+
+% ----------------------------------------------------------------------------
+% 5.6 DESPLIEGUE Y CONFIGURACIÓN (~2 páginas)
+% ----------------------------------------------------------------------------
+\section{Despliegue y Configuración}
+
+\subsection{Requisitos del Sistema}
+% - Hardware mínimo
+% - Software necesario
+
+\subsection{Proceso de Despliegue}
+% - Comandos de arranque
+% - Variables de entorno
+%
+% ELEMENTOS VISUALES:
+% □ Diagrama de puertos y servicios
+% □ Comandos de instalación
+
+\subsection{Configuración de API Keys}
+% - Proveedores soportados
+% - Almacenamiento seguro
+
+
+% ============================================================================
+% RESUMEN DE ELEMENTOS VISUALES NECESARIOS (~40 elementos)
+% ============================================================================
+%
+% DIAGRAMAS DE ARQUITECTURA (7):
+% 1. Arquitectura general del sistema (3 componentes)
+% 2. Topología de red Docker
+% 3. Estructura de directorios del sandbox
+% 4. Módulos/routers de FastAPI
+% 5. Diagrama ER de base de datos
+% 6. Árbol de componentes React
+% 7. Stores de Zustand y relaciones
+%
+% DIAGRAMAS DE FLUJO (10):
+% 8. Flujo de /execute en sandbox
+% 9. Estados de un job
+% 10. Checkpoint en Git
+% 11. Loop de tool execution
+% 12. Análisis de seguridad de comando
+% 13. Estados de misión
+% 14. Estados de objetivo
+% 15. Flujo de chat completo
+% 16. Flujo de ejecución de comando
+% 17. Flujo de misión autónoma
+%
+% DIAGRAMAS DE SECUENCIA (3):
+% 18. Streaming SSE
+% 19. Envío de mensaje (frontend)
+% 20. Tool call completo
+%
+% TABLAS (9):
+% 21. Tecnologías por componente
+% 22. Servicios Docker con IPs
+% 23. Herramientas de pentesting por categoría
+% 24. Endpoints REST del sandbox
+% 25. Proveedores LLM soportados
+% 26. Eventos SSE
+% 27. Niveles de riesgo
+% 28. Stores de Zustand
+% 29. Dependencias frontend
+%
+% CAPTURAS DE PANTALLA (5):
+% 30. Interfaz de chat
+% 31. Panel de misiones
+% 32. Diálogo de aprobación
+% 33. Terminal integrado
+% 34. Selector de modelos
+%
+% FRAGMENTOS DE CÓDIGO (6):
+% 35. docker-compose.yml (extracto)
+% 36. Dockerfile (fases)
+% 37. Función execute_command
+% 38. smart_truncate_messages
+% 39. Tool definitions
+% 40. Interfaces TypeScript de stores
+%
+% ============================================================================

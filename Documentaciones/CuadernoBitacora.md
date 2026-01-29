@@ -4,26 +4,32 @@
 - [Cuaderno de Bitácora](#cuaderno-de-bitácora)
 - [Indice](#indice)
 - [Sprint 2 - Sandbox Terminal](#sprint-2---sandbox-terminal)
-    - [Objetivos del Sprint](#objetivos-del-sprint)
-    - [Resumen de la semana del 24 Noviembre](#resumen-de-la-semana-del-24-noviembre)
-        - [Logros](#logros)
-        - [Pruebas realizadas](#pruebas-realizadas)
-    - [L 01/12/2025](#l-01122025)
-    - [M 02/12/2025](#m-02122025)
+  - [Objetivos del Sprint](#objetivos-del-sprint)
+  - [Resumen de la semana del 24 Noviembre (No hice bitácora diaria)](#resumen-de-la-semana-del-24-noviembre-no-hice-bitácora-diaria)
+    - [Logros](#logros)
+    - [Pruebas realizadas](#pruebas-realizadas)
+  - [L **01/12/2025**](#l-01122025)
+  - [M **02/12/2025**](#m-02122025)
 - [Sprint 3 - Integración LLM](#sprint-3---integración-llm)
-    - [X 03/12/2025](#x-03122025)
-    - [J 04/12/2025](#j-04122025)
-    - [Días 05 - 11/12/2025](#días-05---11122025)
-    - [V 12/12/2025](#v-12122025)
-    - [L 15/12/2025](#l-15122025)
-    - [M 16/12/2025](#m-16122025)
-    - [X 17/12/2025](#x-17122025)
-    - [J 18/12/2025](#j-18122025)
-    - [V 19/12/2025](#v-19122025)
-    - [L 22/12/2025](#l-22122025)
-    - [M 23/12/2025](#m-23122025)
-    - [J 08/01/2026](#j-08012026)
-    - [V 09/01/2026](#v-09012026)
+  - [X **03/12/2025**](#x-03122025)
+  - [J **04/12/2025**](#j-04122025)
+  - [**Días 05 - 11/12/2025**](#días-05---11122025)
+  - [V **12/12/2025**](#v-12122025)
+  - [L **15/12/2025**](#l-15122025)
+  - [M **16/12/2025**](#m-16122025)
+  - [X **17/12/2025**](#x-17122025)
+  - [J **18/12/2025**](#j-18122025)
+  - [V **19/12/2025**](#v-19122025)
+  - [L **22/12/2025**](#l-22122025)
+  - [M **23/12/2025**](#m-23122025)
+  - [J **08/01/2026**](#j-08012026)
+  - [V **09/01/2026**](#v-09012026)
+  - [L **12/01/2026**](#l-12012026)
+  - [M **13/01/2026**](#m-13012026)
+  - [X **14/01/2026**](#x-14012026)
+  - [J **15/01/2026**](#j-15012026)
+  - [V **16/01/2026**](#v-16012026)
+  - [L **19/01/2026** y M **20/01/2026**](#l-19012026-y-m-20012026)
 
 # Sprint 2 - Sandbox Terminal
 
@@ -249,3 +255,87 @@ Gestión avanzada de procesos asíncronos y preparación para la autonomía:
 * **Preparación de Ciclos Autónomos:** Sentadas las bases lógicas para los ciclos de razonamiento funcionales que se implementarán a continuación.
 
 **Estado:** Día altamente productivo; sistema de procesos asíncronos operativo y listo para la autonomía completa.
+
+
+## L **12/01/2026**
+
+Optimización de la gestión de contexto para modelos con ventana limitada:
+
+* **Resumen Automático de Salidas de Terminal:** Implementación de un sistema donde las salidas extensas de comandos son procesadas por un LLM auxiliar para generar resúmenes concisos que conservan la información crítica.
+* **Gestión Dinámica de Contexto:** Se ha desarrollado un mecanismo de "Zoom In" que permite al modelo expandir bajo demanda mensajes y salidas previamente resumidas cuando necesita más detalles para tomar decisiones.
+* **Límite de Contexto Conversacional:** Se ha establecido un sistema de recorte automático que mantiene activos únicamente los **últimos 30 mensajes**, priorizando la información reciente y mejorando el rendimiento en modelos con ventanas de contexto reducidas.
+* **Memoria Selectiva:** Desarrollo de una estrategia para identificar y preservar mensajes de alta relevancia que deben persistir más allá del límite de los 30 mensajes.
+
+**Estado:** Sistema de gestión de contexto optimizado para modelos con limitaciones de ventana.
+
+
+## M **13/01/2026**
+
+Implementación de planificación agéntica y memoria persistente:
+
+* **Sistema de Planificación Estructurada:** Desarrollo de un mecanismo donde el LLM puede crear un plan detallado antes de ejecutar acciones, definiendo objetivos, subtareas y dependencias.
+* **Panel de Planes (Mission Board):** Implementación de una interfaz visual que muestra el estado actual del plan con tareas marcadas como completadas o pendientes mediante checkboxes.
+* **Memoria Persistente Independiente del Contexto:** Creación de un sistema donde el agente puede almacenar información crítica (descubrimientos, credenciales, vectores de ataque) que sobrevive al recorte de contexto conversacional.
+* **Tracking de Progreso:** El LLM ahora puede actualizar automáticamente el estado de cada subtarea, marcando checks conforme avanza en la ejecución del plan.
+* **Integración con Backend:** Desarrollo de endpoints `/missions` para crear, actualizar y consultar el estado de los planes agénticos.
+
+**Estado:** Sistema de planificación implementado; agente capaz de mantener objetivos a largo plazo.
+
+
+## X **14/01/2026**
+
+Jornada de estabilización y refinamiento del sistema de planes:
+
+* **Corrección de Sincronización:** Resolución de problemas de race conditions en la actualización simultánea de estados de tareas entre frontend y backend.
+* **Bug Fixing en la Persistencia:** Corrección de errores relacionados con la actualización de planes tras la navegación entre ramas del chat.
+* **Optimización de Renderizado:** Mejora del rendimiento del componente del Mission Board para evitar re-renders innecesarios.
+* **Validación de Estados:** Implementación de validaciones para evitar estados incoherentes en el ciclo de vida de las misiones.
+* **Testing End-to-End:** Pruebas exhaustivas del flujo completo: creación de plan → ejecución de tareas → actualización de estado → persistencia.
+
+**Estado:** Sistema de planificación estabilizado y funcional.
+
+
+## J **15/01/2026**
+
+Optimización del comportamiento del agente y refinamiento del prompt system:
+
+* **Reingeniería del System Prompt:** Rediseño completo del prompt del sistema para fomentar la perseverancia y proactividad del agente ante obstáculos.
+* **Anti-Resignation Logic:** Implementación de instrucciones explícitas que incentivan al modelo a:
+  - Intentar múltiples enfoques ante fallos.
+  - Analizar errores y adaptar la estrategia antes de rendirse.
+  - Buscar alternativas creativas cuando el camino directo no funciona.
+* **Ciclos de Razonamiento Mejorados:** Ajuste de las directrices para que el agente descomponga problemas complejos en pasos más pequeños y manejables.
+* **Testing de Comportamiento:** Validación del nuevo comportamiento mediante escenarios adversos (comandos fallidos, recursos inaccesibles, información incompleta).
+
+**Estado:** Agente significativamente más resiliente y autónomo en la resolución de problemas.
+
+
+## V **16/01/2026**
+
+Testing integral del sistema y documentación técnica:
+
+* **Batería de Pruebas Funcionales:** Ejecución de escenarios de prueba complejos que abarcan:
+  - Reconocimiento de objetivos vulnerables.
+  - Explotación de servicios con herramientas especializadas.
+  - Gestión de múltiples vectores de ataque simultáneos.
+* **Documentación de Flujos de Trabajo:** Inicio de la redacción de documentación técnica detallando:
+  - Arquitectura del sistema completo.
+  - Flujo de datos entre componentes.
+  - Casos de uso y patrones de interacción.
+* **Generación de Diagramas:** Creación de diagramas de secuencia y arquitectura para la memoria del TFG.
+* **Recopilación de Métricas:** Medición de tiempos de respuesta, uso de recursos y tasa de éxito en tareas autónomas.
+
+**Estado:** Sistema validado mediante testing; documentación técnica iniciada.
+
+
+## L **19/01/2026** y M **20/01/2026**
+
+Consolidación de la documentación del proyecto:
+
+* **Redacción de Capítulos de la Memoria:** Avances significativos en los capítulos de Implementación y Desarrollo, detallando decisiones técnicas y arquitectura del sistema.
+* **Documentación de Integraciones:** Descripción exhaustiva de la integración multi-proveedor de LLMs, manejo de APIs y gestión de errores.
+* **Análisis de Resultados:** Documentación de pruebas realizadas, métricas obtenidas y comparativas de rendimiento entre distintos modelos.
+* **Refinamiento de Diagramas:** Actualización y mejora de los diagramas de arquitectura, flujos de datos y casos de uso para mayor claridad.
+* **Preparación de Anexos:** Organización de código fuente relevante, configuraciones y logs de pruebas para los anexos del TFG.
+
+**Estado:** Documentación sustancialmente avanzada; práctica finalizada con éxito.

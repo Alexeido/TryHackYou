@@ -1,7 +1,132 @@
-\chapter{\stateoftheartname}
 
-El estado del arte es una etapa fundamental de cualquier investigación o proyecto. En el ámbito del presente trabajo abarca el conjunto de competencias principales que los autores consideran esenciales para alcanzar los objetivos establecidos. Así, la información reflejada en este apartado debe evidenciar un estudio previo por parte de los autores sobre los principales conceptos que deben conocer para desarrollar adecuadamente el proyecto.
 
-Por ejemplo, en un proyecto sobre técnicas de diseño y animación 3D convendría explicar conceptos como \textit{box modeling}, \textit{motion-design} o \textit{stop-motion}, mientras que uno centrado en la edición de vídeos abordaría otros como, por ejemplo, los píxeles, las resoluciones, los tipos de formatos de vídeo actuales, o las relaciones de aspecto más habituales, entre otros.
+%%El estado del arte es una etapa fundamental de cualquier investigación o proyecto. En el ámbito del presente trabajo abarca el conjunto de competencias principales que los autores consideran esenciales para alcanzar los objetivos establecidos. Así, la información reflejada en este apartado debe evidenciar un estudio previo por parte de los autores sobre los principales conceptos que deben conocer para desarrollar adecuadamente el proyecto.
 
-El contenido de esta sección deberá incluir las correspondientes citas bibliográficas sobre las fuentes de información empleadas para su redacción.
+%%Por ejemplo, en un proyecto sobre técnicas de diseño y animación 3D convendría explicar conceptos como \textit{box modeling}, \textit{motion-design} o \textit{stop-motion}, mientras que uno centrado en la edición de vídeos abordaría otros como, por ejemplo, los píxeles, las resoluciones, los tipos de formatos de vídeo actuales, o las relaciones de aspecto más habituales, entre otros.
+
+%%El contenido de esta sección deberá incluir las correspondientes citas bibliográficas sobre las fuentes de información empleadas para su redacción.
+
+\chapter{\stateoftheartname} %% APROX 10 o más páginas
+
+\section{Fundamentos e Historia de la Inteligencia Artificial}
+
+En pleno 2026, el término \textit{inteligencia artificial} forma parte del vocabulario cotidiano, impulsado principalmente por la irrupción de los sistemas generativos contemporáneos. Estas tecnologías han situado a la IA en el centro del imaginario colectivo y del debate tecnológico actual. No obstante, pese a esta percepción de novedad, la inteligencia artificial constituye un campo de investigación con varias décadas de historia dentro de la informática.
+
+El uso formal del término \textit{artificial intelligence} se remonta a la década de 1950, siendo comúnmente atribuido a John McCarthy durante la Conferencia de Dartmouth en 1956, considerada el punto de partida fundacional de la disciplina. En sus primeras etapas, la IA se concibió como el estudio de sistemas capaces de reproducir aspectos del razonamiento humano mediante reglas explícitas y modelos simbólicos.
+
+Durante gran parte de su desarrollo inicial, los enfoques dominantes fueron de carácter heurístico. Estos sistemas se basaban en reglas diseñadas manualmente por expertos del dominio, con el objetivo de guiar la toma de decisiones del sistema. Si bien este paradigma permitió resolver problemas bien definidos en entornos controlados, mostró importantes limitaciones frente a escenarios complejos, ambiguos o dinámicos, lo que condujo a periodos de estancamiento en el avance de la disciplina, conocidos como \textit{inviernos de la inteligencia artificial}.
+
+El cambio de paradigma se produjo con la incorporación progresiva de modelos inspirados en el funcionamiento del cerebro humano, dando lugar a las redes neuronales artificiales. Una neurona artificial puede definirse como una unidad computacional básica que combina un conjunto de entradas ponderadas y genera una salida a través de una función de activación. La interconexión de múltiples neuronas organizadas en capas constituye una red neuronal artificial, capaz de modelar relaciones no lineales y aprender patrones complejos a partir de los datos.
+
+El entrenamiento de estas redes se realiza mediante algoritmos de optimización que ajustan sus parámetros internos para minimizar un error definido sobre los resultados obtenidos. Entre estos algoritmos, destaca el método de retropropagación del error (\textit{backpropagation}), que permitió el entrenamiento eficiente de redes multicapa y supuso un avance decisivo en la viabilidad práctica de estos modelos.
+
+La combinación de redes neuronales profundas, el aumento de la capacidad computacional y la disponibilidad masiva de datos dio lugar al paradigma del \textit{deep learning}, impulsando avances significativos en múltiples áreas de la inteligencia artificial. Esta evolución culminó en la aparición de la arquitectura \textit{Transformer}, que introduce el mecanismo de atención como elemento central para modelar dependencias de largo alcance de forma eficiente y paralelizable.
+
+Los Transformers constituyen hoy la base de numerosas tecnologías ampliamente utilizadas, más allá de los sistemas generativos de texto. Entre ellas se incluyen sistemas de traducción automática, motores de búsqueda, modelos de recomendación, DLSS y sistemas predictivos complejos. Sobre esta arquitectura se desarrollan los modelos de lenguaje de gran escala (\textit{Large Language Models}), que representan el estado del arte actual en el procesamiento del lenguaje natural y actúan como núcleo cognitivo de sistemas autónomos modernos.
+
+
+
+\section{Fundamentos de los Modelos del Lenguaje de Gran Escala}
+
+Sobre la base de la arquitectura Transformer se han desarrollado los modelos de lenguaje de gran escala (\textit{Large Language Models, LLMs}), que constituyen el núcleo tecnológico de la mayoría de sistemas de inteligencia artificial generativa actuales. A diferencia de enfoques anteriores centrados en tareas específicas, los LLMs se entrenan como modelos generalistas capaces de operar sobre lenguaje natural, lenguajes formales y código fuente.
+
+Desde un punto de vista funcional, un LLM es un modelo probabilístico entrenado para predecir la siguiente unidad léxica (\textit{token}) dada una secuencia de contexto. Mediante entrenamiento auto-supervisado sobre grandes corpus de datos textuales, estos modelos aprenden representaciones internas que capturan regularidades sintácticas, semánticas y estructurales del lenguaje. A partir de cierta escala, este aprendizaje da lugar a capacidades emergentes como la resolución de problemas, la generación de código o la síntesis de información compleja.
+
+En la actualidad, los LLMs más representativos del estado del arte incluyen modelos comerciales y abiertos como GPT-5, Gemini 3, Claude Sonnet y Opus 4.5, así como propuestas de código abierto como DeepSeek-R1. Aunque presentan diferencias en tamaño, entrenamiento y alineación, todos ellos comparten el uso de Transformers profundos y técnicas avanzadas de optimización para escalar el razonamiento y reducir los costes computacionales.
+
+Una tendencia relevante en el diseño de modelos recientes es el uso de arquitecturas \textit{Mixture of Experts} (MoE), en las que múltiples submodelos especializados se activan dinámicamente durante la inferencia. Este enfoque permite aumentar la capacidad del sistema sin incrementar linealmente el coste computacional, mejorando la eficiencia y la escalabilidad del modelo.
+
+En términos de interacción, los LLMs modernos no se limitan a generar texto plano. Utilizan formatos internos estructurados, como variantes de \textit{ChatML}, que permiten diferenciar roles, instrucciones del sistema y contexto conversacional. Sobre esta base se implementan mecanismos como el \textit{function calling}, mediante los cuales el modelo puede generar salidas estructuradas interpretables como invocaciones a funciones externas, habilitando su integración con herramientas, APIs y sistemas operativos.
+
+No obstante, estas capacidades introducen limitaciones conocidas. Los LLMs pueden generar información incorrecta o no verificable, fenómeno conocido como alucinación, derivado de su naturaleza probabilística y de la ausencia de una representación explícita de la verdad. Para mitigar este problema, los modelos actuales incorporan enfoques orientados al razonamiento, priorizando la generación de respuestas más coherentes y consistentes frente a salidas puramente reactivas.
+
+Desde el punto de vista de despliegue, el elevado coste computacional de estos modelos ha impulsado técnicas como la cuantización, la reducción de precisión, la poda de parámetros y el \textit{fine-tuning} sobre dominios específicos. Estas estrategias permiten adaptar modelos generalistas a contextos técnicos concretos y facilitar su ejecución en infraestructuras controladas o locales.
+
+En conjunto, los LLMs representan una tecnología madura pero no autosuficiente. Su potencial real emerge cuando se integran dentro de sistemas más amplios que aportan control, persistencia de estado y validación de resultados, sentando las bases para el paradigma de los agentes autónomos.
+
+
+
+\section{Fundamentos de los Agentes Autónomos}
+
+La evolución de los modelos de lenguaje de gran escala ha propiciado un cambio de paradigma fundamental: el paso de sistemas de procesamiento de texto reactivos a agentes autónomos con capacidad de agencia. Mientras que un LLM tradicional opera en un vacío contextual limitado a su ventana de inferencia, un agente autónomo se define como una entidad situada en un entorno que percibe estímulos, razona sobre ellos y ejecuta acciones para alcanzar objetivos a largo plazo \cite{wang2025survey}. 
+
+Este salto cualitativo no es simplemente una mejora en la capacidad del modelo, sino una transición arquitectónica. Para que un LLM actúe como el núcleo cognitivo (o ``cerebro'') de un sistema operativo, debe integrarse en un ecosistema que supla sus carencias intrínsecas: la falta de memoria persistente, la incapacidad de interactuar con software externo y la tendencia a la improvisación sin planificación. Por ello, el estado del arte actual divide el estudio de los agentes en dos dimensiones críticas: primero, el \textbf{marco de trabajo cognitivo} que permite al agente razonar y decidir, y segundo, la \textbf{capacidad de interfaz y percepción} que le permite operar sobre sistemas diseñados para humanos, como las interfaces gráficas.
+
+\subsection{Arquitectura Cognitiva y el Mecanismo de Acción}
+
+Para sistematizar la construcción de agentes, la investigación reciente ha convergido en un marco unificado que imita las funciones cognitivas superiores. Según Wang et al. \cite{wang2025survey}, esta arquitectura se fundamenta en la interconexión de cuatro módulos esenciales:
+
+\begin{itemize}
+    \item \textbf{Módulo de Perfil (Profiling):} Establece el rol y las restricciones del agente. En entornos de ciberseguridad o desarrollo, definir el perfil permite que el modelo priorice ciertos protocolos de actuación y mantenga una consistencia operativa.
+    \item \textbf{Módulo de Memoria:} Crucial para la persistencia. Se distingue entre memoria a corto plazo (el contexto de la sesión actual) y memoria a largo plazo (basada generalmente en bases de datos vectoriales y RAG), permitiendo que el agente ``aprenda'' de interacciones pasadas.
+    \item \textbf{Módulo de Planificación:} Permite descomponer una instrucción compleja (e.g., ``Audita este repositorio'') en sub-tareas manejables mediante técnicas como \textit{Chain of Thought} (CoT) o \textit{Tree of Thoughts}.
+    \item \textbf{Módulo de Acción:} Es el ejecutor físico o digital. 
+\end{itemize}
+
+El puente técnico entre el razonamiento y la ejecución es el concepto de \textbf{Function Calling} (llamada a funciones). Este mecanismo permite que el LLM no solo genere texto, sino que devuelva una salida estructurada (generalmente en formato JSON) que el sistema puede interpretar como una orden para ejecutar un comando de terminal, consultar una API o manipular un archivo. Herramientas actuales como \textit{GitHub Copilot} en su modo agente o el IDE \textit{Windsurf} utilizan esta capacidad para intervenir directamente en el sistema de archivos y el entorno de ejecución, pasando de sugerir código a implementar soluciones de forma autónoma.
+
+\subsection{Agentes de Interfaz Gráfica (GUI Agents) y Percepción Multimodal}
+
+Una vez definida la lógica interna del agente, el desafío se traslada a la interacción con el entorno. Mientras que algunos agentes operan vía API, la mayoría del software profesional carece de interfaces programáticas completas. Aquí es donde emergen los \textbf{LLM-brained GUI Agents}, sistemas diseñados para interactuar con interfaces gráficas de usuario de la misma manera que lo haría un humano \cite{zhang2024survey}.
+
+Esta arquitectura es necesaria porque permite al agente saltar las barreras de los sistemas cerrados. En lugar de depender de una integración técnica previa, el agente utiliza la \textbf{percepción multimodal} para:
+\begin{enumerate}
+    \item \textbf{Ver:} Procesar capturas de pantalla y árboles de accesibilidad para identificar elementos visuales.
+    \item \textbf{Interpretar:} Entender la semántica de un botón o un flujo de trabajo visual.
+    \item \textbf{Actuar:} Traducir sus decisiones en eventos de ratón y teclado.
+\end{enumerate}
+
+Casos reales como \textit{Comet Browser} o la función \textit{Claude Cowork} (Computer Use) ejemplifican esta tendencia. Estos sistemas no ``leen'' el código fuente de una web necesariamente, sino que ``ven'' la interfaz y operan sobre ella. Esta capacidad de percepción visual convierte al agente en un operador universal capaz de navegar por herramientas de gestión, navegadores y aplicaciones de escritorio complejas. La combinación de la planificación cognitiva con la autonomía en interfaces gráficas es lo que permite que herramientas como \textit{Windsurf} mantengan un estado de flujo constante, gestionando tanto la lógica del código como la interacción con el entorno de despliegue de forma simultánea.
+
+
+\section{Ciberseguridad y Automatización Operativa}
+
+\subsection{Evolución de la Automatización Operativa}
+
+Históricamente, la automatización en ciberseguridad se ha limitado a la ejecución de tareas aisladas mediante herramientas clásicas como \textit{Nmap} para el reconocimiento o \textit{Metasploit} para la explotación. Estas herramientas, aunque extremadamente potentes, se consideran sistemas ``ciegos'', ya que carecen de la capacidad de interpretar resultados semánticos y requieren que un experto humano decida el siguiente paso lógico.
+
+Antes de la llegada de los LLM, los intentos por lograr una ciberseguridad autónoma se centraron en modelos matemáticos y de aprendizaje por refuerzo. Un ejemplo de esto es el \textit{framework} ASAP propuesto por Chowdhary et al. (2020) \cite{cibersec2020}, el cual utiliza Redes Q-Profundas (DQN) y grafos de ataque para generar planes de auditoría de forma autónoma. Si bien ASAP demostró ser escalable en redes de gran tamaño, su capacidad de razonamiento estaba limitada por la necesidad de estados y recompensas predefinidos. Este enfoque carecía de la ``Orquestación Inteligente'' que permite a un sistema moderno entender, por ejemplo, que un fallo en un \textit{exploit} puede deberse a un parche específico y que, por tanto, debe pivotar hacia una vulnerabilidad distinta.
+
+\subsection{El Agente en el Ciclo de Vida del Pentesting}
+
+El paradigma agéntico permite aplicar el marco cognitivo descrito anteriormente a todas las fases de una auditoría de seguridad, transformando el proceso estático en un flujo adaptativo:
+
+\begin{itemize}
+    \item \textbf{Reconocimiento y Planificación:} El agente utiliza su módulo de planificación para determinar qué servicios auditar basándose en la información recolectada, estableciendo prioridades dinámicas.
+    \item \textbf{Explotación y Pivoting:} Mediante el mecanismo de \textit{function calling}, el agente invoca herramientas de explotación. Lo más relevante es su capacidad de \textbf{interpretación de errores}: si una herramienta falla, el agente analiza la salida, identifica la causa y ajusta su estrategia en tiempo real, emulando el proceso de razonamiento de un auditor humano frente a una terminal.
+    \item \textbf{Post-explotación y Persistencia:} El agente puede gestionar sesiones de acceso, mantener persistencia en sistemas comprometidos y explorar movimientos laterales, todo ello documentando sus acciones en su memoria a largo plazo.
+    \item \textbf{Generación de Informes:} Finalmente, el agente sintetiza los hallazgos en informes técnicos estructurados, utilizando sus capacidades de generación de lenguaje natural para producir documentos claros y detallados.
+\end{itemize}
+
+\subsection{Herramientas y Frameworks Actuales}
+
+El estado del arte contemporáneo está liderado por proyectos como \textbf{PentestGPT} (Deng et al., 2024) \cite{PentestGPT}, considerado uno de los trabajos más influyentes en la intersección de IA y ciberseguridad. PentestGPT introduce el \textit{Pentesting Task Tree} (PTT) para mantener el estado de la auditoría. Sin embargo, presenta limitaciones críticas que definen los desafíos actuales:
+\begin{enumerate}
+    \item \textbf{Ausencia de Análisis de Seguridad Propia:} Pese a su eficacia ofensiva, el trabajo original no evalúa la vulnerabilidad del propio agente ante ataques de inyección de prompt desde el objetivo.
+    \item \textbf{Naturaleza CLI:} Al ser una herramienta puramente de terminal, su accesibilidad se ve limitada a usuarios técnicos experimentados, dificultando la supervisión visual y la orquestación en entornos que requieren una trazabilidad clara del proceso de decisión.
+    \item \textbf{Generación de Informes Limitada:} Aunque PentestGPT puede documentar hallazgos, carece de un módulo avanzado de generación de informes que aproveche plenamente las capacidades de síntesis y estructuración de los LLMs modernos.
+\end{enumerate}
+Otros desarrollos como \textit{AutoAttacker} exploran la optimización del aprendizaje por refuerzo asistido por LLM, aunque la tendencia industrial se encamina hacia la integración de estas capacidades en suites profesionales como \textit{Burp Suite}.
+
+
+\section{Seguridad, Ética y Desafíos de los Agentes Autónomos}
+
+La autonomía de los agentes introduce vectores de riesgo que deben ser analizados desde una perspectiva técnica y ética, especialmente cuando el agente tiene permisos de ejecución sobre una red.
+
+\subsection{El Agente como Objetivo: Vulnerabilidades Específicas}
+
+Un agente autónomo es, en sí mismo, un nuevo vector de ataque. El riesgo más prominente es el \textbf{Indirect Prompt Injection} (Inyección de Prompt Indirecta). Este ataque ocurre cuando el agente, durante su fase de reconocimiento, lee un archivo malicioso en el sistema objetivo diseñado para subvertir sus instrucciones originales. Un ejemplo crítico sería un archivo \texttt{.txt} que, al ser procesado, ordene al agente borrar sus propios logs de auditoría o ejecutar comandos destructivos en la máquina del auditor, comprometiendo la integridad de la propia herramienta de seguridad.
+
+\subsection{El Dilema del Despliegue: Cloud vs. Local}
+
+La soberanía del dato es el principal obstáculo para el despliegue de agentes en entornos corporativos. El uso de APIs externas (como OpenAI) implica enviar información sensible de la infraestructura de red a servidores de terceros, contraseñas descubiertas en el proceso, lo cual es inaceptable para sectores estratégicos. En este contexto, el uso de hardware local de alto rendimiento, como el proporcionado por infraestructuras de supercomputación (ej. \textbf{COMPUTAEX}), surge como una respuesta técnica necesaria para poner a prueba estos modelos en un entorno de alto rendimiento un poco más asequible para el mundo empresarial. El procesamiento local permite mantener la confidencialidad de los hallazgos mientras se aprovecha la potencia de modelos de gran escala.
+
+\subsection{Contención Operativa y Responsabilidad}
+
+Para mitigar los daños colaterales de una acción autónoma errónea, se requiere la implementación de dos salvaguardas técnicas:
+\begin{itemize}
+    \item \textbf{Sandboxing:} El aislamiento absoluto del agente en entornos virtuales para asegurar que cualquier acción destructiva o compromiso por inyección de prompt quede contenido y no afecte al sistema anfitrión.
+    \item \textbf{Human-in-the-loop (HITL):} Un modelo de supervisión donde el humano actúa como validador de seguridad. El sistema debe permitir la visualización del ``hilo de pensamiento'' del agente y requerir una autorización explícita para comandos considerados de alto riesgo, equilibrando autonomía con control operativo.
+\end{itemize}
+
+

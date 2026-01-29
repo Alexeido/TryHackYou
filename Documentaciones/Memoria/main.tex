@@ -2,7 +2,16 @@
 \usepackage[spanish, es-tabla]{babel} % Comentar si se va a realizar en inglés
 %\usepackage{parskip} % Quitar comentario si se quieren distinguir los párrafos con saltos y quitar las sangrías
 
+\usepackage{pgfgantt}
+\usepackage{tabularx}
+\usepackage{xcolor}
 \usepackage{lipsum} % Este paquete es para poner texto genérico en los capítulos, quitar cuando ya se hayan redactado
+
+
+\definecolor{ontime}{RGB}{66, 133, 244}    % Azul - a tiempo
+\definecolor{early}{RGB}{52, 168, 83}      % Verde - anticipado
+\definecolor{late}{RGB}{234, 67, 53}       % Rojo - retrasado
+\definecolor{inprogress}{RGB}{251, 188, 4} % Amarillo - en progreso
 
 % Rellenar con los datos del estudiante y el trabajo
 \estudiante{Alejandro Barrena Millán}{Grado}{Grado en Ingeniería Informática en Ingeniería del Software}

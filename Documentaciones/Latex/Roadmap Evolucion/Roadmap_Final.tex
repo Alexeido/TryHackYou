@@ -1,0 +1,465 @@
+\documentclass[12pt,a4paper]{article}
+
+% ------------------ PAQUETES ------------------
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[spanish,es-tabla]{babel} 
+\usepackage{geometry}
+\usepackage{setspace}
+\usepackage{hyperref}
+\usepackage{pgfgantt}
+\usepackage{float}
+\usepackage{enumitem} 
+\usepackage{colortbl} % Para colorear celdas
+\usepackage{xcolor}   
+\usepackage{array}    % Nuevo paquete para mejorar un poco las tablas
+
+\geometry{margin=2.5cm}
+\setstretch{1.2}      
+\definecolor{headergray}{gray}{0.9}
+
+% ------------------ TÍTULO ------------------
+\title{
+    \vspace{-2cm}
+    \Large \textbf{Ejecución de la planificación y Cronograma del TFG}\\[10pt]
+    \large Diseño y análisis de un agente LLM autónomo para auditorías de ciberseguridad
+}
+
+\author{\textbf{Alejandro Barrena Millán}}
+\date{3 de diciembre de 2025}
+
+\begin{document}
+
+\maketitle
+\thispagestyle{empty} 
+\hrule
+\vspace{1em}
+
+\section{Introducción}
+
+El presente documento detalla la planificación temporal y la metodología de trabajo establecida para el desarrollo del Trabajo de Fin de Grado (TFG) titulado provisionalmente \textit{Diseño y análisis de un agente LLM autónomo para auditorías de ciberseguridad en entornos aislados}.
+
+El objetivo es definir un calendario estructurado que garantice el cumplimiento de los hitos de desarrollo y la entrega de la memoria final en los plazos previstos.
+
+% ============================================================
+\section{Metodología: Scrum Adaptado}
+
+El desarrollo del proyecto se regirá por un enfoque ágil basado en \textit{Scrum}, adaptado a las necesidades de un trabajo individual. Este marco de trabajo permite iterar sobre el proyecto, asegurar entregables funcionales en cada etapa y adaptar la planificación ante posibles imprevistos técnicos.
+
+El ciclo de vida se divide en \textbf{Sprints} (ciclos de trabajo) con los siguientes eventos:
+\begin{itemize}
+    \item \textbf{Sprint Planning:} Definición de tareas y alcance al inicio de cada fase.
+    \item \textbf{Desarrollo e Implementación:} Ejecución técnica de las tareas.
+    \item \textbf{Sprint Review \& Retrospective:} Validación del entregable y ajuste de la metodología para el siguiente ciclo.
+\end{itemize}
+
+% ============================================================
+\section{Planificación de Sprints y Tareas}
+
+A continuación, se describe el desglose de tareas organizado por Sprints. 
+
+\begin{description}[style=nextline, leftmargin=1.5cm, font=\bfseries]
+
+    \item[Sprint 1: Definición y Organización (Semana 1)]
+    Establecimiento de las bases del proyecto.
+    \begin{itemize}[leftmargin=0.5cm, label=$\circ$]
+        \item Definición detallada de requisitos funcionales y no funcionales.
+        \item Selección y configuración de herramientas de gestión (e.g., Jira/Trello, GitHub).
+        \item Investigación del estado del arte preliminar.
+    \end{itemize}
+
+    \item[Sprint 2: Entorno de Pruebas (Semanas 2 - 3)]
+    Configuración de la infraestructura segura.
+    \begin{itemize}[leftmargin=0.5cm, label=$\circ$]
+        \item Despliegue del entorno de terminal en sandbox (Docker/VM).
+        \item Desarrollo de la API de interfaz para la comunicación con el entorno.
+        \item Pruebas de conectividad y seguridad del entorno aislado.
+    \end{itemize}
+
+    \item[Sprint 3: Integración del LLM (Semanas 4 - 6)]
+    Conexión del motor de inteligencia artificial con el entorno.
+    \begin{itemize}[leftmargin=0.5cm, label=$\circ$]
+        \item Selección y configuración del modelo LLM (local o API externa).
+        \item Desarrollo del módulo de interpretación de comandos.
+        \item Prototipado inicial: el agente puede enviar comandos simples y recibir *outputs*.
+    \end{itemize}
+
+    \item[Sprint 4: Desarrollo del MVP (Semanas 7 - 8)]
+    Implementación de la lógica de auditoría.
+    \begin{itemize}[leftmargin=0.5cm, label=$\circ$]
+        \item Programación de agentes autónomos con capacidad de decisión.
+        \item Implementación de flujos de auditoría básica (e.g., escaneo de puertos, identificación de servicios).
+        \item Validación del Producto Mínimo Viable (MVP).
+    \end{itemize}
+
+    \item[Sprint 5: Validación y Pruebas (Semana 9)]
+    Consolidación del sistema.
+    \begin{itemize}[leftmargin=0.5cm, label=$\circ$]
+        \item Ejecución de auditorías *end-to-end* automatizadas.
+        \item Análisis de falsos positivos y refinamiento de *prompts*.
+        \item Pruebas de estrés y estabilidad.
+    \end{itemize}
+
+    \item[Sprint 6: Documentación y Memoria (Semanas 10 - 11)]
+    Redacción académica.
+    \begin{itemize}[leftmargin=0.5cm, label=$\circ$]
+        \item Redacción de la memoria del TFG.
+        \item Generación de gráficos, tablas de resultados y bibliografía.
+        \item Revisión de formato y estilo.
+    \end{itemize}
+
+    \item[Sprint 7: Defensa (Semana 12)]
+    Preparación final.
+    \begin{itemize}[leftmargin=0.5cm, label=$\circ$]
+        \item Diseño de diapositivas de presentación.
+        \item Ensayo del discurso y preparación de la demo (si aplica).
+    \end{itemize}
+
+\end{description}
+
+% ============================================================
+\section{Cronograma Visual y Calendario}
+
+Para facilitar el seguimiento del proyecto, se establece la correspondencia entre las semanas de trabajo y las fechas de calendario real, seguido de la representación visual mediante diagrama de Gantt.
+
+\subsection{Calendario Detallado}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3} % Más espacio entre filas
+\begin{tabular}{|c|l|l|}
+\hline
+\rowcolor{headergray} \textbf{Semana} & \textbf{Fecha de Inicio (Lunes)} & \textbf{Fase / Sprint Activo} \\ \hline
+1  & 17 de Noviembre, 2025 & S1: Definición y Organización \\ \hline
+2  & 24 de Noviembre, 2025 & S2: Entorno Sandbox (Inicio) \\ \hline
+3  & 01 de Diciembre, 2025 & S2: Entorno Sandbox (Cierre) \\ \hline
+4  & 08 de Diciembre, 2025 & S3: Integración LLM (Inicio) \\ \hline
+5  & 15 de Diciembre, 2025 & S3: Integración LLM (Desarrollo) \\ \hline
+6  & 22 de Diciembre, 2025 & S3: Integración LLM (Cierre) \\ \hline
+7  & 29 de Diciembre, 2025 & S4: Desarrollo MVP (Inicio) \\ \hline
+8  & 05 de Enero, 2026     & S4: Desarrollo MVP (Cierre) \\ \hline
+9  & 12 de Enero, 2026     & S5: Validación y Pruebas \\ \hline
+10 & 19 de Enero, 2026     & S6: Documentación (Borrador) \\ \hline
+11 & 26 de Enero, 2026     & S6: Documentación (Revisión) \\ \hline
+12 & 02 de Febrero, 2026   & S7: Defensa y Presentación \\ \hline
+\end{tabular}
+\caption{Correspondencia de semanas con fechas naturales.}
+\end{table}
+
+\subsection{Diagrama de Gantt}
+
+El diagrama ilustra la distribución temporal relativa de los Sprints a lo largo de las 12 semanas.
+
+\begin{figure}[H]
+\centering
+\begin{ganttchart}[
+    hgrid,
+    vgrid,
+    x unit=1.1cm,
+    y unit chart=0.6cm,
+    bar height=0.6,
+    group right shift=0,
+    group top shift=0.7,
+    group height=.3,
+    title label font=\bfseries\footnotesize,
+    bar label font=\footnotesize
+]{1}{12}
+
+% Títulos de las semanas
+\gantttitle{Semanas de Desarrollo}{12} \\
+\gantttitlelist{1,...,12}{1} \\
+
+% Barras del cronograma (rojo = ejecutado, azul = planificado)
+\ganttbar[bar/.append style={fill=red!60, draw=none}]{S1: Organización}{1}{1} \\
+\ganttbar[bar/.append style={fill=red!60, draw=none}]{S2: Entorno Sandbox}{2}{3} \\
+\ganttbar[bar/.append style={fill=blue!40, draw=none}]{S3: Integración LLM (plan)}{4}{6} \\
+\ganttbar[bar/.append style={fill=blue!40, draw=none}]{S4: MVP Agente}{7}{8} \\
+\ganttbar[bar/.append style={fill=blue!40, draw=none}]{S5: Validación}{9}{9} \\
+\ganttbar[bar/.append style={fill=blue!40, draw=none}]{S6: Memoria}{10}{11} \\
+\ganttbar[bar/.append style={fill=blue!40, draw=none}]{S7: Defensa}{12}{12}     
+
+% Relaciones 
+\ganttlink{elem0}{elem1}
+\ganttlink{elem1}{elem2}
+\ganttlink{elem2}{elem3}
+\ganttlink{elem3}{elem4}
+\ganttlink{elem4}{elem5}
+\ganttlink{elem5}{elem6}
+
+\end{ganttchart}
+\caption{Cronograma general del proyecto.}
+
+% Leyenda de colores
+\vspace{0.5em}
+\begin{center}
+\begin{tabular}{ll}
+\colorbox{red!60}{\rule{1cm}{0.4cm}} & Ejecutado (fechas reales) \\
+\colorbox{blue!40}{\rule{1cm}{0.4cm}} & Planificado (cronograma inicial) \\
+\end{tabular}
+\end{center}
+
+\end{figure}
+
+% ============================================================
+\section{Conclusión}
+
+La planificación presentada asegura un flujo de trabajo constante y controlado. La estructura modular de los Sprints permite afrontar la complejidad de integrar Modelos de Lenguaje (LLM) en entornos de ciberseguridad paso a paso, mitigando riesgos técnicos antes de la fase final de documentación.
+
+% --------------------------------------------------
+% Secciones de estado real (actualizaciones del proyecto)
+% --------------------------------------------------
+\newpage
+\section{Estado real de los Sprints}
+
+Las siguientes subsecciones recogen el estado real observado durante la ejecución del proyecto, con anotaciones de fechas y comentarios sobre el progreso respecto a la planificación inicial.
+
+% Definición de colores semánticos
+\definecolor{ontime}{RGB}{66, 133, 244}    % Azul - a tiempo
+\definecolor{early}{RGB}{52, 168, 83}      % Verde - anticipado
+\definecolor{late}{RGB}{234, 67, 53}       % Rojo - retrasado
+\definecolor{inprogress}{RGB}{251, 188, 4} % Amarillo - en progreso
+
+\subsection{Sprint 1: Definición y Organización}
+
+\textbf{Estado:} \textcolor{ontime}{\textbf{Completado (según calendario)}}
+
+\textbf{Fecha de cierre:} 23 de noviembre de 2025.
+
+\textbf{Comentarios:}
+\begin{itemize}
+    \item Definición de requisitos funcionales y no funcionales completada.
+    \item Herramientas de gestión y repositorio configurados; rama principal inicializada.
+    \item Investigación y documentación preliminar realizadas.
+\end{itemize}
+
+\subsection{Sprint 2: Entorno de Pruebas}
+
+\textbf{Estado:} \textcolor{early}{\textbf{Completado (finalizado anticipadamente)}}
+
+\textbf{Fecha de cierre:} 02 de diciembre de 2025 \textit{(planificado: 07/12/2025)}.
+
+\textbf{Comentarios:}
+\begin{itemize}
+    \item La orquestación del laboratorio y la integración mediante \texttt{docker-compose} se completaron antes de la fecha prevista.
+    \item El agente API quedó operativo y se validó la comunicación con los entornos vulnerables (DVWA, Metasploitable2, OWASP Juice Shop).
+    \item Se añadieron mejoras al contenedor del agente (persistencia de directorios, utilidades adicionales) y se realizaron pruebas de validación funcionales.
+    \item Resultado: Sprint cerrado y entregable aceptado como base para la integración del LLM.
+\end{itemize}
+
+\subsection{Sprint 3: Integración del LLM - "El Cerebro" y Abstracción de Modelos}
+
+\textbf{Estado:} \textcolor{ontime}{\textbf{Completado (según calendario ajustado)}}
+
+\textbf{Fecha de inicio:} 03 de diciembre de 2025.
+\textbf{Fecha de cierre:} 25 de diciembre de 2025.
+
+\textbf{Comentarios:}
+\begin{itemize}
+    \item Desarrollo completo del Backend utilizando FastAPI.
+    \item Implementación del sistema de Ranking ELO para evaluación de modelos.
+    \item Sistema de descubrimiento automático de modelos LLM.
+    \item Integración exitosa con múltiples proveedores de modelos (OpenAI, Anthropic, locales).
+    \item El sprint se completó según la planificación ajustada, aprovechando el margen ganado en el Sprint 2.
+\end{itemize}
+
+\subsection{Sprint 4: Desarrollo MVP - Frontend y Mission Board}
+
+\textbf{Estado:} \textcolor{ontime}{\textbf{Completado (según calendario)}}
+
+\textbf{Fecha de inicio:} 26 de diciembre de 2025.
+\textbf{Fecha de cierre:} 08 de enero de 2026.
+
+\textbf{Comentarios:}
+\begin{itemize}
+    \item Desarrollo completo del Frontend utilizando Next.js y React.
+    \item Implementación del Mission Board para gestión de tareas del agente.
+    \item Desarrollo de la lógica de "anti-resignación" del agente.
+    \item Integración exitosa entre Frontend y Backend.
+\end{itemize}
+
+\subsection{Reestructuración del Proyecto y Ajustes de Cronograma}
+Tras la finalización del Sprint 4, se identificaron oportunidades críticas de mejora técnica que justificaron una reestructuración del cronograma original dado a que llevabamos un adelanto respecto al calendario desde la finalización del Sprint 2.
+\begin{itemize}
+    \item Acceso y pruebas con infraestructura Computaex de alto rendimiento, optimizando la ejecución de modelos LLM más complejos.
+    \item Descarga de modelos pesados compatibles con el computaex que enriquecerán las comparativas.
+    \item Implementación de un sistema de gestión de ramas de conversaciones para mejorar la persistencia y seguimiento del estado del agente.
+    \item Integración de persistencia mediante Git en el sandbox, permitiendo al agente mantener un historial de cambios y facilitar la recuperación de estados previos.
+    \item Optimización del sistema de prompts para modo agéntico, mejorando la capacidad de razonamiento y toma de decisiones del agente.
+    \item Mejora de compatibilidad entre diferentes modelos LLM que ya implementan razonamiento previo, ampliando la flexibilidad del sistema.
+\end{itemize}
+\subsection{Sprint 5: Investigación e Integración de Hardware de Alto Rendimiento}
+
+\textbf{Estado:} \textcolor{late}{\textbf{Completado (con extensión planificada)}}
+
+\textbf{Fecha de inicio:} 09 de enero de 2026.
+\textbf{Fecha de cierre:} 18 de enero de 2026.
+
+\textbf{Comentarios:}
+\begin{itemize}
+    \item \textbf{Hito Crítico:} Implementación de sistema de gestión de ramas de conversaciones.
+    \item Integración de persistencia mediante Git en el sandbox (solución técnica compleja y elegante).
+    \item Acceso y pruebas con infraestructura Computaex de alto rendimiento.
+    \item Optimización del sistema de prompts para modo agéntico.
+    \item Mejora de compatibilidad entre diferentes modelos LLM que ya implementan razonamiento previo.
+    \item \textit{Nota:} Esta extensión se justifica por la complejidad técnica y el valor añadido de la persistencia basada en Git.
+\end{itemize}
+
+\subsection{Sprint 6: Validación y Pruebas Intensivas}
+
+\textbf{Estado:} \textcolor{early}{\textbf{Completado (acelerado)}}
+
+\textbf{Fecha de inicio:} 19 de enero de 2026.
+\textbf{Fecha de cierre:} 22 de enero de 2026.
+
+\textbf{Comentarios:}
+\begin{itemize}
+    \item Ejecución intensiva de auditorías end-to-end automatizadas.
+    \item Validación del sistema completo en entornos diversos.
+    \item Pruebas de estrés y estabilidad con múltiples modelos.
+    \item Análisis y corrección de falsos positivos.
+    \item Sprint acelerado debido a la madurez del sistema tras las mejoras del Sprint 5.
+\end{itemize}
+
+\subsection{Sprint 7: Evaluación y Documentación Final}
+
+\textbf{Estado:} \textcolor{inprogress}{\textbf{En progreso}}
+
+\textbf{Fecha de inicio:} 23 de enero de 2026.
+\textbf{Fecha estimada de cierre:} 04 de febrero de 2026.
+
+\textbf{Comentarios:}
+\begin{itemize}
+    \item Redacción del borrador de la memoria (23-31 enero).
+    \item Fase de revisión y refinamiento (01-04 febrero).
+    \item Generación de gráficos, tablas de resultados y bibliografía.
+    \item Preparación de la presentación y defensa.
+\end{itemize}
+
+% ============================================================
+\subsection{Diagrama de Gantt: Ejecución Real Completa}
+
+El siguiente diagrama muestra todo el proyecto completado con fechas reales del calendario.
+
+\begin{figure}[H]
+\centering
+\begin{ganttchart}[
+    hgrid,
+    vgrid,
+    x unit=0.18cm,
+    y unit chart=0.6cm,
+    bar height=0.5,
+    title label font=\bfseries\tiny,
+    bar label font=\tiny,
+    time slot format=isodate,
+    time slot unit=day
+]{2025-11-17}{2026-02-04}
+
+% Títulos manuales en español
+\gantttitle{2025-2026}{80} \\
+\gantttitle{Nov}{14}\gantttitle{Dic}{31}\gantttitle{Ene}{31}\gantttitle{Feb}{4} \\
+\gantttitle{17-23}{7}\gantttitle{24-30}{7}\gantttitle{1-7}{7}\gantttitle{8-14}{7}\gantttitle{15-21}{7}\gantttitle{22-31}{10}\gantttitle{1-7}{7}\gantttitle{8-14}{7}\gantttitle{15-21}{7}\gantttitle{22-31}{10}\gantttitle{1-4}{4} \\
+
+% Sprint 1: 17/11 - 23/11 (a tiempo = azul)
+\ganttbar[bar/.append style={fill=ontime, draw=none}]{S1: Cimentación}{2025-11-17}{2025-11-23} \\
+
+% Sprint 2: 24/11 - 02/12 (anticipado = verde)
+\ganttbar[bar/.append style={fill=early, draw=none}]{S2: Sandbox KaliLinux}{2025-11-24}{2025-12-02} \\
+
+% Sprint 3: 03/12 - 25/12 (a tiempo = azul)
+\ganttbar[bar/.append style={fill=ontime, draw=none}]{S3: Integración LLM}{2025-12-03}{2025-12-25} \\
+
+% Sprint 4: 26/12 - 08/01 (a tiempo = azul)
+\ganttbar[bar/.append style={fill=ontime, draw=none}]{S4: Desarrollo MVP}{2025-12-26}{2026-01-08} \\
+
+% Sprint 5: 09/01 - 18/01 (extendido = rojo claro)
+\ganttbar[bar/.append style={fill=late, draw=none}]{\textcolor{late}{S5: Hardware Alto Rend.}}{2026-01-09}{2026-01-18} \\
+
+% Sprint 6: 19/01 - 22/01 (acelerado = verde)
+\ganttbar[bar/.append style={fill=early, draw=none}]{S6: Validación}{2026-01-19}{2026-01-22} \\
+
+% Sprint 7: 23/01 - 04/02 (en progreso = amarillo)
+\ganttbar[bar/.append style={fill=inprogress, draw=none}]{S7: Documentación}{2026-01-23}{2026-02-04} \\
+
+% Relaciones
+\ganttlink{elem0}{elem1}
+\ganttlink{elem1}{elem2}
+\ganttlink{elem2}{elem3}
+\ganttlink{elem3}{elem4}
+\ganttlink{elem4}{elem5}
+\ganttlink{elem5}{elem6}
+
+\end{ganttchart}
+\caption{Cronograma de ejecución real completo (actualizado a 29/01/2026).}
+
+% Leyenda de colores
+\vspace{0.5em}
+\begin{center}
+\begin{tabular}{llll}
+\colorbox{ontime}{\rule{0.8cm}{0.35cm}} & A tiempo &
+\colorbox{early}{\rule{0.8cm}{0.35cm}} & Anticipado \\[0.3em]
+\colorbox{late}{\rule{0.8cm}{0.35cm}} & Retrasado &
+\colorbox{inprogress}{\rule{0.8cm}{0.35cm}} & En progreso \\
+\end{tabular}
+\end{center}
+
+\end{figure}
+
+\bigskip
+
+% ============================================================
+\section{Gestión de Desviaciones y Ajustes de Cronograma}
+
+Durante la ejecución del proyecto se produjeron varias desviaciones respecto al cronograma inicial, las cuales se gestionaron de manera proactiva para mantener la calidad del entregable final.
+
+\subsection{Desviaciones Identificadas}
+
+\begin{description}[style=nextline, leftmargin=1.5cm, font=\bfseries]
+
+    \item[Adelanto en Sprint 2 (Positivo)]
+    El desarrollo de la infraestructura de red aislada se completó 5 días antes de lo previsto, generando un margen de maniobra que se aprovechó para el Sprint 3.
+    
+    \item[Identificación de Oportunidad Crítica (Sprint 4-5)]
+    Durante el desarrollo del MVP se identificó la oportunidad de integrar:
+    \begin{itemize}[leftmargin=0.5cm, label=$\circ$]
+        \item Sistema de gestión de ramas de conversaciones
+        \item Persistencia mediante Git en el sandbox
+        \item Acceso a infraestructura Computaex de alto rendimiento
+    \end{itemize}
+    
+    \item[Extensión Técnica del Sprint 5 (Justificada)]
+    Se extendió el cronograma una semana (del 12 al 18 de enero) debido a:
+    \begin{itemize}[leftmargin=0.5cm, label=$\circ$]
+        \item Complejidad técnica de la persistencia basada en Git
+        \item Integración y pruebas con modelos locales en Computaex
+        \item Optimización avanzada del sistema de prompts
+    \end{itemize}
+
+\end{description}
+
+\subsection{Estrategias de Mitigación Aplicadas}
+
+\begin{enumerate}
+    \item \textbf{Aprovechamiento de márgenes:} El adelanto del Sprint 2 proporcionó flexibilidad para absorber la complejidad técnica posterior.
+    
+    \item \textbf{Replanificación proactiva:} Se reestructuró el Sprint 5 como "Investigación e Integración de Hardware" en lugar de simplemente "Validación".
+    
+    \item \textbf{Aceleración estratégica:} El Sprint 6 se ejecutó de forma intensiva (4 días) aprovechando la madurez del sistema.
+    
+    \item \textbf{Justificación técnica:} Las desviaciones se fundamentaron en mejoras técnicas significativas que aportan valor al proyecto final.
+\end{enumerate}
+
+\subsection{Impacto en el Resultado Final}
+
+La gestión de estas desviaciones resultó en:
+\begin{itemize}
+    \item \textbf{Mejora técnica sustancial:} Sistema más robusto con persistencia Git y compatibilidad multi-modelo.
+    \item \textbf{Validación en hardware de alto rendimiento:} Pruebas con infraestructura Computaex.
+    \item \textbf{Retraso controlado:} Únicamente una semana de desviación respecto al cronograma original.
+    \item \textbf{Calidad del entregable:} Sistema final más completo y técnicamente avanzado.
+\end{itemize}
+
+\textbf{Conclusión:} Las desviaciones, aunque generaron un retraso menor, se tradujeron en mejoras técnicas significativas que justifican plenamente el ajuste temporal realizado.
+
+Estas entradas documentan el avance real y facilitan la comparación posterior entre la planificación inicial y el desarrollo efectivo del proyecto.
+
+\end{document}
