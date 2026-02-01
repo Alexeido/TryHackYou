@@ -2,7 +2,12 @@
 
 El desarrollo de un sistema que integra modelos de lenguaje de gran escala (LLM) en entornos de ciberseguridad conlleva una incertidumbre técnica inherente. Por ello, la elección de la metodología de trabajo y una planificación rigurosa son pilares fundamentales para garantizar la viabilidad del proyecto dentro de los plazos académicos establecidos.
 
-\section{Marco Metodológico: Scrum Adaptado}
+\section{Metodología de Gestión del Proyecto}
+\label{sec:metodologia_gestion}
+
+Este apartado describe el marco metodológico empleado para la gestión, planificación y seguimiento del desarrollo del sistema agéntico. Se detallan las decisiones organizativas, la evolución temporal del proyecto y las herramientas de control utilizadas.
+
+\subsection{Marco Metodológico: Scrum Adaptado}
 
 Para este Trabajo de Fin de Grado se ha optado por un marco de trabajo ágil basado en \textbf{Scrum}. A diferencia de las metodologías tradicionales en cascada (\textit{Waterfall}), donde los requisitos se fijan al inicio y cualquier cambio supone un alto coste, las metodologías ágiles permiten una respuesta rápida ante los imprevistos técnicos, algo crítico en el despliegue de agentes autónomos.
 
@@ -14,11 +19,11 @@ Dado que se trata de un proyecto individual, se ha realizado una adaptación de 
 
 Para la gestión operativa, se ha hecho uso de la herramienta \textbf{GitHub Projects}, permitiendo un seguimiento detallado de más de cien subtareas mediante un tablero \textit{Kanban}. Esto ha facilitado la trazabilidad del proyecto y ha permitido que las tutorías actúen como \textit{Sprint Reviews} externas.
 
-\section{Planificación Inicial y Estimación de Esfuerzo}
+\subsection{Planificación Inicial y Estimación de Esfuerzo}
 
 El dimensionamiento del proyecto se ha realizado conforme a la carga lectiva del TFG, establecida en \textbf{12 créditos ECTS}. Bajo la normativa vigente que asigna 25 horas de trabajo por cada crédito, el proyecto se ha planificado para completarse en un intervalo aproximado de \textbf{300 horas}.
 
-\subsection{Cronograma Inicial y Roadmap Original}
+\subsubsection{Cronograma Inicial y Roadmap Original}
 
 La planificación de partida se estructuró en siete ciclos de trabajo o \textit{Sprints} cuya duración varió dependiendo de la complejidad y objetivos específicos de cada fase, diseñados para cubrir desde la cimentación teórica hasta la defensa del trabajo. Esta planificación ideal se visualizó mediante un diagrama de Gantt inicial y contemplaba los siguientes hitos:
 
@@ -48,7 +53,7 @@ La planificación de partida se estructuró en siete ciclos de trabajo o \textit
 \end{description}
 
 
-\subsection{Diagrama de Gantt}
+\subsubsection{Diagrama de Gantt}
 
 El diagrama ilustra la distribución temporal relativa de los Sprints a lo largo de las 12 semanas.
 
@@ -99,17 +104,17 @@ Esta hoja de ruta inicial proporcionó la estructura necesaria para comenzar el 
 
 
 
-\section{Adaptación y Evolución del Cronograma Real}
+\subsection{Adaptación y Evolución del Cronograma Real}
 
 A diferencia de un modelo de planificación estático, la metodología \textit{Scrum} permitió reevaluar el progreso del sistema al finalizar hitos clave. Durante la ejecución, se identificaron oportunidades técnicas que no estaban contempladas en el \textit{roadmap} inicial, pero que aportaban un valor diferencial al proyecto.
 
-\subsection{Aceleración del Entorno y Reinversión de Tiempo}
+\subsubsection{Aceleración del Entorno y Reinversión de Tiempo}
 
 El primer ajuste significativo ocurrió tras la finalización del \textbf{Sprint 2}. El despliegue de la infraestructura de red aislada y la orquestación mediante \texttt{docker-compose} se completó con una antelación de cinco días respecto a lo previsto. Este margen de maniobra, sumado a una validación gratificante del Producto Mínimo Viable (MVP) al término del \textbf{Sprint 4}, permitió pivotar los esfuerzos hacia la mejora de la calidad técnica y operativa del sistema.
 
 En lugar de proceder directamente a una fase de validación prolongada, se decidió dedicar un nuevo ciclo de trabajo a mejoras de \textit{Quality of Life} (QoL) y robustez arquitectónica, reestructurando el calendario para integrar funcionalidades de persistencia avanzada y alto rendimiento.
 
-\subsection{Integración de Infraestructura de Alto Rendimiento (COMPUTAEX)}
+\subsubsection{Integración de Infraestructura de Alto Rendimiento (COMPUTAEX)}
 
 Uno de los pilares de este reajuste fue la posibilidad de acceder a un nodo del centro de supercomputación \textbf{COMPUTAEX}. Esta oportunidad permitió superar la limitación técnica de los modelos locales convencionales (frecuentemente menos capaces en tareas de razonamiento complejo) sin incurrir en los riesgos de privacidad de los modelos en la nube.
 
@@ -120,7 +125,7 @@ La configuración técnica en este entorno incluyó:
     \item Establecimiento de un punto intermedio de evaluación entre la latencia de las APIs comerciales y la soberanía total del dato en infraestructura propia.
 \end{itemize}
 
-\subsection{Mejoras en la Gestión de Estado y Persistencia}
+\subsubsection{Mejoras en la Gestión de Estado y Persistencia}
 
 El tiempo ganado en las primeras fases facilitó la implementación de tres mejoras críticas en la arquitectura del agente que no formaban parte del alcance original:
 
@@ -132,7 +137,7 @@ El tiempo ganado en las primeras fases facilitó la implementación de tres mejo
 
 Estas desviaciones respecto al plan original no solo no comprometieron la entrega final, sino que permitieron que el proyecto evolucionara de un prototipo funcional a una plataforma de auditoría robusta y técnicamente avanzada.
 
-\section{Desglose Operativo de los Sprints}
+\subsection{Desglose Operativo de los Sprints}
 
 A continuación, se detalla la ejecución técnica y el progreso alcanzado en cada ciclo de trabajo. Este desglose refleja la evolución del proyecto basándose en las más de cien subtareas registradas en el sistema de gestión, documentando cómo se transformó la arquitectura conceptual en un sistema operativo y resiliente.
 
@@ -173,11 +178,11 @@ Además de corregir errores críticos identificados durante las pruebas (como la
 
 El ciclo final se dedicó a la consolidación académica del proyecto. Se redactó la memoria técnica, integrando el análisis de los resultados obtenidos y se realizó una revisión crítica de los objetivos cumplidos. 
 
-\section{Seguimiento y Cronograma de Ejecución Real}
+\subsection{Seguimiento y Cronograma de Ejecución Real}
 
 La ejecución del proyecto se ha monitorizado de forma continua para asegurar que la calidad técnica no se viera comprometida por las restricciones temporales. En esta sección se detalla el flujo de trabajo real y las herramientas de gestión empleadas.
 
-\subsection{Gestión Operativa: GitHub Projects}
+\subsubsection{Gestión Operativa: GitHub Projects}
 
 Para la orquestación de las tareas, se ha utilizado \textbf{GitHub Projects} como centro neurálgico de gestión. Esta herramienta permitió desglosar el proyecto en un total de \textbf{107 subtareas}, clasificadas por su prioridad y el componente afectado (Backend, Frontend o Sandbox). 
 
@@ -192,7 +197,7 @@ La gestión mediante tableros \textit{Kanban} facilitó la visualización del es
     \label{fig:github_projects}
 \end{figure}
 
-\subsection{Calendario de Ejecución Diario}
+\subsubsection{Calendario de Ejecución Diario}
 
 El desarrollo se llevó a cabo manteniendo un ritmo de trabajo intensivo. A continuación, se presenta la correspondencia real de los Sprints con el calendario de ejecución, consolidando un total de \textbf{313 horas} de trabajo efectivo, lo que valida el compromiso académico de 12 créditos ECTS.
 
@@ -304,7 +309,7 @@ S7: Documentación & 23 Ene & 04 Feb & Completado \\ \hline
 \caption{Cronograma real de ejecución y desviaciones observadas.}
 \end{table}
 
-\subsection{Análisis de Desviaciones y Carga de Trabajo}
+\subsubsection{Análisis de Desviaciones y Carga de Trabajo}
 
 El análisis de la ejecución real revela tres momentos clave que definieron la madurez del sistema final:
 
@@ -326,7 +331,7 @@ Estas desviaciones, lejos de ser obstáculos, se convirtieron en oportunidades p
 
 La validación de un agente autónomo de ciberseguridad requiere un marco de evaluación multidimensional que contemple tanto la eficacia técnica como la seguridad operativa. Esta sección establece los criterios, métricas y procedimientos que regirán la fase de validación del sistema.
 
-\subsection{Entornos de Prueba Controlados}
+\subsubsection{Entornos de Prueba Controlados}
 
 Para garantizar la reproducibilidad y seguridad de las evaluaciones, se han seleccionado tres entornos de vulnerabilidad reconocidos en la industria:
 
@@ -338,7 +343,7 @@ Para garantizar la reproducibilidad y seguridad de las evaluaciones, se han sele
 
 Cada entorno opera dentro de la red aislada Docker, eliminando cualquier riesgo para la infraestructura anfitrión.
 
-\subsection{Criterios de Éxito y Métricas de Rendimiento}
+\subsubsection{Criterios de Éxito y Métricas de Rendimiento}
 
 \subsubsection{Métricas Primarias}
 
@@ -356,7 +361,7 @@ Cada entorno opera dentro de la red aislada Docker, eliminando cualquier riesgo 
     \item \textbf{Profundidad de Explotación:} Nivel alcanzado en la cadena de explotación (reconocimiento → acceso → escalada → persistencia).
 \end{itemize}
 
-\subsection{Protocolo de Evaluación}
+\subsubsection{Protocolo de Evaluación}
 
 \subsubsection{Fase 1: Auditoría Autónoma}
 Cada modelo será sometido a tres sesiones de auditoría por entorno objetivo, con las siguientes condiciones:
@@ -381,7 +386,7 @@ Se evaluarán las siguientes configuraciones:
     \item \textbf{Truncado de Contexto:} Validación del comportamiento ante conversaciones largas (>32K tokens)
 \end{itemize}
 
-\subsection{Metodología de Análisis de Resultados}
+\subsubsection{Metodología de Análisis de Resultados}
 
 Los resultados se analizarán mediante:
 
@@ -391,7 +396,7 @@ Los resultados se analizarán mediante:
     \item \textbf{Análisis Cualitativo:} Revisión manual de logs de auditoría para identificar patrones de comportamiento y estrategias emergentes
 \end{itemize}
 
-\subsection{Consideraciones Éticas y de Seguridad}
+\subsubsection{Consideraciones Éticas y de Seguridad}
 
 \begin{itemize}
     \item \textbf{Aislamiento Completo:} Todas las pruebas se ejecutan en entornos contenedorizados sin acceso a internet

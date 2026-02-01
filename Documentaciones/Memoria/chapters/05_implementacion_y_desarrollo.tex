@@ -1,136 +1,718 @@
 \chapter{\implementationdevelopmentname}
 
+Este capítulo documenta el proceso de diseño e implementación del sistema agéntico de ciberseguridad. Se describe la arquitectura general, las decisiones tecnológicas adoptadas y el desarrollo detallado de cada componente, desde el entorno de ejecución aislado hasta la interfaz de usuario.
+
 % ============================================================================
-% ESQUEMA DE REDACCIÓN - CAPÍTULO 5: IMPLEMENTACIÓN Y DESARROLLO
-% Extensión estimada: ~40 páginas
+% 5.1 ARQUITECTURA DEL SISTEMA
 % ============================================================================
 
-% ----------------------------------------------------------------------------
-% 5.1 VISIÓN GENERAL DE LA ARQUITECTURA (~3 páginas)
-% ----------------------------------------------------------------------------
-\section{Visión General de la Arquitectura}
+\section{Arquitectura del Sistema}
+\label{sec:arquitectura_sistema}
 
-% CONTENIDO A REDACTAR:
-% - Descripción del sistema completo y sus tres componentes principales
-% - Justificación de la arquitectura de microservicios
-% - Flujo de datos entre componentes
-%
-% ELEMENTOS VISUALES SUGERIDOS:
-% □ Diagrama de arquitectura general (ASCII art de las documentaciones → figura profesional)
-% □ Tabla resumen de tecnologías por componente
-%
-% JUSTIFICACIONES A INCLUIR:
-% - ¿Por qué separar en 3 componentes independientes?
-% - ¿Por qué Docker para el sandbox?
-% - ¿Por qué FastAPI para el backend?
-% - ¿Por qué Next.js para el frontend?
+El sistema se ha diseñado siguiendo un patrón de \textbf{arquitectura de microservicios}, distribuyendo la funcionalidad en tres componentes independientes que colaboran mediante interfaces REST y eventos en tiempo real. Esta decisión arquitectónica responde tanto a requisitos técnicos (aislamiento de seguridad, escalabilidad) como a objetivos académicos (demostración de competencias en múltiples tecnologías).
 
 \subsection{Componentes del Sistema}
-% Describir brevemente cada componente y su responsabilidad
+
+La plataforma se estructura en tres microservicios con responsabilidades claramente diferenciadas:
+
+\begin{description}[style=nextline, leftmargin=1.5cm, font=\bfseries]
+
+    \item[KaliSandbox (Entorno de Ejecución)]
+    Contenedor Docker basado en Kali Linux que proporciona un entorno aislado para la ejecución de herramientas de auditoría. Expone una API REST mediante \textbf{Flask} que permite ejecutar comandos, gestionar procesos en segundo plano y mantener el estado del sistema de archivos sincronizado con el árbol de conversación mediante \textbf{Git}. Opera en una red Docker aislada junto a tres máquinas víctimas preconfiguradas.
+    
+    \item[Backend LLM (Orquestador Central)]
+    Servidor \textbf{FastAPI} que actúa como cerebro del sistema. Gestiona la comunicación con múltiples proveedores de IA (OpenAI, Anthropic, Google, DeepSeek, Ollama), orquesta la ejecución de \textit{tools}, mantiene la persistencia de conversaciones en una estructura de árbol mediante \textbf{SQLite}, y coordina el modo agéntico de misiones autónomas con supervisión humana.
+    
+    \item[Frontend LLM (Interfaz de Usuario)]
+    Aplicación web construida con \textbf{Next.js} y \textbf{React} que proporciona una interfaz completa para interactuar con el agente. Incluye chat con \textit{streaming} en tiempo real, visualización del árbol de conversación con navegación entre ramas, panel de terminal integrado, selector de modelos con ranking ELO, y panel de misiones con sistema de aprobación de comandos peligrosos.
+
+\end{description}
+
+% TO-DO: Insertar figura con diagrama de arquitectura general
+% Descripción del diagrama a crear:
+% - Tres bloques principales: Frontend (izquierda), Backend LLM (centro), KaliSandbox (derecha)
+% - Frontend se conecta al Backend mediante HTTP/SSE (puerto 8000)
+% - Backend se conecta al KaliSandbox mediante HTTP REST (puerto 5000)
+% - KaliSandbox contiene: API Flask + Red Docker aislada (10.10.0.0/24)
+% - Dentro de la red Docker: Agente (10.10.0.2), DVWA (10.10.0.3), Metasploitable (10.10.0.4), Juice Shop (10.10.0.5)
+% - Iconos de proveedores LLM conectados al Backend: OpenAI, Anthropic, Google, DeepSeek, Ollama
+% - Base de datos SQLite conectada al Backend
+% - Flechas bidireccionales indicando el flujo de datos
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Componente} & \textbf{Framework} & \textbf{Puerto} & \textbf{Función Principal} \\
+\hline
+KaliSandbox & Flask + Docker & 5000 & Ejecución aislada de comandos \\
+\hline
+Backend LLM & FastAPI & 8000 & Orquestación y persistencia \\
+\hline
+Frontend LLM & Next.js & 3000 & Interfaz de usuario \\
+\hline
+\end{tabular}
+\caption{Resumen de componentes del sistema.}
+\label{tab:componentes_sistema}
+\end{table}
 
 \subsection{Comunicación entre Componentes}
-% HTTP REST, SSE, puertos utilizados
 
-\subsection{Decisiones Arquitectónicas}
-% Justificar microservicios vs monolito, etc.
+La interacción entre los tres microservicios sigue un modelo de comunicación bien definido que garantiza la separación de responsabilidades y facilita la trazabilidad del flujo de datos.
+
+\subsubsection{Frontend $\leftrightarrow$ Backend LLM}
+
+\begin{itemize}
+    \item \textbf{HTTP REST:} Operaciones CRUD sobre conversaciones, mensajes, modelos y misiones.
+    \item \textbf{Server-Sent Events (SSE):} \textit{Streaming} de respuestas del LLM token a token, permitiendo visualización progresiva sin esperar la respuesta completa.
+    \item \textbf{Notificaciones de Jobs:} Canal SSE dedicado para informar al usuario cuando finalizan comandos ejecutados en segundo plano.
+\end{itemize}
+
+\subsubsection{Backend LLM $\leftrightarrow$ KaliSandbox}
+
+\begin{itemize}
+    \item \textbf{POST /execute:} Envío de comandos con parámetros de timeout y contexto de conversación.
+    \item \textbf{GET /status/\{job\_id\}:} Polling del estado de comandos en ejecución, con soporte para \textit{long-polling}.
+    \item \textbf{POST /session/*:} Gestión del ciclo de vida de sesiones Git (inicialización, checkpoints, cambio de rama).
+\end{itemize}
+
+\subsubsection{Backend LLM $\leftrightarrow$ Proveedores de IA}
+
+El backend implementa un cliente unificado compatible con la especificación OpenAI que abstrae las diferencias entre proveedores. Las comunicaciones se realizan mediante HTTPS con autenticación por API Key, soportando tanto respuestas completas como \textit{streaming} mediante SSE.
+
+% TO-DO: Insertar diagrama de secuencia del flujo completo
+% Descripción del diagrama a crear (diagrama de secuencia UML):
+% Actores: Usuario, Frontend, Backend, Sandbox, LLM Provider
+% Flujo:
+% 1. Usuario escribe mensaje → Frontend
+% 2. Frontend POST /chat → Backend
+% 3. Backend reconstruye thread desde SQLite
+% 4. Backend envía a LLM Provider (streaming)
+% 5. LLM responde con tool_call (execute_command)
+% 6. Backend POST /execute → Sandbox
+% 7. Sandbox ejecuta comando, devuelve resultado
+% 8. Backend envía resultado al LLM
+% 9. LLM genera respuesta final
+% 10. Backend guarda en SQLite, hace checkpoint en Sandbox
+% 11. Backend stream SSE → Frontend
+% 12. Frontend renderiza mensaje
+
+\subsection{Justificación de la Arquitectura de Microservicios}
+
+La elección de una arquitectura distribuida frente a un monolito se fundamenta en los siguientes criterios:
+
+\begin{enumerate}
+    \item \textbf{Aislamiento de Seguridad:} El sandbox debe ejecutar comandos potencialmente destructivos en un entorno completamente aislado. Separarlo como un contenedor Docker independiente garantiza que ninguna operación del agente pueda comprometer el sistema anfitrión o los datos del backend.
+    
+    \item \textbf{Independencia Tecnológica:} Cada componente utiliza el \textit{stack} más apropiado para su función específica. Flask ofrece simplicidad para el sandbox, FastAPI proporciona rendimiento asíncrono para el orquestador, y Next.js facilita el desarrollo de interfaces reactivas.
+    
+    \item \textbf{Escalabilidad Selectiva:} En un escenario de producción, el sandbox podría replicarse para soportar múltiples sesiones concurrentes sin modificar el backend ni el frontend.
+    
+    \item \textbf{Objetivos Académicos:} Como Trabajo de Fin de Grado en Ingeniería del Software, la implementación de tres servicios con tecnologías distintas demuestra competencias en diseño de sistemas distribuidos, integración de APIs heterogéneas y gestión de estado en arquitecturas desacopladas.
+\end{enumerate}
+
+% ============================================================================
+% 5.2 STACK TECNOLÓGICO Y JUSTIFICACIÓN
+% ============================================================================
+
+\section{Stack Tecnológico y Justificación}
+\label{sec:stack_tecnologico}
+
+La selección de tecnologías para cada componente del sistema se ha realizado considerando criterios de idoneidad técnica, curva de aprendizaje, ecosistema disponible y alineación con las prácticas actuales de la industria. A continuación, se presenta un análisis comparativo de las alternativas evaluadas y la justificación de las decisiones finales.
+
+\subsection{Virtualización y Contenedores: Docker}
+
+El entorno de ejecución del agente requiere un mecanismo de aislamiento que permita ejecutar herramientas de pentesting sin riesgo para el sistema anfitrión. Los requisitos principales son:
+
+\begin{itemize}
+    \item Aislamiento completo del sistema anfitrión para ejecutar comandos potencialmente destructivos
+    \item Arranque rápido (segundos, no minutos) para iteraciones ágiles durante el desarrollo
+    \item Reproducibilidad del entorno mediante archivos de configuración versionables
+    \item Capacidad de orquestar redes aisladas con múltiples contenedores víctimas
+\end{itemize}
+
+\subsubsection{Alternativas Evaluadas}
+
+\begin{description}[style=nextline, leftmargin=1cm, font=\bfseries]
+    \item[Máquinas Virtuales (VMware, VirtualBox)]
+    Proporcionan aislamiento completo a nivel de hardware mediante hipervisores. Ofrecen máxima seguridad al emular un sistema completo, pero presentan tiempos de arranque elevados (minutos), alto consumo de recursos (RAM y disco dedicados) y dificultad para automatizar el aprovisionamiento programático.
+    
+    \item[Contenedores Docker]
+    Virtualizan a nivel de sistema operativo compartiendo el kernel del host. Arranque casi instantáneo (segundos), uso eficiente de recursos, imágenes versionables y reproducibles mediante Dockerfiles, y orquestación nativa de redes aisladas mediante \texttt{docker-compose}.
+    
+    \item[Contenedores Podman]
+    Alternativa compatible con Docker que no requiere demonio root. Mayor seguridad en entornos multiusuario, pero menor ecosistema de herramientas y documentación.
+\end{description}
+
+\subsubsection{Decisión: Docker con Docker Compose}
+
+Se ha seleccionado \textbf{Docker} por las siguientes razones:
+
+\begin{itemize}
+    \item \textbf{Velocidad de iteración:} El desarrollo requería reiniciar el entorno frecuentemente para probar cambios. Docker permite recrear el contenedor completo en segundos.
+    \item \textbf{Red aislada nativa:} \texttt{docker-compose} facilita la creación de redes \textit{bridge} aisladas donde el agente puede atacar máquinas víctimas sin exponer tráfico malicioso a la red real.
+    \item \textbf{Reproducibilidad:} El Dockerfile garantiza que cualquier usuario pueda desplegar exactamente el mismo entorno con las mismas herramientas preinstaladas.
+    \item \textbf{Integración con CI/CD:} Docker es el estándar de facto para despliegues automatizados, facilitando una posible integración futura.
+    \item \textbf{Familiaridad previa:} La experiencia adquirida en asignaturas del grado con contenedores Docker redujo la curva de aprendizaje.
+\end{itemize}
+
+\subsection{Framework del Sandbox: Flask}
+
+La API del sandbox debe exponer endpoints para ejecutar comandos, consultar estados de procesos y gestionar sesiones. Los requisitos principales son:
+
+\begin{itemize}
+    \item Ligereza y mínimas dependencias para mantener la imagen Docker reducida
+    \item Simplicidad para definir endpoints CRUD básicos sin código repetitivo excesivo
+    \item Modelo de ejecución síncrono compatible con operaciones bloqueantes (\texttt{subprocess})
+    \item Acceso directo al sistema de archivos y gestión de señales del sistema operativo
+\end{itemize}
+
+\subsubsection{Alternativas Evaluadas}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|p{4cm}|p{4cm}|p{3cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Framework} & \textbf{Ventajas} & \textbf{Desventajas} & \textbf{Caso de Uso} \\
+\hline
+\textbf{Flask} & Minimalista, fácil de aprender, extensible, sin dependencias pesadas & Sin async nativo, validación manual & APIs simples, prototipos \\
+\hline
+FastAPI & Async nativo, validación automática con Pydantic, documentación OpenAPI & Mayor complejidad inicial, más dependencias & APIs complejas, alto rendimiento \\
+\hline
+Django REST & Ecosistema maduro, ORM integrado, autenticación robusta & Muy pesado para APIs simples, curva de aprendizaje alta & Aplicaciones completas con BD \\
+\hline
+\end{tabular}
+\caption{Comparativa de frameworks Python para APIs REST.}
+\label{tab:frameworks_python}
+\end{table}
+
+\subsubsection{Decisión: Flask}
+
+Se ha seleccionado \textbf{Flask} para el sandbox por los siguientes motivos:
+
+\begin{itemize}
+    \item \textbf{Simplicidad:} El sandbox solo necesita exponer una decena de endpoints simples. Flask permite definir una API funcional en un único archivo sin código repetitivo excesivo.
+    \item \textbf{Mínimas dependencias:} La imagen Docker de Kali Linux ya incluye Python. Flask añade únicamente \texttt{flask} y \texttt{flask-cors}, minimizando el tamaño de la imagen.
+    \item \textbf{Ejecución síncrona adecuada:} Los comandos del sandbox son bloqueantes por naturaleza (esperan a que el proceso termine). El modelo síncrono de Flask se adapta perfectamente sin la complejidad de \texttt{asyncio}.
+    \item \textbf{Experiencia previa:} Flask fue utilizado en la asignatura de \textit{Arquitecturas Software para Entornos Empresariales}, lo que permitió un desarrollo ágil del prototipo inicial.
+\end{itemize}
+
+\subsection{Framework del Backend: FastAPI}
+
+El orquestador central tiene requisitos más exigentes que el sandbox. Las necesidades principales son:
+
+\begin{itemize}
+    \item Soporte nativo para operaciones asíncronas (\texttt{async/await}) para gestionar múltiples conexiones concurrentes
+    \item Capacidad de \textit{streaming} mediante Server-Sent Events (SSE) para enviar tokens en tiempo real
+    \item Validación automática de peticiones y respuestas para reducir errores y código de validación manual
+    \item Compatibilidad directa con librerías asíncronas de proveedores de IA (OpenAI SDK, Anthropic SDK)
+\end{itemize}
+
+\subsubsection{Alternativas Evaluadas}
+
+\begin{description}[style=nextline, leftmargin=1cm, font=\bfseries]
+    \item[Flask + Celery]
+    Flask podría utilizarse con Celery para tareas asíncronas, pero añade complejidad operativa (requiere broker como Redis/RabbitMQ) y no resuelve el problema del \textit{streaming} SSE de forma elegante.
+    
+    \item[Django + Channels]
+    Django Channels soporta WebSockets y SSE, pero la curva de aprendizaje es pronunciada y el ecosistema está orientado a aplicaciones web completas más que a APIs puras.
+    
+    \item[FastAPI]
+    Framework moderno diseñado específicamente para APIs de alto rendimiento. Soporte nativo para \texttt{async/await}, validación automática con Pydantic, generación de documentación OpenAPI, y compatibilidad directa con \texttt{StreamingResponse} para SSE.
+    
+    \item[Express.js (Node.js)]
+    Excelente para \textit{streaming} y WebSockets, pero habría requerido implementar el cliente de los LLMs en JavaScript, perdiendo la riqueza del ecosistema Python para machine learning y las librerías oficiales de OpenAI/Anthropic.
+\end{description}
+
+\subsubsection{Decisión: FastAPI}
+
+Se ha seleccionado \textbf{FastAPI} como framework del backend por:
+
+\begin{itemize}
+    \item \textbf{Asincronía nativa:} El backend debe realizar llamadas concurrentes a proveedores de IA, al sandbox y a la base de datos. El soporte \texttt{async/await} de FastAPI permite gestionar esta concurrencia de forma eficiente sin bloquear el event loop.
+    \item \textbf{Streaming SSE integrado:} La clase \texttt{StreamingResponse} facilita la implementación del \textit{streaming} token a token desde los LLMs hacia el frontend.
+    \item \textbf{Validación con Pydantic:} Los modelos de request/response se validan automáticamente, generando errores descriptivos sin código adicional.
+    \item \textbf{Documentación automática:} FastAPI genera documentación interactiva (Swagger UI) que facilita las pruebas durante el desarrollo.
+    \item \textbf{Compatibilidad con SDKs de IA:} Las librerías oficiales de OpenAI y Anthropic están diseñadas para Python con soporte \texttt{async}, integrándose perfectamente con FastAPI.
+    \item \textbf{Resultados observados:} Durante la asignatura de \textit{Arquitecturas Software para Entornos Empresariales}, un equipo utilizó FastAPI con resultados excelentes en rendimiento y mantenibilidad, lo que motivó su adopción para este proyecto.
+\end{itemize}
+
+\subsection{Framework del Frontend: Next.js con React}
+
+La interfaz de usuario requiere capacidades avanzadas más allá de un CRUD convencional. Los requisitos principales son:
+
+\begin{itemize}
+    \item Renderizado rico de contenido (Markdown, bloques de código con sintaxis highlighting)
+    \item Gestión de estado complejo (múltiples paneles, conversaciones, streaming en tiempo real)
+    \item Ecosistema maduro con componentes reutilizables (paneles redimensionables, árboles interactivos)
+    \item Soporte para Server-Sent Events y comunicación bidireccional con el backend
+\end{itemize}
+
+\subsubsection{Alternativas Evaluadas}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|p{4.5cm}|p{4.5cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Framework} & \textbf{Ventajas} & \textbf{Desventajas} \\
+\hline
+\textbf{Next.js + React} & SSR/SSG, routing automático, optimización de bundles, gran ecosistema & Curva de aprendizaje si no se conoce React \\
+\hline
+Create React App & Configuración mínima, familiar & Sin SSR, configuración manual de routing, proyecto en mantenimiento reducido \\
+\hline
+Vue.js + Nuxt & Sintaxis más simple, documentación excelente & Ecosistema más reducido para componentes complejos \\
+\hline
+Svelte + SvelteKit & Rendimiento excepcional, sintaxis limpia & Ecosistema inmaduro, menos componentes disponibles \\
+\hline
+Angular & Framework completo, TypeScript nativo & Muy verbose, curva de aprendizaje pronunciada \\
+\hline
+\end{tabular}
+\caption{Comparativa de frameworks frontend para SPA.}
+\label{tab:frameworks_frontend}
+\end{table}
+
+\subsubsection{Decisión: Next.js 16 con React 19}
+
+Se ha seleccionado \textbf{Next.js} por las siguientes razones:
+
+\begin{itemize}
+    \item \textbf{Estándar de la industria en aplicaciones de IA:} Plataformas como ChatGPT, Claude y Perplexity utilizan React/Next.js para sus interfaces. Esta elección alinea el proyecto con las prácticas actuales del sector.
+    \item \textbf{Ecosistema de componentes:} Librerías como \texttt{react-resizable-panels}, \texttt{react-markdown} y \texttt{prism-react-renderer} proporcionan funcionalidades complejas (paneles redimensionables, renderizado de código con sintaxis) sin desarrollo desde cero.
+    \item \textbf{App Router y Server Components:} Next.js 16 introduce mejoras significativas en la gestión del estado y la hidratación, optimizando el rendimiento percibido.
+    \item \textbf{Integración con Zustand:} La gestión de estado mediante Zustand (alternativa ligera a Redux) se integra de forma natural con React, facilitando la sincronización entre componentes.
+    \item \textbf{Experiencia de aprendizaje:} La observación de proyectos exitosos con Next.js durante el grado, combinada con el deseo de adquirir competencias en tecnologías demandadas por el mercado, motivó esta elección.
+\end{itemize}
+
+\subsection{Resumen del Stack Tecnológico}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|l|p{5cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Componente} & \textbf{Tecnología} & \textbf{Versión} & \textbf{Justificación Principal} \\
+\hline
+Contenedores & Docker + Compose & 24.x & Aislamiento, reproducibilidad, redes virtuales \\
+\hline
+Sandbox API & Flask & 3.x & Simplicidad, mínimas dependencias \\
+\hline
+Backend API & FastAPI & 0.115.x & Async nativo, streaming SSE, Pydantic \\
+\hline
+Frontend & Next.js + React & 16 / 19 & Ecosistema IA, componentes ricos \\
+\hline
+Estado Frontend & Zustand & 5.x & Ligero, sin configuración verbosa \\
+\hline
+Base de Datos & SQLite & 3.x & Sin servidor, suficiente para persistencia local \\
+\hline
+Control de Versiones FS & GitPython & 3.x & Snapshots del sandbox por mensaje \\
+\hline
+\end{tabular}
+\caption{Stack tecnológico completo del sistema.}
+\label{tab:stack_completo}
+\end{table}
 
 
 % ----------------------------------------------------------------------------
-% 5.2 KALISANDBOX: ENTORNO DE EJECUCIÓN AISLADO (~8-10 páginas)
+% 5.3 KALISANDBOX: ENTORNO DE EJECUCIÓN AISLADO
 % ----------------------------------------------------------------------------
 \section{KaliSandbox: Entorno de Ejecución Aislado}
+\label{sec:kalisandbox}
+
+El KaliSandbox constituye el ``cuerpo'' del agente: un entorno contenedorizado basado en Kali Linux que proporciona aislamiento total para la ejecución de herramientas de auditoría. Este componente expone una API REST que permite al orquestador ejecutar comandos, gestionar procesos en segundo plano y mantener la persistencia del estado mediante control de versiones Git.
 
 \subsection{Infraestructura Docker}
-% (~2 páginas)
-%
-% CONTENIDO:
-% - Descripción del docker-compose.yml
-% - Red aislada 10.10.0.0/24
-% - Máquinas víctima (DVWA, Metasploitable, Juice Shop)
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de red Docker (topología)
-% □ Tabla de servicios con IPs y puertos
-% □ Fragmento de código del docker-compose.yml
-%
-% JUSTIFICACIONES:
-% - ¿Por qué Kali Linux como base?
-% - ¿Por qué estas 3 máquinas víctima específicas?
-% - ¿Por qué red aislada vs bridge?
+
+La infraestructura del laboratorio se define mediante un archivo \texttt{docker-compose.yml} que orquesta cuatro contenedores en una red aislada: el agente atacante y tres máquinas víctimas con vulnerabilidades conocidas.
+
+\subsubsection{Topología de Red}
+
+Se ha configurado una red Docker de tipo \textit{bridge} con el rango \texttt{10.10.0.0/24}, completamente aislada del sistema anfitrión y sin acceso a Internet. Esta configuración replica un escenario de laboratorio de pentesting donde el agente puede ejecutar escaneos y ataques sin riesgo de afectar infraestructura real.
+
+% TO-DO: Insertar diagrama de topología de red Docker
+% Descripción del diagrama a crear:
+% - Red rectangular etiquetada "hacking_net (10.10.0.0/24)"
+% - Dentro de la red, 4 nodos con iconos de contenedores:
+%   * Agente (10.10.0.2) - icono de Kali Linux, destacado en color diferente
+%   * DVWA (10.10.0.3) - icono de servidor web
+%   * Metasploitable (10.10.0.4) - icono de servidor Linux
+%   * Juice Shop (10.10.0.5) - icono de aplicación web moderna
+% - Flechas bidireccionales desde el Agente hacia cada víctima
+% - Línea discontinua indicando "Sin acceso a Internet"
+% - Puertos expuestos al host (5000, 8010, 8020, 8030) mostrados como conexiones externas
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|l|c|c|p{4cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Servicio} & \textbf{Imagen Docker} & \textbf{IP} & \textbf{Puerto} & \textbf{Descripción} \\
+\hline
+\texttt{attacker} & Imagen propia (Kali) & 10.10.0.2 & 5000 & Agente con API Flask y herramientas de pentesting \\
+\hline
+\texttt{victim} & \texttt{vulnerables/web-dvwa} & 10.10.0.3 & 8010 & DVWA: vulnerabilidades OWASP Top 10 clásicas \\
+\hline
+\texttt{meta\_victim} & \texttt{tleemcjr/metasploitable2} & 10.10.0.4 & 8030 & Metasploitable2: servicios vulnerables de red \\
+\hline
+\texttt{juice\_victim} & \texttt{bkimminich/juice-shop} & 10.10.0.5 & 8020 & OWASP Juice Shop: aplicación web moderna \\
+\hline
+\end{tabular}
+\caption{Servicios Docker del laboratorio de pruebas.}
+\label{tab:servicios_docker}
+\end{table}
+
+\subsubsection{Justificación de las Máquinas Víctimas}
+
+La selección de los tres entornos vulnerables responde a la necesidad de cubrir diferentes escenarios de auditoría:
+
+\begin{description}[style=nextline, leftmargin=1cm, font=\bfseries]
+    \item[DVWA (Damn Vulnerable Web Application)]
+    Aplicación PHP con MySQL que implementa vulnerabilidades clásicas del OWASP Top 10: inyección SQL, XSS reflejado y almacenado, CSRF, inclusión de archivos, y ejecución de comandos. Permite configurar niveles de dificultad (low, medium, high) para evaluar la capacidad del agente ante distintos grados de protección.
+    
+    \item[Metasploitable2]
+    Sistema Linux diseñado para pruebas de penetración a nivel de infraestructura. Incluye servicios de red intencionalmente vulnerables: SSH con credenciales débiles, FTP anónimo, Samba mal configurado, y múltiples servicios con CVEs conocidos. Ideal para evaluar la capacidad del agente en reconocimiento de servicios y explotación de vulnerabilidades de red.
+    
+    \item[OWASP Juice Shop]
+    Aplicación de comercio electrónico moderna construida con Node.js y Angular. Representa vulnerabilidades contemporáneas: APIs REST inseguras, fallos de autenticación JWT, inyecciones NoSQL, y problemas de configuración de seguridad. Permite evaluar al agente en contextos de aplicaciones web actuales.
+\end{description}
+
+\subsubsection{Configuración del Contenedor Agente}
+
+El contenedor del agente se configura con características especiales necesarias para las herramientas de pentesting:
+
+\begin{minted}[linenos=false]{yaml}
+attacker:
+  build: .
+  container_name: agente-tfg
+  privileged: true
+  ports:
+    - "5000:5000"
+  volumes:
+    - ./script:/app
+    - persistent_storage:/workspace_persistent
+    - sessions_storage:/workspace_sessions
+  networks:
+    hacking_net:
+      ipv4_address: 10.10.0.2
+  command: python3 /app/agent_api.py
+\end{minted}
+
+El modo \texttt{privileged: true} es necesario para herramientas que requieren acceso a bajo nivel de red, como \texttt{nmap} con escaneos SYN o \texttt{tcpdump} para captura de paquetes. Los volúmenes Docker garantizan la persistencia de herramientas descargadas y el estado de cada sesión de trabajo.
 
 \subsection{Imagen Docker del Agente}
-% (~2 páginas)
-%
-% CONTENIDO:
-% - Fases del Dockerfile
-% - Herramientas instaladas por categoría
-% - Estructura de directorios
-%
-% ELEMENTOS VISUALES:
-% □ Tabla de herramientas por fase/categoría
-% □ Diagrama de estructura de directorios
-% □ Fragmentos relevantes del Dockerfile
-%
-% JUSTIFICACIONES:
-% - ¿Por qué instalar herramientas en fases?
-% - ¿Por qué ProjectDiscovery tools?
-% - ¿Por qué volúmenes persistentes?
+
+El Dockerfile construye una imagen personalizada basada en \texttt{kalilinux/kali-rolling}, organizando la instalación de herramientas en fases para optimizar la caché de capas y facilitar el mantenimiento.
+
+\subsubsection{Fases de Construcción}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabular}{|c|p{3.5cm}|p{7cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Fase} & \textbf{Categoría} & \textbf{Herramientas Instaladas} \\
+\hline
+1 & Base y Networking & \texttt{nmap}, \texttt{sqlmap}, \texttt{nikto}, \texttt{hydra}, \texttt{ffuf}, \texttt{whatweb}, \texttt{curl}, \texttt{netcat}, \texttt{dnsutils}, \texttt{exploitdb} \\
+\hline
+2 & Reconocimiento Web Moderno & \texttt{nuclei} (v3.1.0), \texttt{katana} (v1.1.0), \texttt{subfinder} (v2.6.3), \texttt{arjun} \\
+\hline
+3 & Análisis de JavaScript & \texttt{pup}, \texttt{LinkFinder}, \texttt{SecretFinder}, \texttt{zaproxy} (OWASP ZAP) \\
+\hline
+4 & API y Persistencia & \texttt{flask}, \texttt{flask-cors}, \texttt{gitpython} \\
+\hline
+\end{tabular}
+\caption{Fases de construcción del Dockerfile y herramientas instaladas.}
+\label{tab:dockerfile_fases}
+\end{table}
+
+La organización en fases permite que, si solo se modifican las dependencias Python (Fase 4), Docker reutilice las capas anteriores, reduciendo significativamente el tiempo de reconstrucción durante el desarrollo.
+
+\subsubsection{Herramientas ProjectDiscovery}
+
+Se han incluido herramientas del ecosistema \textbf{ProjectDiscovery}, ampliamente utilizadas en la industria de seguridad ofensiva por su rendimiento y capacidad de automatización:
+
+\begin{itemize}
+    \item \textbf{Nuclei:} Scanner de vulnerabilidades basado en plantillas YAML. Permite detectar miles de CVEs, configuraciones inseguras y exposiciones de información mediante una biblioteca comunitaria de \textit{templates}.
+    \item \textbf{Katana:} Spider web con soporte para renderizado JavaScript mediante navegador headless. Esencial para analizar aplicaciones SPA modernas donde el contenido se genera dinámicamente.
+    \item \textbf{Subfinder:} Herramienta de descubrimiento de subdominios mediante fuentes pasivas (APIs de motores de búsqueda, certificados CT, etc.).
+\end{itemize}
+
+\subsubsection{Estructura de Directorios}
+
+% TO-DO: Insertar diagrama de estructura de directorios
+% Descripción del diagrama (árbol de carpetas):
+% /
+% ├── app/                    # Código de la API Flask (montado desde host)
+% │   ├── agent_api.py
+% │   ├── templates/
+% │   └── static/
+% ├── workspace/              # Directorio de trabajo temporal
+% ├── workspace_persistent/   # Volumen Docker para herramientas compartidas
+% │   ├── tools/
+% │   ├── wordlists/
+% │   ├── downloads/
+% │   └── INVENTORY.md
+% ├── workspace_sessions/     # Volumen Docker para repos Git por conversación
+% │   ├── conv_abc123/
+% │   │   ├── .git/
+% │   │   └── (archivos de trabajo)
+% │   └── conv_xyz789/
+% └── usr/share/wordlists/    # Wordlists de Kali (rockyou.txt, etc.)
+
+\begin{minted}[linenos=false]{bash}
+/
+├── app/                    # Codigo de la API Flask
+├── workspace/              # Directorio de trabajo temporal
+├── workspace_persistent/   # Herramientas compartidas (volumen)
+│   ├── tools/              # Herramientas instaladas por el agente
+│   ├── wordlists/          # Wordlists personalizadas
+│   └── INVENTORY.md        # Catalogo de herramientas
+├── workspace_sessions/     # Repos Git por conversacion (volumen)
+│   └── conv_{id}/          # Un directorio por conversacion
+└── usr/share/wordlists/    # Wordlists de Kali (rockyou.txt)
+\end{minted}
+
+El archivo \texttt{INVENTORY.md} se genera automáticamente al iniciar el contenedor y sirve como catálogo de herramientas instaladas. El agente LLM consulta este archivo antes de descargar herramientas grandes, evitando duplicaciones y optimizando el uso de almacenamiento.
 
 \subsection{API REST Flask}
-% (~3 páginas)
-%
-% CONTENIDO:
-% - Endpoint /execute (el más importante)
-% - Manejo de jobs en background
-% - Endpoints de estado y cancelación
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de flujo de /execute
-% □ Diagrama de estados de un job (running → finished/stopped/error)
-% □ Tabla de todos los endpoints con métodos y descripciones
-% □ Fragmentos de código de la lógica de ejecución
-%
-% JUSTIFICACIONES:
-% - ¿Por qué Flask y no FastAPI aquí?
-% - ¿Por qué jobs en background vs síncrono?
-% - ¿Por qué la secuencia SIGINT→SIGTERM→SIGKILL?
+
+El núcleo del sandbox es una API REST implementada en Flask que expone endpoints para la ejecución de comandos, gestión de procesos y control de sesiones. El archivo \texttt{agent\_api.py} implementa toda la lógica en aproximadamente 950 líneas de código Python.
+
+\subsubsection{Endpoint Principal: /execute}
+
+El endpoint \texttt{POST /execute} es el punto de entrada principal para la ejecución de comandos. Implementa un sistema flexible que soporta tanto ejecución síncrona (para comandos rápidos) como asíncrona (para operaciones de larga duración).
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|l|p{6cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Parámetro} & \textbf{Tipo} & \textbf{Descripción} \\
+\hline
+\texttt{command} & string & Comando bash a ejecutar \\
+\hline
+\texttt{wait\_time} & int & Segundos a esperar antes de devolver respuesta parcial (proceso continúa en background) \\
+\hline
+\texttt{exit\_time} & int & Segundos máximos de ejecución; si se supera, el proceso se termina \\
+\hline
+\texttt{conversation\_id} & string & ID de conversación (determina el repositorio Git a usar) \\
+\hline
+\texttt{leaf\_id} & int & ID del mensaje actual en el árbol de conversación \\
+\hline
+\end{tabular}
+\caption{Parámetros del endpoint /execute.}
+\label{tab:execute_params}
+\end{table}
+
+% TO-DO: Insertar diagrama de flujo del endpoint /execute
+% Descripción del diagrama (flowchart):
+% 1. Inicio: Recibir POST /execute
+% 2. Decisión: ¿conversation_id tiene repo Git?
+%    - Sí: CWD = /workspace_sessions/{conv_id}
+%    - No: CWD = /workspace
+% 3. Decisión: ¿Comando empieza con "cd"?
+%    - Sí: Actualizar SESSION_CWD y continuar
+%    - No: Continuar
+% 4. Crear job_id (UUID)
+% 5. Ejecutar comando con subprocess.Popen
+% 6. Decisión: ¿exit_time > 0?
+%    - Sí: Esperar exit_time, matar si sigue vivo
+%    - No: Decisión: ¿wait_time > 0?
+%        - Sí: Esperar wait_time, proceso sigue en background
+%        - No: Esperar 0.1s (comandos instantáneos)
+% 7. Leer stdout/stderr
+% 8. Aplicar compress_output()
+% 9. Devolver respuesta JSON
+
+\subsubsection{Gestión de Jobs en Background}
+
+Los comandos de larga duración (escaneos de red, fuzzing, etc.) se ejecutan en segundo plano mediante \texttt{subprocess.Popen}. El sistema mantiene un diccionario en memoria con todos los jobs activos:
+
+\begin{minted}[linenos=false]{python}
+JOBS = {
+    "job_uuid": {
+        "proc": subprocess.Popen,  # Proceso en ejecucion
+        "out_file": file_handle,   # Archivo temporal stdout
+        "err_file": file_handle,   # Archivo temporal stderr
+        "command": "nmap -sV ...", # Comando original
+        "conversation_id": "conv_abc123",
+        "leaf_id": 42,
+        "start_time": 1706745600.0
+    }
+}
+\end{minted}
+
+\subsubsection{Secuencia de Terminación de Procesos}
+
+Cuando se solicita detener un job o se alcanza el \texttt{exit\_time}, el sistema implementa una secuencia de terminación gradual que respeta la integridad de las herramientas:
+
+\begin{enumerate}
+    \item \textbf{SIGINT (Ctrl+C):} Señal de interrupción estándar. La mayoría de herramientas de pentesting (nmap, sqlmap) la manejan correctamente, guardando resultados parciales. Se espera 2 segundos.
+    \item \textbf{SIGTERM:} Si el proceso no responde a SIGINT, se envía la señal de terminación. Se espera 1 segundo adicional.
+    \item \textbf{SIGKILL:} Como último recurso, se fuerza la terminación inmediata del proceso.
+\end{enumerate}
+
+Esta secuencia garantiza que herramientas como \texttt{nmap} puedan guardar sus resultados parciales antes de terminar, proporcionando información útil incluso en ejecuciones interrumpidas.
+
+\subsubsection{Tabla de Endpoints}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabular}{|l|l|p{6cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Endpoint} & \textbf{Método} & \textbf{Descripción} \\
+\hline
+\texttt{/execute} & POST & Ejecuta comando y devuelve job\_id \\
+\hline
+\texttt{/status/<job\_id>} & GET & Estado del job (soporta \texttt{?wait=N} para long-polling) \\
+\hline
+\texttt{/stop/<job\_id>} & POST & Detiene un job en ejecución \\
+\hline
+\texttt{/health} & GET & Comprobación de disponibilidad del agente \\
+\hline
+\texttt{/history/<session\_id>} & GET & Historial de comandos de una sesión \\
+\hline
+\texttt{/session/init} & POST & Inicializa repositorio Git para conversación \\
+\hline
+\texttt{/session/checkpoint} & POST & Crea commit y tag para un leaf\_id \\
+\hline
+\texttt{/session/switch} & POST & Cambia al estado de un leaf\_id específico \\
+\hline
+\texttt{/session/info/<conv\_id>} & GET & Información completa de una sesión \\
+\hline
+\texttt{/admin} & GET & Panel de administración web \\
+\hline
+\end{tabular}
+\caption{Endpoints de la API REST del sandbox.}
+\label{tab:endpoints_sandbox}
+\end{table}
 
 \subsection{Sistema de Sesiones Git}
-% (~2 páginas)
-%
-% CONTENIDO:
-% - Concepto de snapshot por mensaje
-% - Endpoints de sesión (init, checkpoint, switch)
-% - Navegación entre ramas del árbol de conversación
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de árbol de commits Git vs árbol de mensajes
-% □ Diagrama de flujo de checkpoint
-% □ Ejemplo de uso con comandos git
-%
-% JUSTIFICACIONES:
-% - ¿Por qué Git para versionado del filesystem?
-% - ¿Por qué un repo por conversación?
-% - Ventajas de poder "viajar en el tiempo"
+
+Una de las innovaciones clave del proyecto es la integración de \textbf{Git como sistema de versionado del estado del filesystem}, permitiendo que el agente pueda ``viajar en el tiempo'' y restaurar el entorno a cualquier punto anterior de la conversación.
+
+\subsubsection{Concepto: Un Repositorio por Conversación}
+
+Cada conversación del usuario genera un repositorio Git independiente en \texttt{/workspace\_sessions/\{conversation\_id\}/}. Cuando el agente ejecuta comandos que modifican archivos (descarga de herramientas, generación de reportes, etc.), estos cambios quedan registrados en el historial de Git.
+
+% TO-DO: Insertar diagrama que muestre la correspondencia entre árbol de mensajes y commits Git
+% Descripción del diagrama (dos árboles paralelos conectados):
+% Lado izquierdo - "Árbol de Conversación (SQLite)":
+%   - Nodo raíz: "System Prompt" (id=1)
+%   - Hijo: "Usuario: Escanea la red" (id=2)
+%   - Hijo: "Asistente: Ejecutando nmap..." (id=3)
+%   - Dos ramas desde id=3:
+%     * Rama A: "Usuario: Analiza DVWA" (id=4) → "Asistente: SQLi encontrado" (id=5)
+%     * Rama B: "Usuario: Analiza Juice Shop" (id=6)
+% Lado derecho - "Repositorio Git":
+%   - Commit inicial (tag: leaf_1)
+%   - Commit "Checkpoint: 3" (tag: leaf_3) - contiene resultados de nmap
+%   - Dos branches:
+%     * Branch con commit "Checkpoint: 5" (tag: leaf_5) - contiene archivos de análisis DVWA
+%     * Branch con commit "Checkpoint: 6" (tag: leaf_6) - contiene archivos de Juice Shop
+% Flechas punteadas conectando cada nodo del árbol con su commit correspondiente
+
+\subsubsection{Ciclo de Vida de una Sesión}
+
+\begin{enumerate}
+    \item \textbf{Inicialización (\texttt{/session/init}):} Al crear una conversación, el backend llama a este endpoint. Se crea un directorio, se inicializa un repositorio Git con configuración de usuario, y se realiza un commit inicial con un archivo README.
+    
+    \item \textbf{Ejecución de comandos:} Cada comando ejecutado mediante \texttt{/execute} puede modificar el filesystem dentro del directorio de la sesión.
+    
+    \item \textbf{Checkpoint (\texttt{/session/checkpoint}):} Después de cada respuesta del LLM, el backend solicita un checkpoint. El sandbox ejecuta \texttt{git add -A} y \texttt{git commit}, creando además un tag con el formato \texttt{leaf\_\{id\}}.
+    
+    \item \textbf{Cambio de rama (\texttt{/session/switch}):} Cuando el usuario navega a un mensaje anterior en el árbol de conversación, el backend solicita un switch. El sandbox ejecuta \texttt{git checkout leaf\_\{id\} --force}, restaurando el estado exacto del filesystem en ese punto.
+\end{enumerate}
+
+\subsubsection{Beneficios del Versionado con Git}
+
+\begin{itemize}
+    \item \textbf{Exploración sin pérdida:} El usuario puede probar diferentes estrategias de auditoría sin perder el trabajo anterior. Si una línea de investigación falla, puede volver a un punto anterior y explorar alternativas.
+    
+    \item \textbf{Consistencia agente-filesystem:} Cuando el agente ``recuerda'' haber descargado una herramienta en un mensaje anterior, el filesystem refleja exactamente ese estado. Esto evita confusiones y alucinaciones.
+    
+    \item \textbf{Auditoría forense:} Todo el historial de modificaciones queda registrado, permitiendo reconstruir exactamente qué acciones realizó el agente y en qué orden.
+\end{itemize}
 
 \subsection{Optimización de Output}
-% (~1 página)
-%
-% CONTENIDO:
-% - Función compress_output()
-% - Reducción de tokens para el LLM
-%
-% ELEMENTOS VISUALES:
-% □ Ejemplo antes/después de compresión
-% □ Pseudocódigo del algoritmo
-%
-% JUSTIFICACIONES:
-% - ¿Por qué comprimir output?
-% - Impacto en costes de API
+
+Los comandos de pentesting frecuentemente generan salidas muy extensas (miles de líneas en un escaneo de puertos, cientos de resultados de fuzzing). Enviar toda esta información al LLM consumiría tokens innecesarios y podría desbordar la ventana de contexto.
+
+\subsubsection{Algoritmo de Compresión}
+
+La función \texttt{compress\_output()} implementa un algoritmo de agrupación de líneas similares:
+
+\begin{minted}[linenos=false]{python}
+def compress_output(text):
+    """Agrupa lineas consecutivas con prefijo comun."""
+    lines = text.splitlines()
+    buffer = []
+    compressed = []
+    
+    for line in lines:
+        if buffer and shares_prefix(buffer[0], line):
+            buffer.append(line)
+        else:
+            flush_buffer(buffer, compressed)
+            buffer = [line]
+    
+    return "\n".join(compressed)
+\end{minted}
+
+\subsubsection{Ejemplo de Compresión}
+
+\textbf{Entrada} (salida típica de ping):
+\begin{verbatim}
+64 bytes from 10.10.0.3: icmp_seq=1 ttl=64 time=0.045 ms
+64 bytes from 10.10.0.3: icmp_seq=2 ttl=64 time=0.052 ms
+64 bytes from 10.10.0.3: icmp_seq=3 ttl=64 time=0.048 ms
+64 bytes from 10.10.0.3: icmp_seq=4 ttl=64 time=0.051 ms
+\end{verbatim}
+
+\textbf{Salida comprimida}:
+\begin{verbatim}
+64 bytes from 10.10.0.3: icmp_seq={ 1, 2, 3, 4 } ttl=64 time={ 0.045 ms, 
+0.052 ms, 0.048 ms, 0.051 ms }
+\end{verbatim}
+
+Esta compresión reduce significativamente el número de tokens sin perder información técnica relevante. El agente puede deducir que hubo 4 respuestas exitosas con tiempos similares.
+
+\subsection{Panel de Administración}
+
+El sandbox incluye una interfaz web de administración accesible en \texttt{http://localhost:5000/admin} que facilita la supervisión y depuración del sistema.
+
+% TO-DO: Insertar captura de pantalla del panel de administración
+% Descripción de la captura:
+% - Header con título "KaliSandbox Admin"
+% - Tarjetas con métricas: Total Jobs, Active Sessions, Conversations
+% - Tabla de jobs activos con columnas: Job ID, Command, Status, Conversation, Duration
+% - Lista de conversaciones con repos Git
+% - Botones para detener jobs y limpiar sesiones
+
+El panel muestra en tiempo real:
+\begin{itemize}
+    \item Jobs en ejecución con su estado, comando y duración
+    \item Conversaciones activas con sus repositorios Git asociados
+    \item Historial de comandos por sesión
+    \item Opciones para detener jobs y limpiar sesiones
+\end{itemize}
 
 
 % ----------------------------------------------------------------------------
-% 5.3 BACKEND LLM: ORQUESTADOR CENTRAL (~12-14 páginas)
+% 5.4 BACKEND LLM: ORQUESTADOR CENTRAL (~12-14 páginas)
 % ----------------------------------------------------------------------------
 \section{Backend LLM: Orquestador Central}
 

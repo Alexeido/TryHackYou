@@ -1,0 +1,38 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build LaTeX with Python 3.13",
+      "type": "shell",
+      "command": "pdflatex",
+      "args": [
+        "-shell-escape",
+        "-synctex=1",
+        "-interaction=nonstopmode",
+        "-file-line-error",
+        "main.tex"
+      ],
+      "options": {
+        "env": {
+          "PATH": "C:\\Users\\Alexeido\\AppData\\Local\\Programs\\Python\\Python313;C:\\Users\\Alexeido\\AppData\\Local\\Programs\\Python\\Python313\\Scripts;${env:PATH}"
+        }
+      },
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": {
+        "fileLocation": [
+          "relative",
+          "${workspaceFolder}"
+        ],
+        "pattern": {
+          "regexp": "^(?:.*\\.tex):(\\d+): (.*)$",
+          "file": 1,
+          "location": 1,
+          "message": 2
+        }
+      }
+    }
+  ]
+}

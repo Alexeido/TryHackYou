@@ -85,6 +85,7 @@
 
 %%%%%% HEADERS AND FOOTER %%%%%%
 \RequirePackage{fancyhdr}
+%\setlength{\headheight}{14.5pt}
 \RequirePackage{adjustbox}
 
 \fancypagestyle{fancy}{
