@@ -6,3 +6,5 @@ LLM/backend/__pycache__/*
 LLM/backend/keys.txt
 Documentaciones/EJEMPLOS/*
 Documentaciones/Citas/*
+texput.log
+.vscode/settings.json

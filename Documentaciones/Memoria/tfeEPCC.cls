@@ -350,7 +350,7 @@
 
 % The minted package is used for syntax highlighting of source code.
 % It provides a flexible and customizable way to include code with syntax highlighting in LaTeX documents.
-\RequirePackage{minted}
+\RequirePackage{minted}  % v3+ no necesita outputdir
 \usemintedstyle{perldoc}
 % Set options for the minted package
 \setminted{

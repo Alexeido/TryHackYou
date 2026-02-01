@@ -468,18 +468,19 @@ Se han incluido herramientas del ecosistema \textbf{ProjectDiscovery}, ampliamen
 % │   └── conv_xyz789/
 % └── usr/share/wordlists/    # Wordlists de Kali (rockyou.txt, etc.)
 
-\begin{minted}[linenos=false]{bash}
-/
-├── app/                    # Codigo de la API Flask
-├── workspace/              # Directorio de trabajo temporal
-├── workspace_persistent/   # Herramientas compartidas (volumen)
-│   ├── tools/              # Herramientas instaladas por el agente
-│   ├── wordlists/          # Wordlists personalizadas
-│   └── INVENTORY.md        # Catalogo de herramientas
-├── workspace_sessions/     # Repos Git por conversacion (volumen)
-│   └── conv_{id}/          # Un directorio por conversacion
-└── usr/share/wordlists/    # Wordlists de Kali (rockyou.txt)
-\end{minted}
+%TO-DO: Insertar diagrama de estructura de directorios
+%\begin{verbatim}
+%/
+%├── app/                    # Codigo de la API Flask
+%├── workspace/              # Directorio de trabajo temporal
+%├── workspace_persistent/   # Herramientas compartidas (volumen)
+%│   ├── tools/              # Herramientas instaladas por el agente
+%│   ├── wordlists/          # Wordlists personalizadas
+%│   └── INVENTORY.md        # Catalogo de herramientas
+%├── workspace_sessions/     # Repos Git por conversacion (volumen)
+%│   └── conv_{id}/          # Un directorio por conversacion
+%└── usr/share/wordlists/    # Wordlists de Kali (rockyou.txt)
+%\end{verbatim}
 
 El archivo \texttt{INVENTORY.md} se genera automáticamente al iniciar el contenedor y sirve como catálogo de herramientas instaladas. El agente LLM consulta este archivo antes de descargar herramientas grandes, evitando duplicaciones y optimizando el uso de almacenamiento.
 
@@ -712,397 +713,1247 @@ El panel muestra en tiempo real:
 
 
 % ----------------------------------------------------------------------------
-% 5.4 BACKEND LLM: ORQUESTADOR CENTRAL (~12-14 páginas)
+% 5.4 BACKEND LLM: ORQUESTADOR CENTRAL
 % ----------------------------------------------------------------------------
 \section{Backend LLM: Orquestador Central}
+\label{sec:backend_llm}
+
+El Backend LLM constituye el ``cerebro'' del sistema: un servidor FastAPI que orquesta la comunicación entre el frontend, múltiples proveedores de inteligencia artificial y el sandbox de ejecución. Este componente gestiona conversaciones con estructura de árbol, \textit{streaming} de respuestas en tiempo real, ejecución de \textit{tools} y un sistema completo de misiones autónomas.
 
 \subsection{Arquitectura FastAPI}
-% (~1.5 páginas)
-%
-% CONTENIDO:
-% - Estructura de routers modulares
-% - Lifespan (arranque/cierre)
-% - Middleware CORS
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de módulos/routers
-% □ Tabla de routers con sus prefijos
-%
-% JUSTIFICACIONES:
-% - ¿Por qué FastAPI?
-% - ¿Por qué estructura modular de routers?
+
+El backend se ha estructurado siguiendo un patrón de \textbf{routers modulares}, donde cada dominio funcional se encapsula en su propio módulo dentro del directorio \texttt{routes/}. Esta organización facilita el mantenimiento, permite el desarrollo paralelo de funcionalidades y mejora la legibilidad del código.
+
+\subsubsection{Estructura de Módulos}
+
+% TO-DO: Insertar diagrama de módulos/routers del backend
+% Descripción del diagrama:
+% - Caja central: "main.py (FastAPI App)"
+% - Conectado a cajas de routers:
+%   * routes/health.py → /health, /health/keys
+%   * routes/conversations.py → /conversations/*
+%   * routes/chat.py → /chat (SSE streaming)
+%   * routes/messages.py → /messages/*
+%   * routes/jobs.py → /jobs/*
+%   * routes/missions.py → /missions/*
+%   * routes_legacy.py → /models/discover
+% - Conectado a módulos de soporte:
+%   * database.py (SQLite)
+%   * security.py (análisis de riesgo)
+%   * scoring.py (ranking ELO)
+%   * job_monitor.py (polling background)
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|l|p{6cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Router} & \textbf{Prefijo} & \textbf{Responsabilidad} \\
+\hline
+\texttt{health} & \texttt{/health} & Estado del servidor, validación de API keys \\
+\hline
+\texttt{conversations} & \texttt{/conversations} & CRUD de conversaciones, gestión de ramas \\
+\hline
+\texttt{chat} & \texttt{/chat} & Streaming SSE, ejecución de tools \\
+\hline
+\texttt{messages} & \texttt{/messages} & CRUD de mensajes, edición con ramificación \\
+\hline
+\texttt{jobs} & \texttt{/jobs} & Gestión de comandos en background \\
+\hline
+\texttt{missions} & \texttt{/missions} & Modo agéntico: misiones y objetivos \\
+\hline
+\end{tabular}
+\caption{Routers del backend y sus responsabilidades.}
+\label{tab:routers_backend}
+\end{table}
+
+\subsubsection{Ciclo de Vida (Lifespan)}
+
+FastAPI proporciona un mecanismo de \textit{lifespan} que permite ejecutar código al arrancar y cerrar el servidor. El backend utiliza esta funcionalidad para:
+
+\begin{enumerate}
+    \item \textbf{Arranque:}
+    \begin{itemize}
+        \item Inicializar la base de datos SQLite (crear tablas si no existen)
+        \item Actualizar rankings ELO desde LMArena en un hilo secundario
+        \item Iniciar el monitor de jobs en background (polling cada 5 segundos)
+    \end{itemize}
+    
+    \item \textbf{Cierre:}
+    \begin{itemize}
+        \item Detener el monitor de jobs de forma ordenada
+    \end{itemize}
+\end{enumerate}
+
+\begin{minted}[linenos=false]{python}
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ARRANQUE
+    init_db()
+    threading.Thread(target=update_scores_from_internet).start()
+    start_job_monitor(interval=5.0)
+    yield
+    # CIERRE
+    stop_job_monitor()
+\end{minted}
 
 \subsection{Modelo de Datos}
-% (~3 páginas)
-%
-% CONTENIDO:
-% - Esquema SQLite completo
-% - Estructura de árbol de mensajes
-% - Tablas de misiones y objetivos
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama ER de la base de datos
-% □ Diagrama de árbol de mensajes con parent_id
-% □ Tabla de campos por tabla SQL
-%
-% JUSTIFICACIONES:
-% - ¿Por qué SQLite vs PostgreSQL?
-% - ¿Por qué estructura de árbol vs lista?
-% - Ventajas de la ramificación de conversaciones
+
+La persistencia se gestiona mediante \textbf{SQLite}, una base de datos embebida que no requiere servidor externo. Esta elección responde a los requisitos del proyecto: instalación sencilla, suficiente rendimiento para un único usuario, y portabilidad del archivo de datos.
+
+\subsubsection{Esquema de Base de Datos}
+
+% TO-DO: Insertar diagrama ER de la base de datos
+% Descripción del diagrama (entidad-relación):
+% - conversations (1) --- (N) messages
+% - conversations (1) --- (N) missions
+% - missions (1) --- (N) objectives
+% - missions (1) --- (N) mission_jobs
+% - conversations (1) --- (N) pending_jobs
+% - conversations (1) --- (N) command_audit
+% - messages (1) --- (N) tool_summaries
+% Mostrar campos principales de cada tabla
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.1}
+\small
+\begin{tabular}{|l|p{4cm}|p{6cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Tabla} & \textbf{Campos Principales} & \textbf{Propósito} \\
+\hline
+\texttt{conversations} & id, title, system\_prompt, active\_leaf\_id, pinned & Metadatos de cada chat \\
+\hline
+\texttt{messages} & id, conversation\_id, parent\_id, role, content, tool\_calls & Árbol de mensajes con ramificaciones \\
+\hline
+\texttt{pending\_jobs} & job\_id, conversation\_id, leaf\_id, command, status & Jobs en background pendientes de notificar \\
+\hline
+\texttt{missions} & id, conversation\_id, goal, status, current\_phase & Estado global de tareas autónomas \\
+\hline
+\texttt{objectives} & id, mission\_id, task, status, requires\_approval & Checklist de la misión \\
+\hline
+\texttt{command\_audit} & command, risk\_level, status, approved\_by & Auditoría de comandos ejecutados \\
+\hline
+\texttt{tool\_summaries} & message\_id, original\_output, summary & Caché de resúmenes para optimización \\
+\hline
+\end{tabular}
+\caption{Tablas principales del esquema SQLite.}
+\label{tab:esquema_sqlite}
+\end{table}
+
+\subsubsection{Estructura de Árbol de Mensajes}
+
+Una de las innovaciones del sistema es el almacenamiento de mensajes como un \textbf{árbol} en lugar de una lista lineal. Cada mensaje tiene un campo \texttt{parent\_id} que apunta a su mensaje padre, permitiendo crear ramificaciones cuando el usuario edita un mensaje anterior.
+
+% TO-DO: Insertar diagrama de árbol de mensajes
+% Descripción del diagrama:
+%                 [system] (id=1, parent=NULL)
+%                     │
+%                 [user] (id=2, parent=1)
+%                     │
+%               [assistant] (id=3, parent=2)
+%                   /   \
+%          [user]      [user]
+%         (id=4)       (id=6)    ← Ramificación por edición
+%            │
+%      [assistant]
+%         (id=5)
+% Indicar con flecha que active_leaf_id puede apuntar a id=5 o id=6
+
+Esta estructura permite:
+\begin{itemize}
+    \item \textbf{Edición no destructiva:} Al editar un mensaje, se crea una nueva rama sin perder el historial anterior.
+    \item \textbf{Exploración de alternativas:} El usuario puede probar diferentes preguntas desde el mismo punto de la conversación.
+    \item \textbf{Sincronización con Git:} Cada rama del árbol de mensajes corresponde a un estado del filesystem en el sandbox.
+\end{itemize}
+
+La función \texttt{reconstruct\_thread(leaf\_id)} reconstruye la rama activa recorriendo el árbol desde la hoja hasta la raíz, devolviendo la secuencia de mensajes en orden cronológico.
 
 \subsection{Truncado Inteligente de Contexto}
-% (~1.5 páginas)
-%
-% CONTENIDO:
-% - Problema: ventana de contexto limitada
-% - Solución: smart_truncate_messages()
-% - Preservación de pares tool_call/tool_response
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama del problema (truncado naive vs inteligente)
-% □ Pseudocódigo del algoritmo
-%
-% JUSTIFICACIONES:
-% - ¿Por qué truncar?
-% - ¿Por qué preservar pares tool?
-% - Compatibilidad con Gemini
+
+Los modelos de lenguaje tienen una \textbf{ventana de contexto limitada} (desde 4K hasta 128K tokens según el modelo). Cuando una conversación supera este límite, es necesario truncar mensajes antiguos. Sin embargo, un truncado ingenuo puede provocar errores críticos.
+
+\subsubsection{El Problema: Tool Calls Huérfanos}
+
+Algunos proveedores, especialmente Google Gemini, validan que cada \texttt{tool\_response} tenga su correspondiente \texttt{tool\_call} en el contexto. Si se trunca el mensaje del asistente que contiene el \texttt{tool\_call} pero se mantiene el \texttt{tool\_response}, la API devuelve un error.
+
+\begin{minted}[linenos=false]{python}
+# MAL: Truncado naive que causa error
+messages = [
+    {"role": "assistant", "tool_calls": [{"id": "tc_123", ...}]},  # ELIMINADO
+    {"role": "tool", "tool_call_id": "tc_123", "content": "..."}   # HUERFANO
+]
+# -> Error: tool_call_id "tc_123" not found in conversation
+\end{minted}
+
+\subsubsection{Solución: smart\_truncate\_messages()}
+
+El algoritmo implementado agrupa los mensajes en \textbf{bloques de interacción} que deben mantenerse o eliminarse como unidad:
+
+\begin{enumerate}
+    \item Un bloque normal es un mensaje \texttt{user} seguido de su \texttt{assistant}.
+    \item Un bloque de tools incluye el \texttt{assistant} con \texttt{tool\_calls} más todos los \texttt{tool\_response} correspondientes.
+    \item El \texttt{system prompt} siempre se preserva.
+\end{enumerate}
+
+El algoritmo selecciona los bloques más recientes que quepan en el límite configurado (\texttt{MAX\_MESSAGES = 30}), garantizando que nunca se separe un par \texttt{tool\_call}/\texttt{tool\_response}.
 
 \subsection{Integración Multi-Proveedor}
-% (~2 páginas)
-%
-% CONTENIDO:
-% - Factory de clientes (get_client())
-% - Proveedores soportados
-% - Normalización de APIs
-%
-% ELEMENTOS VISUALES:
-% □ Tabla de proveedores con base_urls
-% □ Diagrama de flujo de selección de cliente
-%
-% JUSTIFICACIONES:
-% - ¿Por qué múltiples proveedores?
-% - ¿Por qué usar SDK de OpenAI como base?
-% - Diferencias entre proveedores
+
+El backend soporta \textbf{seis proveedores de IA} diferentes mediante un cliente unificado basado en el SDK de OpenAI, que se ha convertido en el estándar de facto para APIs de LLMs.
+
+\subsubsection{Factory de Clientes}
+
+La función \texttt{get\_client()} actúa como \textit{factory} que crea el cliente apropiado según el proveedor seleccionado:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|l|p{5cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Proveedor} & \textbf{Base URL} & \textbf{Notas} \\
+\hline
+OpenAI & \texttt{api.openai.com} & SDK nativo \\
+\hline
+Anthropic & \texttt{api.anthropic.com} & Compatible OpenAI \\
+\hline
+Google Gemini & \texttt{generativelanguage.googleapis.com} & Requiere validación estricta de tools \\
+\hline
+DeepSeek & \texttt{api.deepseek.com} & API compatible OpenAI \\
+\hline
+OpenRouter & \texttt{openrouter.ai/api} & Gateway a +200 modelos \\
+\hline
+Ollama & \texttt{localhost:11434} & Modelos locales \\
+\hline
+\end{tabular}
+\caption{Proveedores de IA soportados y sus endpoints.}
+\label{tab:proveedores_ia}
+\end{table}
+
+% TO-DO: Insertar diagrama de flujo de selección de cliente
+% Descripción:
+% 1. Recibir (provider, api_key, model_id)
+% 2. Switch por provider:
+%    - openai → AsyncOpenAI(api_key)
+%    - anthropic → AsyncOpenAI(base_url=anthropic, api_key)
+%    - gemini → AsyncOpenAI(base_url=google, api_key)
+%    - deepseek → AsyncOpenAI(base_url=deepseek, api_key)
+%    - openrouter → AsyncOpenAI(base_url=openrouter, api_key)
+%    - ollama → AsyncOpenAI(base_url=localhost, api_key="ollama")
+% 3. Retornar cliente configurado
+
+\subsubsection{Sistema de Ranking ELO}
+
+Para ayudar al usuario a seleccionar el modelo más capaz, el backend descarga periódicamente el \textbf{leaderboard de LMArena} (fboulnois/llm-leaderboard-csv), que contiene puntuaciones ELO basadas en preferencias humanas.
+
+El módulo \texttt{scoring.py} implementa un algoritmo de \textit{fuzzy matching} para asociar los nombres de modelos del proveedor con los del leaderboard, ya que las nomenclaturas varían (por ejemplo, \texttt{gpt-4o} vs \texttt{ChatGPT-4o-latest}).
 
 \subsection{Streaming y Server-Sent Events}
-% (~2 páginas)
-%
-% CONTENIDO:
-% - Flujo de streaming
-% - Tipos de eventos SSE
-% - Loop de tool execution
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de secuencia del streaming
-% □ Tabla de eventos SSE
-% □ Fragmento de código del generador
-%
-% JUSTIFICACIONES:
-% - ¿Por qué SSE vs WebSockets?
-% - ¿Por qué streaming vs respuesta completa?
+
+El endpoint \texttt{POST /chat} implementa \textbf{streaming en tiempo real} mediante Server-Sent Events (SSE), permitiendo que el frontend muestre los tokens a medida que el modelo los genera.
+
+\subsubsection{Tipos de Eventos SSE}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|p{8cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Evento} & \textbf{Contenido} \\
+\hline
+\texttt{message} & Token de texto generado por el modelo \\
+\hline
+\texttt{tool\_call} & El modelo solicita ejecutar una herramienta \\
+\hline
+\texttt{tool\_result} & Resultado de la ejecución de la herramienta \\
+\hline
+\texttt{error} & Error durante el procesamiento \\
+\hline
+\texttt{done} & Fin del streaming con metadatos (message\_id, tokens usados) \\
+\hline
+\end{tabular}
+\caption{Eventos SSE del endpoint /chat.}
+\label{tab:eventos_sse}
+\end{table}
+
+% TO-DO: Insertar diagrama de secuencia del streaming
+% Descripción (diagrama de secuencia UML):
+% Actores: Frontend, Backend, LLM Provider, Sandbox
+% 1. Frontend → Backend: POST /chat (SSE connection)
+% 2. Backend: Reconstruir thread desde SQLite
+% 3. Backend → LLM: stream=True
+% 4. LLM → Backend: token1, token2, ...
+% 5. Backend → Frontend: event:message (por cada token)
+% 6. LLM → Backend: tool_call (execute_command)
+% 7. Backend → Frontend: event:tool_call
+% 8. Backend → Sandbox: POST /execute
+% 9. Sandbox → Backend: resultado
+% 10. Backend → Frontend: event:tool_result
+% 11. Backend → LLM: tool_response
+% 12. Repetir 4-11 hasta finish_reason="stop"
+% 13. Backend → Frontend: event:done
+
+\subsubsection{Justificación de SSE sobre WebSockets}
+
+Se ha elegido \textbf{Server-Sent Events} en lugar de WebSockets por las siguientes razones:
+
+\begin{itemize}
+    \item \textbf{Unidireccionalidad:} El streaming de tokens solo requiere comunicación servidor→cliente. SSE está optimizado para este patrón.
+    \item \textbf{Simplicidad:} SSE se basa en HTTP estándar, sin necesidad de protocolos adicionales. La reconexión automática está integrada en la especificación.
+    \item \textbf{Compatibilidad:} Todos los navegadores modernos soportan SSE nativamente mediante \texttt{EventSource}.
+    \item \textbf{Práctica de la industria:} OpenAI, Anthropic y Google utilizan SSE para sus APIs de streaming.
+\end{itemize}
 
 \subsection{Sistema de Tools (Function Calling)}
-% (~2.5 páginas)
-%
-% CONTENIDO:
-% - Definición de tools disponibles
-% - Ejecución de tool_calls
-% - Auto-summarize de outputs largos
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de flujo del loop de tools
-% □ Esquema JSON de una tool definition
-% □ Ejemplo de tool_call y tool_response
-%
-% JUSTIFICACIONES:
-% - ¿Por qué estas tools específicas?
-% - ¿Por qué auto-summarize?
-% - Límite de iteraciones (15)
+
+El LLM puede solicitar la ejecución de herramientas mediante el mecanismo de \textit{function calling}. El backend define las herramientas disponibles y gestiona su ejecución.
+
+\subsubsection{Tools Disponibles}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|p{7cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Tool} & \textbf{Descripción} \\
+\hline
+\texttt{execute\_command} & Ejecuta un comando bash en el sandbox \\
+\hline
+\texttt{check\_job\_status} & Consulta el estado de un job en background \\
+\hline
+\texttt{manage\_mission} & Gestiona misiones autónomas (crear, actualizar, completar) \\
+\hline
+\end{tabular}
+\caption{Tools disponibles para el LLM.}
+\label{tab:tools_llm}
+\end{table}
+
+\subsubsection{Loop de Ejecución de Tools}
+
+Cuando el modelo responde con un \texttt{tool\_call}, el backend:
+
+\begin{enumerate}
+    \item Parsea los argumentos JSON de la tool call.
+    \item Ejecuta la herramienta correspondiente (llamada al sandbox, consulta de BD, etc.).
+    \item Envía el resultado al modelo como \texttt{tool\_response}.
+    \item Repite el proceso si el modelo solicita más tools.
+    \item Finaliza cuando el modelo genera una respuesta de texto (\texttt{finish\_reason: stop}).
+\end{enumerate}
+
+El sistema implementa un \textbf{límite de 15 iteraciones} desactivable para evitar bucles infinitos en caso de que el modelo entre en un ciclo de tool calls.
+
+% TO-DO: Insertar diagrama de flujo del loop de tools
+% Descripción (flowchart):
+% 1. Recibir mensaje del usuario
+% 2. Enviar a LLM
+% 3. Decisión: ¿finish_reason == "tool_calls"?
+%    - No → Ir a paso 8
+%    - Sí → Continuar
+% 4. Decisión: ¿iteraciones > 15?
+%    - Sí → Error: máximo de iteraciones
+%    - No → Continuar
+% 5. Ejecutar cada tool_call
+% 6. Añadir tool_responses al contexto
+% 7. Volver a paso 2
+% 8. Guardar respuesta en BD
+% 9. Enviar event:done
+
+\subsubsection{Auto-Summarize de Outputs Largos}
+
+Los comandos de pentesting pueden generar salidas muy extensas. Para evitar consumir tokens innecesarios, el sistema implementa un mecanismo de \textbf{resumen automático}:
+
+\begin{enumerate}
+    \item Si el output supera \texttt{SUMMARIZE\_THRESHOLD} (2000 caracteres), se invoca al LLM con un prompt de resumen.
+    \item El resumen preserva información técnica clave: IPs, puertos, vulnerabilidades, rutas.
+    \item El output original se guarda en \texttt{tool\_summaries} para referencia futura.
+\end{enumerate}
 
 \subsection{Sistema de Seguridad}
-% (~2 páginas)
-%
-% CONTENIDO:
-% - Niveles de riesgo (SAFE → CRITICAL)
-% - Patrones de comandos peligrosos
-% - Flujo de aprobación
-%
-% ELEMENTOS VISUALES:
-% □ Tabla de niveles de riesgo con ejemplos
-% □ Diagrama de flujo de análisis de comando
-% □ Fragmentos de patrones regex
-%
-% JUSTIFICACIONES:
-% - ¿Por qué sistema de aprobación?
-% - ¿Por qué estos niveles de riesgo?
-% - Balance autonomía vs seguridad
+
+El modo agéntico permite al LLM ejecutar comandos de forma autónoma, lo que requiere un sistema de seguridad robusto para evitar acciones destructivas no intencionadas.
+
+\subsubsection{Niveles de Riesgo}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|l|p{5cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Nivel} & \textbf{Acción} & \textbf{Ejemplos} \\
+\hline
+SAFE & Ejecutar sin restricciones & \texttt{whoami}, \texttt{ls}, \texttt{ping} \\
+\hline
+LOW & Ejecutar con log & \texttt{nmap -sn}, \texttt{curl -I} \\
+\hline
+MEDIUM & Advertencia, ejecutar & \texttt{nikto}, \texttt{gobuster}, \texttt{sqlmap} \\
+\hline
+HIGH & Requiere aprobación & \texttt{hydra}, \texttt{--script vuln} \\
+\hline
+CRITICAL & Requiere aprobación siempre & \texttt{msfconsole}, \texttt{nc -e}, shells reversos \\
+\hline
+\end{tabular}
+\caption{Niveles de riesgo y acciones correspondientes.}
+\label{tab:niveles_riesgo}
+\end{table}
+
+\subsubsection{Patrones de Detección}
+
+El módulo \texttt{security.py} define patrones regex para clasificar comandos:
+
+\begin{minted}[linenos=false]{python}
+DANGEROUS_PATTERNS = [
+    (r"msfconsole", RiskLevel.CRITICAL, "Metasploit Framework"),
+    (r"nc\s+.*-e", RiskLevel.CRITICAL, "Netcat reverse shell"),
+    (r"hydra", RiskLevel.HIGH, "Brute-force de credenciales"),
+    (r"sqlmap.*--dump", RiskLevel.HIGH, "Dumping de base de datos"),
+    (r"nikto", RiskLevel.MEDIUM, "Web vulnerability scanner"),
+]
+
+SAFE_PATTERNS = [
+    r"^whoami$", r"^ls\s+", r"^cat\s+", r"^ping\s+",
+]
+\end{minted}
+
+\subsubsection{Flujo de Aprobación}
+
+% TO-DO: Insertar diagrama de flujo del sistema de aprobación
+% Descripción:
+% 1. LLM solicita execute_command
+% 2. analyze_command() determina risk_level
+% 3. Decisión: ¿En whitelist (SAFE)?
+%    - Sí → Ejecutar directamente
+%    - No → Continuar
+% 4. Decisión: ¿risk_level >= HIGH?
+%    - No → Ejecutar con log
+%    - Sí → Continuar
+% 5. Registrar en command_audit con status=PENDING
+% 6. Marcar objetivo como AWAITING_AUTHORIZATION
+% 7. Retornar al LLM: "Comando requiere aprobación"
+% 8. Usuario aprueba/rechaza en UI
+% 9. Si aprobado → Ejecutar y actualizar auditoría
+
+Cuando un comando requiere aprobación:
+\begin{enumerate}
+    \item El backend registra el comando en \texttt{command\_audit} con estado \texttt{PENDING}.
+    \item El objetivo actual de la misión se marca como \texttt{AWAITING\_AUTHORIZATION}.
+    \item El LLM recibe una respuesta indicando que debe esperar la autorización.
+    \item El frontend muestra un diálogo de aprobación al usuario.
+    \item Tras la decisión del usuario, el comando se ejecuta o se rechaza.
+\end{enumerate}
 
 \subsection{Modo Agéntico: Misiones}
-% (~2 páginas)
-%
-% CONTENIDO:
-% - Detección de modo agéntico (keywords)
-% - System prompt especializado
-% - Estados de misión y objetivos
-% - Tool manage_mission
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de estados de misión
-% □ Diagrama de estados de objetivo
-% □ Ejemplo de plan de misión JSON
-%
-% JUSTIFICACIONES:
-% - ¿Por qué modo agéntico separado?
-% - ¿Por qué el LLM gestiona su propia misión?
-% - Adaptación dinámica del plan
+
+El modo agéntico permite al LLM ejecutar tareas complejas de forma autónoma, gestionando su propio plan de acción mediante la tool \texttt{manage\_mission}.
+
+\subsubsection{Detección de Intención Agéntica}
+
+El sistema detecta automáticamente cuándo el usuario solicita una tarea autónoma mediante palabras clave:
+
+\begin{minted}[linenos=false]{python}
+AGENTIC_KEYWORDS = [
+    r"de forma autónoma", r"automáticamente",
+    r"pentesting completo", r"desde cero hasta",
+    r"consigue root", r"compromete el sistema",
+    r"autonomous(ly)?", r"complete pentest",
+]
+\end{minted}
+
+Cuando se detecta intención agéntica, el backend inyecta un \textbf{system prompt especializado} que instruye al LLM sobre el protocolo de misiones.
+
+\subsubsection{Ciclo de Vida de una Misión}
+
+% TO-DO: Insertar diagrama de estados de misión
+% Descripción (máquina de estados):
+% PLANNING → EXECUTING → COMPLETED
+%              ↓
+%           FAILED
+% Estados de objetivo:
+% PENDING → IN_PROGRESS → COMPLETED/FAILED
+%              ↓
+%     AWAITING_AUTHORIZATION
+
+\begin{enumerate}
+    \item \textbf{PLANNING:} El LLM crea la misión con \texttt{manage\_mission(action=``create'')}, definiendo el objetivo global y una lista de objetivos específicos.
+    
+    \item \textbf{EXECUTING:} Para cada objetivo, el LLM:
+    \begin{itemize}
+        \item Marca el objetivo como \texttt{IN\_PROGRESS}
+        \item Ejecuta los comandos técnicos necesarios
+        \item Marca el objetivo como \texttt{COMPLETED} o \texttt{FAILED} con un resumen
+    \end{itemize}
+    
+    \item \textbf{COMPLETED/FAILED:} Al finalizar todos los objetivos, el LLM completa la misión con un resumen global.
+\end{enumerate}
+
+\subsubsection{Adaptación Dinámica del Plan}
+
+El LLM puede modificar su plan sobre la marcha mediante \texttt{manage\_mission(action=``modify\_objectives'')}:
+
+\begin{itemize}
+    \item \textbf{Insertar:} Añadir un nuevo objetivo tras descubrir información inesperada.
+    \item \textbf{Eliminar:} Saltar un objetivo que resulta innecesario.
+    \item \textbf{Reordenar:} Cambiar la prioridad de los objetivos restantes.
+\end{itemize}
+
+Esta capacidad de adaptación es fundamental para auditorías de seguridad, donde los hallazgos de una fase determinan las acciones de la siguiente.
 
 
 % ----------------------------------------------------------------------------
-% 5.4 FRONTEND LLM: INTERFAZ DE USUARIO (~10-12 páginas)
+% 5.5 FRONTEND LLM: INTERFAZ DE USUARIO
 % ----------------------------------------------------------------------------
 \section{Frontend LLM: Interfaz de Usuario}
+\label{sec:frontend_llm}
 
-\subsection{Stack Tecnológico}
-% (~1 página)
-%
-% CONTENIDO:
-% - Next.js 16 + React 19
-% - TypeScript, Zustand, TailwindCSS
-%
-% ELEMENTOS VISUALES:
-% □ Tabla de dependencias principales
-%
-% JUSTIFICACIONES:
-% - ¿Por qué Next.js?
-% - ¿Por qué Zustand vs Redux?
-% - ¿Por qué TailwindCSS?
+El Frontend LLM constituye la ``cara'' del sistema: una aplicación web moderna construida con Next.js y React que proporciona una interfaz completa para interactuar con el agente de IA. Este componente gestiona la visualización de conversaciones con estructura de árbol, el \textit{streaming} de respuestas en tiempo real, la supervisión de misiones autónomas y la ejecución directa de comandos.
+
+\subsection{Stack Tecnológico del Frontend}
+
+La selección de tecnologías para el frontend prioriza la experiencia de desarrollo, el rendimiento percibido por el usuario y la disponibilidad de componentes reutilizables para interfaces complejas.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|l|l|p{5cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Categoría} & \textbf{Tecnología} & \textbf{Versión} & \textbf{Propósito} \\
+\hline
+Framework & Next.js & 16.0.10 & SSR, routing, optimización de bundles \\
+\hline
+UI Library & React & 19.2.1 & Componentes reactivos \\
+\hline
+Lenguaje & TypeScript & 5.x & Tipado estático, autocompletado \\
+\hline
+Estado & Zustand & 5.0.6 & Gestión de estado global \\
+\hline
+Estilos & TailwindCSS & 4.1.7 & Utility-first CSS \\
+\hline
+Componentes & Radix UI & 1.x & Componentes accesibles (shadcn/ui) \\
+\hline
+Markdown & react-markdown & 10.1.0 & Renderizado de respuestas del LLM \\
+\hline
+Código & Prism React Renderer & 2.4.1 & Syntax highlighting \\
+\hline
+Layout & react-resizable-panels & 2.1.7 & Paneles redimensionables \\
+\hline
+Iconos & Lucide React & 0.513.0 & Iconografía consistente \\
+\hline
+\end{tabular}
+\caption{Stack tecnológico del frontend.}
+\label{tab:stack_frontend}
+\end{table}
+
+\subsubsection{Justificación de Zustand sobre Redux}
+
+Se ha elegido \textbf{Zustand} como librería de gestión de estado por las siguientes razones:
+
+\begin{itemize}
+    \item \textbf{Simplicidad:} Zustand no requiere configuración de \textit{providers}, \textit{reducers} ni \textit{actions}. Un store se define como una función que retorna el estado inicial y las acciones.
+    \item \textbf{Sin código repetitivo:} Redux requiere definir acciones, action creators, reducers y selectors. Zustand reduce esto a una única función.
+    \item \textbf{Tamaño:} Zustand pesa aproximadamente 1KB, mientras que Redux + React-Redux superan los 10KB.
+    \item \textbf{Persistencia integrada:} El middleware \texttt{persist} permite guardar el estado en \texttt{localStorage} con una línea de configuración.
+\end{itemize}
 
 \subsection{Arquitectura de Componentes}
-% (~2 páginas)
-%
-% CONTENIDO:
-% - Estructura de carpetas
-% - Jerarquía de componentes
-% - Componentes principales
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de árbol de componentes
-% □ Estructura de carpetas
-%
-% JUSTIFICACIONES:
-% - ¿Por qué esta estructura?
-% - Separación de responsabilidades
+
+El frontend sigue una arquitectura basada en \textbf{componentes funcionales} con separación clara de responsabilidades. La estructura de carpetas refleja esta organización:
+
+% TO-DO: Insertar diagrama de árbol de componentes
+% Descripción:
+% app/
+%   └── page.tsx (MainLayout)
+%         ├── ChatSidebar (historial)
+%         ├── ChatArea
+%         │     ├── MessageBubble (x N)
+%         │     │     └── CodeBlock (syntax highlight)
+%         │     └── ChatInput
+%         ├── MissionPanel
+%         │     ├── ObjectivesList
+%         │     └── ApprovalBanner
+%         ├── TerminalPanel
+%         └── ModelSelector
+
+%TO-DO: Insertar estructura de carpetas del frontend
+%\begin{verbatim}
+%LLM/frontend/
+%├── app/                    # Punto de entrada Next.js
+%│   └── page.tsx            # Página principal
+%├── components/
+%│   ├── chat/               # Área de conversación
+%│   │   ├── ChatArea.tsx    # Contenedor principal (~1000 líneas)
+%│   │   ├── MessageBubble.tsx # Renderizado de mensajes
+%│   │   └── BranchIndicator.tsx # Navegación de ramas
+%│   ├── mission/            # Panel de misiones
+%│   │   ├── MissionPanel.tsx
+%│   │   ├── ObjectivesList.tsx
+%│   │   └── ApprovalDialog.tsx
+%│   ├── sidebar/            # Historial de conversaciones
+%│   │   └── ChatSidebar.tsx
+%│   ├── terminal/           # Terminal integrado
+%│   │   └── TerminalPanel.tsx
+%│   └── ui/                 # Componentes base (shadcn/ui)
+%├── services/               # Comunicación con backend
+%├── store/                  # Estados Zustand
+%└── hooks/                  # Hooks personalizados
+%\end{verbatim}
+
+\subsubsection{Jerarquía de Componentes}
+
+El componente raíz \texttt{MainLayout} orquesta tres paneles redimensionables mediante \texttt{react-resizable-panels}:
+
+\begin{enumerate}
+    \item \textbf{Panel izquierdo (ChatSidebar):} Historial de conversaciones con búsqueda, conversaciones fijadas y creación de nuevos chats.
+    \item \textbf{Panel central (ChatArea):} Área principal de chat con mensajes, input de texto y controles de streaming.
+    \item \textbf{Panel derecho (MissionPanel/TerminalPanel):} Panel contextual que muestra el estado de la misión activa o el terminal integrado, según el modo de uso.
+\end{enumerate}
 
 \subsection{Gestión de Estado con Zustand}
-% (~2.5 páginas)
-%
-% CONTENIDO:
-% - Los 7 stores y sus responsabilidades
-% - Persistencia en localStorage
-% - Flujo de datos unidireccional
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de stores y sus relaciones
-% □ Tabla de stores con campos principales
-% □ Fragmentos de código de interfaces TypeScript
-%
-% JUSTIFICACIONES:
-% - ¿Por qué 7 stores separados?
-% - ¿Por qué persistir en localStorage?
+
+El estado de la aplicación se distribuye en \textbf{siete stores} especializados, cada uno responsable de un dominio funcional específico. Esta separación facilita el mantenimiento y evita re-renderizados innecesarios.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabular}{|l|p{4cm}|p{5.5cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Store} & \textbf{Datos Principales} & \textbf{Responsabilidad} \\
+\hline
+\texttt{useConfigStore} & apiKeys, theme, systemPrompt, backendUrl & Configuración persistente del usuario \\
+\hline
+\texttt{useChatStore} & conversationId, messages, isStreaming, currentChunk & Estado de la conversación activa \\
+\hline
+\texttt{useModelsStore} & models, selectedModel, advancedParams & Lista de modelos y selección actual \\
+\hline
+\texttt{useUIStore} & panelSizes, modals, notifications & Estados de interfaz globales \\
+\hline
+\texttt{useConversationsStore} & conversations, searchQuery, isLoading & Historial de conversaciones \\
+\hline
+\texttt{useTerminalStore} & output, commandHistory, currentCommand & Estado del terminal integrado \\
+\hline
+\texttt{useMissionStore} & activeMission, objectives, pendingApprovals & Estado del modo agéntico \\
+\hline
+\end{tabular}
+\caption{Stores de Zustand y sus responsabilidades.}
+\label{tab:stores_zustand}
+\end{table}
+
+% TO-DO: Insertar diagrama de relaciones entre stores
+% Descripción:
+% ConfigStore ← usado por → ChatStore, ModelsStore
+% ChatStore ← usado por → MissionStore, TerminalStore
+% ConversationsStore ← sincronizado con → ChatStore
+% UIStore ← controla → todos los componentes visuales
+
+\subsubsection{Persistencia en localStorage}
+
+Los stores que contienen configuración del usuario (\texttt{useConfigStore}) utilizan el middleware \texttt{persist} de Zustand:
+
+\begin{minted}[linenos=false]{typescript}
+export const useConfigStore = create<ConfigState>()(
+  persist(
+    (set) => ({
+      apiKeys: { openai: '', google: '', /* ... */ },
+      theme: 'dark',
+      // ... estado inicial y acciones
+    }),
+    {
+      name: 'cerebro-config',  // Clave en localStorage
+      partialize: (state) => ({
+        apiKeys: state.apiKeys,
+        theme: state.theme,
+        systemPrompt: state.systemPrompt,
+      }),
+    }
+  )
+);
+\end{minted}
+
+Esto garantiza que las API keys y preferencias del usuario se mantienen entre sesiones sin necesidad de reconfigurar.
 
 \subsection{Servicios de Comunicación}
-% (~2 páginas)
-%
-% CONTENIDO:
-% - api.ts: cliente HTTP principal
-% - terminal.ts: comunicación con sandbox
-% - missions.ts: API de misiones
-% - tools.ts: definiciones de tools
-%
-% ELEMENTOS VISUALES:
-% □ Tabla de funciones por servicio
-% □ Diagrama de flujo de una petición
-%
-% JUSTIFICACIONES:
-% - ¿Por qué separar servicios?
-% - Manejo de errores
+
+La comunicación con el backend se encapsula en módulos de servicio ubicados en \texttt{services/}. Esta separación permite cambiar la implementación de las peticiones sin modificar los componentes.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|p{7.5cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Servicio} & \textbf{Funciones Principales} \\
+\hline
+\texttt{api.ts} & \texttt{sendMessageStream()}, \texttt{getConversations()}, \texttt{createConversation()}, \texttt{switchBranch()} \\
+\hline
+\texttt{terminal.ts} & \texttt{executeCommand()}, \texttt{checkJobStatus()}, \texttt{initTerminalSession()}, \texttt{createCheckpoint()} \\
+\hline
+\texttt{missions.ts} & \texttt{getActiveMission()}, \texttt{getPendingApprovals()}, \texttt{approveCommand()}, \texttt{rejectCommand()} \\
+\hline
+\texttt{tools.ts} & \texttt{getToolsForAPI()} - Definición de tools para el LLM \\
+\hline
+\end{tabular}
+\caption{Servicios de comunicación del frontend.}
+\label{tab:servicios_frontend}
+\end{table}
+
+\subsubsection{Streaming con EventSource}
+
+La función \texttt{sendMessageStream()} implementa la recepción de eventos SSE utilizando la API nativa \texttt{EventSource}:
+
+\begin{minted}[linenos=false]{typescript}
+export function sendMessageStream(
+  request: ChatRequest,
+  onMessage: (chunk: string) => void,
+  onToolCall: (toolCall: ToolCall) => void,
+  onDone: (data: DoneData) => void,
+  onError: (error: string) => void
+): EventSource {
+  const eventSource = new EventSource(`${BASE_URL}/chat?...`);
+  
+  eventSource.addEventListener('message', (e) => {
+    onMessage(JSON.parse(e.data).content);
+  });
+  
+  eventSource.addEventListener('tool_call', (e) => {
+    onToolCall(JSON.parse(e.data));
+  });
+  
+  eventSource.addEventListener('done', (e) => {
+    onDone(JSON.parse(e.data));
+    eventSource.close();
+  });
+  
+  return eventSource;
+}
+\end{minted}
 
 \subsection{Componentes de Chat}
-% (~2 páginas)
-%
-% CONTENIDO:
-% - ChatArea, MessageBubble, ChatInput
-% - Renderizado de Markdown y código
-% - Navegación de ramas
-%
-% ELEMENTOS VISUALES:
-% □ Capturas de pantalla de la UI
-% □ Diagrama de flujo del envío de mensaje
-%
-% JUSTIFICACIONES:
-% - ¿Por qué react-markdown?
-% - ¿Por qué syntax highlighting?
+
+El área de chat es el componente más complejo del frontend, gestionando la visualización de mensajes, el streaming en tiempo real y la navegación entre ramas de la conversación.
+
+\subsubsection{ChatArea: Contenedor Principal}
+
+El componente \texttt{ChatArea} (~1000 líneas) coordina:
+
+\begin{itemize}
+    \item \textbf{Renderizado de mensajes:} Iteración sobre el array de mensajes, pasando cada uno a \texttt{MessageBubble}.
+    \item \textbf{Streaming:} Actualización del estado \texttt{currentChunk} a medida que llegan tokens del backend.
+    \item \textbf{Auto-scroll:} Desplazamiento automático al final cuando llegan nuevos mensajes.
+    \item \textbf{Input de texto:} Textarea con envío mediante Enter (Shift+Enter para nueva línea).
+    \item \textbf{Indicador de carga:} Animación mientras el LLM procesa la petición.
+\end{itemize}
+
+% TO-DO: Insertar captura de pantalla del ChatArea
+% Descripción:
+% - Área de mensajes con burbujas alternadas (usuario/asistente)
+% - Mensaje del asistente con Markdown renderizado
+% - Bloque de código con syntax highlighting
+% - Input de texto en la parte inferior
+% - Indicador de streaming activo
+
+\subsubsection{MessageBubble: Renderizado de Mensajes}
+
+Cada mensaje se renderiza mediante \texttt{MessageBubble}, que gestiona:
+
+\begin{itemize}
+    \item \textbf{Markdown:} Conversión de texto Markdown a HTML mediante \texttt{react-markdown} con el plugin \texttt{remark-gfm} para tablas, listas de tareas y strikethrough.
+    \item \textbf{Bloques de código:} Detección de bloques \texttt{```language} y renderizado con \texttt{Prism React Renderer} para syntax highlighting.
+    \item \textbf{Tool calls:} Visualización especial para mensajes que contienen llamadas a herramientas, mostrando el comando ejecutado y su resultado.
+    \item \textbf{Indicador de rama:} Si el mensaje tiene múltiples hijos (ramificación), se muestra un indicador con flechas de navegación.
+\end{itemize}
+
+\subsubsection{Navegación de Ramas}
+
+Cuando el usuario edita un mensaje anterior, se crea una nueva rama en el árbol de conversación. El componente \texttt{BranchIndicator} permite:
+
+\begin{itemize}
+    \item Ver cuántas ramas existen desde un mensaje dado (ej: ``2/3'').
+    \item Navegar entre ramas con flechas izquierda/derecha.
+    \item Al cambiar de rama, se actualiza \texttt{activeLeafId} en el backend y se recarga el thread correspondiente.
+\end{itemize}
+
+% TO-DO: Insertar captura de pantalla del indicador de ramas
+% Descripción:
+% - Mensaje con indicador "2/3" y flechas ◀ ▶
+% - Tooltip explicando "Rama 2 de 3"
 
 \subsection{Panel de Misiones}
-% (~1.5 páginas)
-%
-% CONTENIDO:
-% - MissionPanel, ObjectiveList
-% - ApprovalDialog
-% - Estados visuales
-%
-% ELEMENTOS VISUALES:
-% □ Capturas de pantalla del panel
-% □ Mockup/wireframe del flujo de aprobación
-%
-% JUSTIFICACIONES:
-% - ¿Por qué panel separado?
-% - UX del sistema de aprobación
+
+El panel de misiones proporciona visibilidad sobre el estado de las tareas autónomas del agente. Se muestra en el panel derecho cuando hay una misión activa.
+
+\subsubsection{MissionPanel: Vista General}
+
+El componente \texttt{MissionPanel} muestra:
+
+\begin{itemize}
+    \item \textbf{Objetivo de la misión:} Texto descriptivo del goal definido por el LLM.
+    \item \textbf{Estado global:} Badge con el estado actual (PLANNING, IN\_PROGRESS, COMPLETED, FAILED).
+    \item \textbf{Barra de progreso:} Porcentaje de objetivos completados.
+    \item \textbf{Lista de objetivos:} Delegada al componente \texttt{ObjectivesList}.
+\end{itemize}
+
+% TO-DO: Insertar captura de pantalla del MissionPanel
+% Descripción:
+% - Header: "🎯 Misión Activa" con badge "IN_PROGRESS"
+% - Goal: "Realizar auditoría completa de DVWA"
+% - Progress bar: 40% completado
+% - Lista de objetivos con checkboxes/estados
+
+\subsubsection{ObjectivesList: Checklist de Tareas}
+
+Cada objetivo se muestra con:
+
+\begin{itemize}
+    \item \textbf{Icono de estado:} [ ] (PENDING), [~] (IN\_PROGRESS), [X] (COMPLETED), [!] (FAILED), [...] (AWAITING\_AUTHORIZATION).
+    \item \textbf{Texto de la tarea:} Descripción del objetivo.
+    \item \textbf{Resumen de resultados:} Si está completado, muestra un resumen del resultado.
+\end{itemize}
+
+\subsubsection{ApprovalDialog: Sistema de Aprobación}
+
+Cuando un comando requiere autorización humana, se muestra un diálogo modal con:
+
+\begin{itemize}
+    \item \textbf{Comando a ejecutar:} Código del comando con syntax highlighting.
+    \item \textbf{Nivel de riesgo:} Badge con color según severidad (amarillo para HIGH, rojo para CRITICAL).
+    \item \textbf{Razón:} Explicación de por qué el comando es considerado peligroso.
+    \item \textbf{Botones:} ``Aprobar'' (ejecuta el comando) y ``Rechazar'' (notifica al LLM que busque alternativa).
+\end{itemize}
+
+% TO-DO: Insertar captura de pantalla del ApprovalDialog
+% Descripción:
+% - Modal con título "⚠️ Comando requiere aprobación"
+% - Código: "hydra -l admin -P /usr/share/wordlists/rockyou.txt 10.10.0.3 http-post-form"
+% - Badge: "HIGH" en amarillo
+% - Razón: "Brute-force de credenciales"
+% - Botones: [Rechazar] [Aprobar]
 
 \subsection{Terminal Integrado}
-% (~1 página)
-%
-% CONTENIDO:
-% - TerminalPanel
-% - Historial de comandos
-% - Ejecución directa
-%
-% ELEMENTOS VISUALES:
-% □ Captura de pantalla del terminal
-%
-% JUSTIFICACIONES:
-% - ¿Por qué terminal integrado?
-% - Casos de uso
+
+El panel de terminal permite al usuario ejecutar comandos directamente en el sandbox sin pasar por el LLM, útil para operaciones manuales o depuración.
+
+\subsubsection{TerminalPanel: Interfaz de Línea de Comandos}
+
+El componente \texttt{TerminalPanel} implementa:
+
+\begin{itemize}
+    \item \textbf{Output estilo terminal:} Fondo negro, fuente monoespaciada (Geist Mono), colores ANSI básicos.
+    \item \textbf{Input de comandos:} Prompt con directorio actual, historial navegable con flechas arriba/abajo.
+    \item \textbf{Ejecución asíncrona:} Los comandos se envían al sandbox y el output se muestra progresivamente.
+    \item \textbf{Indicador de job activo:} Si hay un comando en background, se muestra su job\_id y un botón para detenerlo.
+\end{itemize}
+
+% TO-DO: Insertar captura de pantalla del TerminalPanel
+% Descripción:
+% - Fondo negro con texto verde/blanco
+% - Prompt: "root@kali:/workspace# "
+% - Output de un comando nmap
+% - Input para nuevo comando
+
+\subsubsection{Sincronización con el Chat}
+
+Cuando el LLM ejecuta un comando mediante \texttt{execute\_command}, el output se muestra tanto en el chat (como parte de la respuesta) como en el terminal (para referencia). Esta sincronización permite al usuario seguir el progreso de operaciones largas sin perder el contexto de la conversación.
 
 
 % ----------------------------------------------------------------------------
-% 5.5 INTEGRACIÓN Y FLUJOS COMPLETOS (~4-5 páginas)
+% 5.6 INTEGRACIÓN Y FLUJOS COMPLETOS
 % ----------------------------------------------------------------------------
 \section{Integración y Flujos Completos}
+\label{sec:integracion_flujos}
+
+Esta sección documenta los flujos end-to-end que atraviesan todos los componentes del sistema, desde la interacción inicial del usuario hasta la respuesta final. Comprender estos flujos es esencial para diagnosticar problemas y extender la funcionalidad.
 
 \subsection{Flujo de Chat Simple}
-% (~1.5 páginas)
-%
-% CONTENIDO:
-% - Desde input del usuario hasta respuesta renderizada
-% - Paso por cada componente
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de secuencia completo
-%
-% JUSTIFICACIONES:
-% - Decisiones de diseño en cada paso
+
+El caso de uso más básico ---enviar un mensaje y recibir una respuesta--- involucra la coordinación de frontend, backend y proveedor LLM.
+
+% TO-DO: Insertar diagrama de secuencia del flujo de chat
+% Participantes: Usuario, ChatArea, ChatStore, api.ts, Backend /chat, Provider API
+% Descripción:
+% 1. Usuario escribe mensaje y presiona Enter
+% 2. ChatArea → ChatStore.addMessage(user)
+% 3. ChatArea → api.sendMessageStream()
+% 4. api.ts → EventSource a /chat
+% 5. Backend → stream chunks al frontend
+% 6. ChatStore.appendToCurrentChunk() por cada token
+% 7. EventSource 'done' → ChatStore.finalizeMessage()
+
+\subsubsection{Secuencia Detallada}
+
+\begin{enumerate}
+    \item \textbf{Input del usuario:} El usuario escribe en el textarea de \texttt{ChatArea} y presiona Enter.
+    
+    \item \textbf{Creación del mensaje:} Se añade el mensaje del usuario al store:
+    \begin{minted}[linenos=false]{typescript}
+chatStore.addMessage({
+  role: 'user',
+  content: userInput,
+  parent_id: currentLeafId,
+});
+    \end{minted}
+    
+    \item \textbf{Petición SSE:} Se inicia la conexión streaming:
+    \begin{minted}[linenos=false]{typescript}
+const eventSource = sendMessageStream(
+  { messages, model, api_keys, system_prompt },
+  (chunk) => chatStore.appendToCurrentChunk(chunk),
+  (toolCall) => chatStore.addToolCall(toolCall),
+  (done) => chatStore.finalizeMessage(done),
+  (error) => chatStore.setError(error)
+);
+    \end{minted}
+    
+    \item \textbf{Backend procesa:} El endpoint \texttt{/chat} invoca el provider correspondiente y genera eventos SSE.
+    
+    \item \textbf{Streaming de respuesta:} Cada token recibido dispara \texttt{appendToCurrentChunk()}, actualizando la UI en tiempo real.
+    
+    \item \textbf{Finalización:} El evento \texttt{done} contiene el \texttt{message\_id} del mensaje guardado, que se usa para actualizar \texttt{activeLeafId}.
+\end{enumerate}
+
+\subsubsection{Gestión de Errores}
+
+El componente \texttt{ChatArea} incluye una función \texttt{parseErrorMessage()} que transforma errores técnicos en mensajes comprensibles:
+
+\begin{minted}[linenos=false]{typescript}
+function parseErrorMessage(error: string): string {
+  if (error.includes('401') || error.includes('invalid_api_key')) {
+    return 'API key inválida. Verifica tu configuración.';
+  }
+  if (error.includes('429') || error.includes('rate_limit')) {
+    return 'Límite de tasa excedido. Espera unos minutos.';
+  }
+  if (error.includes('context_length')) {
+    return 'Conversación demasiado larga. Inicia una nueva.';
+  }
+  return error; // Fallback al mensaje original
+}
+\end{minted}
 
 \subsection{Flujo de Ejecución de Comando}
-% (~1.5 páginas)
-%
-% CONTENIDO:
-% - LLM decide ejecutar comando
-% - Análisis de seguridad
-% - Ejecución en sandbox
-% - Respuesta al LLM
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de secuencia con decisiones
-%
-% JUSTIFICACIONES:
-% - Timeout vs background
+
+Cuando el LLM decide ejecutar un comando en el sandbox, se activa un flujo más complejo que involucra análisis de seguridad y comunicación con el contenedor Docker.
+
+% TO-DO: Insertar diagrama de secuencia del flujo de comando
+% Participantes: LLM, Backend /chat, analyze_command(), KaliSandbox /execute, JobMonitor
+% Decisiones: ¿requiere autorización? ¿timeout?
+
+\subsubsection{Secuencia Detallada}
+
+\begin{enumerate}
+    \item \textbf{Tool call del LLM:} El modelo genera un tool\_call con:
+    \begin{minted}[linenos=false]{json}
+{
+  "name": "execute_command",
+  "arguments": {
+    "command": "nmap -sV 10.10.0.3",
+    "timeout": 60,
+    "background": false
+  }
+}
+    \end{minted}
+    
+    \item \textbf{Análisis de seguridad:} El backend invoca \texttt{analyze\_command()}:
+    \begin{itemize}
+        \item Detecta herramienta: \texttt{nmap} → categoría ``reconocimiento''.
+        \item Analiza flags: \texttt{-sV} → escaneo de versiones, no destructivo.
+        \item Resultado: \texttt{risk\_level: LOW}, no requiere autorización.
+    \end{itemize}
+    
+    \item \textbf{Envío al sandbox:} Se hace POST a \texttt{http://kali-sandbox:5000/execute}:
+    \begin{minted}[linenos=false]{python}
+response = requests.post(
+    f"{SANDBOX_URL}/execute",
+    json={
+        "command": command,
+        "timeout": timeout,
+        "background": background,
+        "session_id": conversation_id,
+    }
+)
+    \end{minted}
+    
+    \item \textbf{Ejecución en contenedor:} El sandbox ejecuta el comando y retorna:
+    \begin{itemize}
+        \item Si \texttt{background=false}: espera hasta timeout y retorna output completo.
+        \item Si \texttt{background=true}: retorna inmediatamente con \texttt{job\_id}.
+    \end{itemize}
+    
+    \item \textbf{Respuesta al LLM:} El resultado se envía como \texttt{tool\_result}:
+    \begin{minted}[linenos=false]{json}
+{
+  "role": "tool",
+  "tool_call_id": "call_abc123",
+  "content": "Starting Nmap 7.94SVN...\n22/tcp open ssh\n80/tcp open http"
+}
+    \end{minted}
+    
+    \item \textbf{Continuación:} El LLM procesa el resultado y genera la siguiente acción o respuesta.
+\end{enumerate}
+
+\subsubsection{Comandos de Larga Duración}
+
+Para comandos que exceden el timeout (ej: hydra, nikto), el flujo se bifurca:
+
+\begin{enumerate}
+    \item El sandbox retorna \texttt{status: running}, \texttt{job\_id: "xyz"}.
+    \item El backend emite un evento SSE \texttt{job\_started} con el job\_id.
+    \item El frontend muestra un indicador ``Comando en background...''.
+    \item El backend inicia un polling con \texttt{JobMonitor} cada 5 segundos.
+    \item Al completar, se emite evento \texttt{job\_completed} con el output.
+    \item El LLM recibe el resultado y continúa.
+\end{enumerate}
 
 \subsection{Flujo de Misión Autónoma}
-% (~2 páginas)
-%
-% CONTENIDO:
-% - Detección de intent agéntico
-% - Creación de plan
-% - Ejecución iterativa
-% - Aprobaciones
-% - Completado
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de flujo completo de misión
-% □ Ejemplo real de misión ejecutada
-%
-% JUSTIFICACIONES:
-% - ¿Por qué este flujo?
-% - Puntos de control humano
+
+El modo agéntico representa el flujo más complejo del sistema, involucrando planificación, ejecución iterativa y supervisión humana.
+
+% TO-DO: Insertar diagrama de flujo completo de misión
+% Estados: PLANNING → IN_PROGRESS → (bucle de objetivos) → COMPLETED/FAILED
+% Incluir puntos de aprobación humana
+
+\subsubsection{Fase 1: Detección e Inicialización}
+
+\begin{enumerate}
+    \item \textbf{Prompt del usuario:} ``Realiza una auditoría completa de DVWA''.
+    
+    \item \textbf{Detección de intent:} El LLM, guiado por el system prompt, identifica que se requiere un trabajo autónomo prolongado.
+    
+    \item \textbf{Tool call \texttt{start\_mission}:}
+    \begin{minted}[linenos=false]{json}
+{
+  "name": "start_mission",
+  "arguments": {
+    "goal": "Auditoría de seguridad completa de DVWA",
+    "objectives": [
+      "Escanear puertos y servicios",
+      "Identificar tecnologías web",
+      "Probar vulnerabilidades SQL injection",
+      "Probar vulnerabilidades XSS",
+      "Documentar hallazgos"
+    ]
+  }
+}
+    \end{minted}
+    
+    \item \textbf{Creación de misión:} El backend crea el registro en la base de datos y asigna un \texttt{mission\_id}.
+    
+    \item \textbf{Notificación al frontend:} Se emite evento SSE \texttt{mission\_started}. El panel de misiones se abre automáticamente.
+\end{enumerate}
+
+\subsubsection{Fase 2: Ejecución Iterativa}
+
+El agente entra en un bucle donde procesa cada objetivo:
+
+\begin{enumerate}
+    \item \textbf{Selección de objetivo:} El LLM elige el siguiente objetivo PENDING.
+    
+    \item \textbf{Update de estado:}
+    \begin{minted}[linenos=false]{json}
+{
+  "name": "update_objective_status",
+  "arguments": {
+    "objective_id": "obj_001",
+    "status": "IN_PROGRESS"
+  }
+}
+    \end{minted}
+    
+    \item \textbf{Planificación de acciones:} El LLM determina qué comandos necesita ejecutar.
+    
+    \item \textbf{Ejecución:} Para cada comando:
+    \begin{itemize}
+        \item Si es de bajo riesgo: se ejecuta directamente.
+        \item Si es de alto riesgo: se solicita aprobación (ver siguiente sección).
+    \end{itemize}
+    
+    \item \textbf{Análisis de resultados:} El LLM interpreta el output y decide si el objetivo está completo.
+    
+    \item \textbf{Completar objetivo:}
+    \begin{minted}[linenos=false]{json}
+{
+  "name": "update_objective_status",
+  "arguments": {
+    "objective_id": "obj_001",
+    "status": "COMPLETED",
+    "result_summary": "Puerto 80 abierto con Apache 2.4.54"
+  }
+}
+    \end{minted}
+\end{enumerate}
+
+\subsubsection{Fase 3: Solicitud de Aprobación}
+
+Cuando un comando de alto riesgo necesita ejecutarse:
+
+\begin{enumerate}
+    \item \textbf{Análisis detecta riesgo:} \texttt{analyze\_command()} retorna \texttt{requires\_authorization: true}.
+    
+    \item \textbf{Tool call \texttt{request\_authorization}:}
+    \begin{minted}[linenos=false]{json}
+{
+  "name": "request_authorization",
+  "arguments": {
+    "command": "hydra -l admin -P rockyou.txt target http-post-form",
+    "risk_level": "HIGH",
+    "reason": "Brute-force de credenciales HTTP"
+  }
+}
+    \end{minted}
+    
+    \item \textbf{Misión se pausa:} Estado del objetivo cambia a AWAITING\_AUTHORIZATION.
+    
+    \item \textbf{Notificación al frontend:} Se emite evento \texttt{approval\_required}. El \texttt{ApprovalDialog} se muestra.
+    
+    \item \textbf{Decisión del usuario:}
+    \begin{itemize}
+        \item \textbf{Aprobar:} Se ejecuta el comando y la misión continúa.
+        \item \textbf{Rechazar:} El LLM recibe un \texttt{tool\_result} indicando rechazo y debe buscar alternativa.
+    \end{itemize}
+\end{enumerate}
+
+\subsubsection{Fase 4: Finalización}
+
+\begin{enumerate}
+    \item \textbf{Todos los objetivos completos:} El LLM detecta que no quedan objetivos PENDING.
+    
+    \item \textbf{Tool call \texttt{complete\_mission}:}
+    \begin{minted}[linenos=false]{json}
+{
+  "name": "complete_mission",
+  "arguments": {
+    "status": "COMPLETED",
+    "summary": "Auditoría completada. Hallazgos: SQLi en login, XSS reflejado en búsqueda, credenciales débiles en admin."
+  }
+}
+    \end{minted}
+    
+    \item \textbf{Notificación final:} Evento \texttt{mission\_completed} con resumen.
+    
+    \item \textbf{UI actualiza:} El panel muestra estado COMPLETED con todos los objetivos marcados.
+\end{enumerate}
 
 
 % ----------------------------------------------------------------------------
-% 5.6 DESPLIEGUE Y CONFIGURACIÓN (~2 páginas)
+% 5.7 DESPLIEGUE Y CONFIGURACIÓN
 % ----------------------------------------------------------------------------
 \section{Despliegue y Configuración}
+\label{sec:despliegue}
+
+Esta sección documenta los requisitos, procedimientos y configuraciones necesarias para desplegar el sistema en un entorno de producción o desarrollo.
 
 \subsection{Requisitos del Sistema}
-% - Hardware mínimo
-% - Software necesario
+
+\subsubsection{Software Necesario}
+
+\begin{itemize}
+    \item \textbf{Docker:} Versión 24.0+ con Docker Compose v2.
+    \item \textbf{Node.js:} Versión 20+ (solo si se ejecuta el frontend fuera de Docker).
+    \item \textbf{Python:} Versión 3.11+ (solo si se ejecuta el backend fuera de Docker).
+    \item \textbf{Git:} Para clonación del repositorio.
+\end{itemize}
 
 \subsection{Proceso de Despliegue}
-% - Comandos de arranque
-% - Variables de entorno
-%
-% ELEMENTOS VISUALES:
-% □ Diagrama de puertos y servicios
-% □ Comandos de instalación
+
+\subsubsection{Despliegue con Docker Compose (Recomendado)}
+
+El método más sencillo utiliza Docker Compose para orquestar todos los servicios:
+% TO-DO: Actualizar link con el nombre real del repositorio y en general toda la instalación
+\begin{minted}[linenos=false]{bash}
+# 1. Clonar el repositorio
+git clone https://github.com/usuario/cerebro-security.git
+cd cerebro-security
+
+# 2. Configurar variables de entorno
+cp .env.example .env
+# Editar .env con API keys y configuración
+
+# 3. Construir y arrancar todos los servicios
+docker-compose up --build -d
+
+# 4. Verificar que todos los contenedores están corriendo
+docker-compose ps
+\end{minted}
+
+\subsubsection{Scripts de Arranque y Parada}
+
+El proyecto incluye scripts auxiliares para simplificar la operación:
+
+\begin{itemize}
+    \item \textbf{\texttt{start.sh}:} Arranca todos los servicios en orden, verificando dependencias.
+    \item \textbf{\texttt{stop.sh}:} Detiene todos los servicios gracefully, preservando datos.
+\end{itemize}
+
+% TO-DO: Insertar diagrama de puertos y servicios
+% Descripción:
+% - Frontend: localhost:3000
+% - Backend: localhost:8000
+% - KaliSandbox: localhost:5000 (interno)
+% - DVWA: localhost:8080 (target de prueba)
+
+\subsubsection{Puertos y Servicios}
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|l|l|p{4.5cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Servicio} & \textbf{Puerto} & \textbf{Acceso} & \textbf{Descripción} \\
+\hline
+Frontend & 3000 & Público & Interfaz web del usuario \\
+\hline
+Backend & 8000 & Público & API REST y SSE \\
+\hline
+KaliSandbox & 5000 & Interno & API de ejecución de comandos \\
+\hline
+\end{tabular}
+\caption{Mapeo de puertos de los servicios.}
+\label{tab:puertos_servicios}
+\end{table}
 
 \subsection{Configuración de API Keys}
-% - Proveedores soportados
-% - Almacenamiento seguro
 
+Las API keys de los proveedores LLM pueden configurarse de dos formas:
 
-% ============================================================================
-% RESUMEN DE ELEMENTOS VISUALES NECESARIOS (~40 elementos)
-% ============================================================================
-%
-% DIAGRAMAS DE ARQUITECTURA (7):
-% 1. Arquitectura general del sistema (3 componentes)
-% 2. Topología de red Docker
-% 3. Estructura de directorios del sandbox
-% 4. Módulos/routers de FastAPI
-% 5. Diagrama ER de base de datos
-% 6. Árbol de componentes React
-% 7. Stores de Zustand y relaciones
-%
-% DIAGRAMAS DE FLUJO (10):
-% 8. Flujo de /execute en sandbox
-% 9. Estados de un job
-% 10. Checkpoint en Git
-% 11. Loop de tool execution
-% 12. Análisis de seguridad de comando
-% 13. Estados de misión
-% 14. Estados de objetivo
-% 15. Flujo de chat completo
-% 16. Flujo de ejecución de comando
-% 17. Flujo de misión autónoma
-%
-% DIAGRAMAS DE SECUENCIA (3):
-% 18. Streaming SSE
-% 19. Envío de mensaje (frontend)
-% 20. Tool call completo
-%
-% TABLAS (9):
-% 21. Tecnologías por componente
-% 22. Servicios Docker con IPs
-% 23. Herramientas de pentesting por categoría
-% 24. Endpoints REST del sandbox
-% 25. Proveedores LLM soportados
-% 26. Eventos SSE
-% 27. Niveles de riesgo
-% 28. Stores de Zustand
-% 29. Dependencias frontend
-%
-% CAPTURAS DE PANTALLA (5):
-% 30. Interfaz de chat
-% 31. Panel de misiones
-% 32. Diálogo de aprobación
-% 33. Terminal integrado
-% 34. Selector de modelos
-%
-% FRAGMENTOS DE CÓDIGO (6):
-% 35. docker-compose.yml (extracto)
-% 36. Dockerfile (fases)
-% 37. Función execute_command
-% 38. smart_truncate_messages
-% 39. Tool definitions
-% 40. Interfaces TypeScript de stores
-%
-% ============================================================================
+\subsubsection{Opción 1: Variables de Entorno}
+
+\begin{minted}[linenos=false]{bash}
+# En archivo .env
+OPENAI_API_KEY=sk-proj-xxxxx
+GOOGLE_API_KEY=AIzaSyxxxxx
+ANTHROPIC_API_KEY=sk-ant-xxxxx
+OPENROUTER_API_KEY=sk-or-xxxxx
+\end{minted}
+
+\subsubsection{Opción 2: Interfaz de Usuario}
+
+El frontend permite configurar las API keys desde la interfaz:
+
+\begin{enumerate}
+    \item Hacer clic en el icono de configuración (engranaje) en la barra lateral.
+    \item Seleccionar el proveedor deseado.
+    \item Introducir la API key en el campo correspondiente.
+    \item Las keys se almacenan en \texttt{localStorage} del navegador.
+\end{enumerate}
+
+\textbf{Nota de seguridad:} Las API keys configuradas en el frontend se envían al backend en cada petición. Es importante asegurar que el backend esté protegido y no expuesto públicamente.
+
+\subsection{Configuración de Seguridad}
+
+\subsubsection{Aislamiento de Red}
+
+El sandbox Kali se ejecuta en una red Docker aislada. Por defecto, solo puede comunicarse con:
+
+\begin{itemize}
+    \item El backend LLM (para recibir comandos).
+    \item Los targets definidos en la red \texttt{pentest-net} (DVWA, Metasploitable, etc.).
+\end{itemize}
+
+En caso de querer permitir acceso externo al sandbox, se puede alterar la configuración de red en el archivo \texttt{docker-compose.yml}, esto no es recomendado por razones de seguridad pero dota al Agente de mayor flexibilidad permitiendole instalar herramientas adicionales o descargar ficheros desde Internet.
