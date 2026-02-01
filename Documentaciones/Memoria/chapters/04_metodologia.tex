@@ -1,5 +1,4 @@
 \chapter{\methodologyname} \label{cap:metodologia}
-%%\section{¡WORK IN PROGRESS! De aquí en adelante solo hay esquemas de lo que tengo planeado escribir más o menos}
 
 El desarrollo de un sistema que integra modelos de lenguaje de gran escala (LLM) en entornos de ciberseguridad conlleva una incertidumbre técnica inherente. Por ello, la elección de la metodología de trabajo y una planificación rigurosa son pilares fundamentales para garantizar la viabilidad del proyecto dentro de los plazos académicos establecidos.
 
@@ -9,7 +8,9 @@ Para este Trabajo de Fin de Grado se ha optado por un marco de trabajo ágil bas
 
 \subsection{Justificación y Roles en Trabajo Individual}
 
-La elección de Scrum se justifica por la necesidad de realizar entregas funcionales e incrementales. Dado que se trata de un proyecto individual, se ha realizado una adaptación de los roles tradicionales, donde yo, el autor del proyecto, asumo las funciones de \textbf{Product Owner}, \textbf{Scrum Master} y \textbf{Development Team}. Esto implica que soy responsable tanto de la definición de los requisitos y la priorización del backlog, como de la ejecución técnica y la autoorganización del trabajo.
+La elección de Scrum se justifica por la necesidad de realizar entregas funcionales e incrementales, este enfoque es ideal para el desarrollo de un trabajo de fin de grado donde en cada reunión con el tutor se pueden revisar los avances y ajustar el rumbo según los hallazgos técnicos.
+
+Dado que se trata de un proyecto individual, se ha realizado una adaptación de los roles tradicionales, donde yo, el autor del proyecto, asumo prácticamente todos los roles. Esto implica que soy responsable tanto de la definición de los requisitos y la priorización del backlog, como de la ejecución técnica y la autoorganización del trabajo.
 
 Para la gestión operativa, se ha hecho uso de la herramienta \textbf{GitHub Projects}, permitiendo un seguimiento detallado de más de cien subtareas mediante un tablero \textit{Kanban}. Esto ha facilitado la trazabilidad del proyecto y ha permitido que las tutorías actúen como \textit{Sprint Reviews} externas.
 
@@ -40,7 +41,7 @@ La planificación de partida se estructuró en siete ciclos de trabajo o \textit
     
     \item[Sprint 6: Documentación y Memoria (Semanas 10 - 11) 19 Ene - 1 Feb] 
     Redacción académica de la memoria, incluyendo resultados, análisis y referencias bibliográficas.
-    
+     
     \item[Sprint 7: Defensa (Semana 12) 2 - 8 Feb] 
     Preparación del material visual y ensayo de la presentación final.
 
@@ -180,13 +181,13 @@ La ejecución del proyecto se ha monitorizado de forma continua para asegurar qu
 
 Para la orquestación de las tareas, se ha utilizado \textbf{GitHub Projects} como centro neurálgico de gestión. Esta herramienta permitió desglosar el proyecto en un total de \textbf{107 subtareas}, clasificadas por su prioridad y el componente afectado (Backend, Frontend o Sandbox). 
 
-La gestión mediante tableros \textit{Kanban} facilitó la visualización del estado de cada funcionalidad, permitiendo identificar cuellos de botella en tiempo real. La granularidad de las subtareas permitió que, a pesar de la complejidad de componentes como la persistencia mediante Git o la integración con \textit{Ollama}, el desarrollo fuera fluido y medible.
+La gestión mediante tableros \textit{Kanban} facilitó la visualización del estado de cada funcionalidad, permitiendo identificar cuellos de botella en tiempo real. La granularidad de las subtareas permitió que, a pesar de la complejidad de componentes, el desarrollo fuera fluido y medible.
 
 \begin{figure}[H]
     \centering
     % TO-DO:
     % Aquí adjuntarás la captura de pantalla de tu GitHub Projects
-    % \includegraphics[width=\textwidth]{figuras/github_projects.png} 
+    \includegraphics[width=0.95\textwidth]{pictures/github_projects.png} 
     \caption{Interfaz de gestión de tareas y subtareas en GitHub Projects.}
     \label{fig:github_projects}
 \end{figure}
@@ -212,14 +213,14 @@ El desarrollo se llevó a cabo manteniendo un ritmo de trabajo intensivo. A cont
 3 & 01 Dic - 07 Dic & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \textbf{25h} \\ \hline
 4 & 08 Dic - 14 Dic & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \textbf{25h} \\ \hline
 5 & 15 Dic - 21 Dic & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \textbf{25h} \\ \hline
-6 & 22 Dic - 28 Dic & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \cellcolor{orange!15}4 & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \textbf{14h} \\ \hline
+6 & 22 Dic - 28 Dic & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \cellcolor{orange!15}- & \cellcolor{orange!15}5 & \textbf{15h} \\ \hline
 
 % TRANSICIÓN DICIEMBRE - ENERO (Miércoles 31 - Jueves 1)
-7 & 29 Dic - 04 Ene & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}2 & \cellcolor{green!15}2 & \cellcolor{green!15}5 & \cellcolor{green!15}- & \cellcolor{green!15}- & \textbf{19h} \\ \hline
+7 & 29 Dic - 04 Ene & \cellcolor{orange!15}5 & \cellcolor{orange!15}5 & \cellcolor{orange!15}- & \cellcolor{green!15}- & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \textbf{25h} \\ \hline
 
 % ENERO
-8 & 05 Ene - 11 Ene & \cellcolor{green!15}5 & \cellcolor{green!15}- & \cellcolor{green!15}- & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}- & \cellcolor{green!15}- & \textbf{15h} \\ \hline
-9 & 12 Ene - 18 Ene & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}- & \cellcolor{green!15}- & \textbf{25h} \\ \hline
+8 & 05 Ene - 11 Ene & \cellcolor{green!15}5 & \cellcolor{green!15}- & \cellcolor{green!15}- & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \textbf{25h} \\ \hline
+9 & 12 Ene - 18 Ene & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \textbf{35h} \\ \hline
 10 & 19 Ene - 25 Ene & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \cellcolor{green!15}5 & \textbf{35h} \\ \hline
 
 % TRANSICIÓN ENERO - FEBRERO (Sábado 31 - Domingo 1)
@@ -227,10 +228,10 @@ El desarrollo se llevó a cabo manteniendo un ritmo de trabajo intensivo. A cont
 
 % FEBRERO
 12 & 02 Feb - 08 Feb & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}- & \cellcolor{yellow!15}- & \cellcolor{yellow!15}- & \textbf{20h} \\ \hline
-13 & 09 Feb - 15 Feb & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}5 & \cellcolor{yellow!15}- & \cellcolor{yellow!15}- & \textbf{25h} \\ \hline
+
 
 \rowcolor[HTML]{D5E8D4} 
-\multicolumn{9}{|r|}{\textbf{TOTAL HORAS ACUMULADAS}} & \textbf{313h} \\ \hline
+\multicolumn{9}{|r|}{\textbf{TOTAL HORAS ACUMULADAS}} & \textbf{315h} \\ \hline
 \end{tabular}
 \caption{Cómputo detallado de horas según el calendario real del proyecto.}
 \label{tab:calendario_ejecucion}
@@ -317,55 +318,83 @@ El análisis de la ejecución real revela tres momentos clave que definieron la 
 
 Estas desviaciones, lejos de ser obstáculos, se convirtieron en oportunidades para enriquecer el proyecto, demostrando la eficacia de la metodología ágil en entornos de alta incertidumbre técnica.
 
-\section{¡WORK IN PROGRESS! De aquí en adelante solo hay esquemas y cosas que se han quedado en el tintero}
-De hecho este capitulo no está terminado aún y está sujeto a cambios.
 
-\section{Entorno y Herramientas: Análisis y Justificación}
-\label{sec:herramientas}
+% TO-DO REVISAR INTENSAMENTE DEPENDIENDO DE LAS PRUEBAS QUE HAGA
 
-La robustez del agente depende directamente de la arquitectura que lo sustenta. En esta sección se justifica la elección del \textit{stack} tecnológico mediante una comparativa con las alternativas existentes en el mercado.
+\section{Metodología de Evaluación y Pruebas}
+\label{sec:metodologia_evaluacion}
 
-\subsection{Arquitectura de Microservicios}
-%% Guía: Comparar Monolito vs Microservicios. 
-%% Justificar por qué separas Sandbox API (seguridad), Backend (lógica) y Frontend (interfaz).
+La validación de un agente autónomo de ciberseguridad requiere un marco de evaluación multidimensional que contemple tanto la eficacia técnica como la seguridad operativa. Esta sección establece los criterios, métricas y procedimientos que regirán la fase de validación del sistema.
 
-\subsection{Ecosistema de Backend y Sandbox}
-%% Guía: Comparativa técnica: FastAPI vs. Django/Node.js.
-%% Justificar FastAPI por asincronía (importante para streaming de LLMs).
-%% Justificar Flask para la Sandbox por su ligereza y simplicidad en ejecución de comandos.
+\subsection{Entornos de Prueba Controlados}
 
-\subsection{Interfaz de Usuario (Next.js y Tailwind CSS)}
-%% Guía: Hablar de la reactividad y la gestión de estados. 
-%% Mencionar Shadcn UI para una interfaz profesional y funcional en poco tiempo.
-
-\subsection{Virtualización y Aislamiento de Red (Docker)}
-\label{subsec:docker_metodologia}
-%% Guía: Comparar Máquinas Virtuales vs Contenedores.
-%% EXPLICACIÓN TÉCNICA CLAVE: Docker Network (Modos Bridge vs Host).
-%% Justificar el aislamiento total para que el agente no comprometa el sistema anfitrión.
-
-\section{Evaluación de Modelos LLM y Recursos de Cómputo}
-\label{sec:evaluacion_modelos}
-
-La elección del ``cerebro'' del agente es un factor crítico. No todos los modelos presentan la misma capacidad para la generación de código o el seguimiento de planes complejos.
-
-\subsection{Criterios de Selección y Benchmarks}
-%% Guía: Definir qué métricas buscas (Ventana de contexto, razonamiento lógico, Function Calling).
-%% Mencionar benchmarks estándar como HumanEval o MMLU.
-
-\subsection{Análisis de Modelos Candidatos}
-%% Guía: Comparar Modelos Locales (Llama 3, Mistral, Phi-3) vs APIs (GPT-4o, Gemini).
-%% Hablar de la cuantización (GGUF/EXL2) y cómo afecta al rendimiento.
-
-\subsection{Infraestructura de Cómputo}
-\label{subsec:hardware}
-Para este proyecto se han utilizado dos entornos diferenciados que permiten evaluar la escalabilidad del sistema:
+Para garantizar la reproducibilidad y seguridad de las evaluaciones, se han seleccionado tres entornos de vulnerabilidad reconocidos en la industria:
 
 \begin{itemize}
-    \item \textbf{Entorno de Desarrollo Local:} %% Poner aquí las specs de tu PC.
-    \item \textbf{Entorno de Alto Rendimiento (HPC):} Uso de un nodo en el centro de supercomputación \textbf{COMPUTAEX}, equipado con dos tarjetas gráficas \textbf{NVIDIA RTX A4500 (20GB VRAM cada una)}, permitiendo la ejecución de modelos de mayor escala y menor latencia.
+    \item \textbf{DVWA (Damn Vulnerable Web Application):} Aplicación web que incorpora vulnerabilidades comunes del OWASP Top 10, incluyendo inyección SQL, XSS y escalada de privilegios.
+    \item \textbf{Metasploitable2:} Sistema Linux intencionalmente vulnerable que incluye servicios de red desactualizados, configuraciones débiles y múltiples vectores de acceso.
+    \item \textbf{OWASP Juice Shop:} Aplicación de comercio electrónico moderna que presenta vulnerabilidades web contemporáneas en un entorno realista.
 \end{itemize}
 
-\subsection{Matriz de Decisión Final}
-%% Guía: Incluir una tabla que compare: Modelo | Parámetros | Hardware Necesario | Decisión.
-%% Justificar por qué eliges unos para pruebas locales y otros para cloud/HPC.
+Cada entorno opera dentro de la red aislada Docker, eliminando cualquier riesgo para la infraestructura anfitrión.
+
+\subsection{Criterios de Éxito y Métricas de Rendimiento}
+
+\subsubsection{Métricas Primarias}
+
+\begin{itemize}
+    \item \textbf{Tasa de Éxito de Auditoría (\%):} Porcentaje de vulnerabilidades identificadas correctamente respecto al total conocido en cada entorno.
+    \item \textbf{Tiempo de Ejecución (minutos):} Duración desde el inicio de la auditoría hasta la generación del informe final.
+    \item \textbf{Precisión de Identificación:} Ratio entre vulnerabilidades reales encontradas vs. falsos positivos generados.
+\end{itemize}
+
+\subsubsection{Métricas Secundarias}
+
+\begin{itemize}
+    \item \textbf{Consumo de Tokens:} Número total de tokens procesados por el modelo durante la auditoría completa.
+    \item \textbf{Autonomía Operativa (\%):} Porcentaje de acciones ejecutadas sin requerir aprobación humana.
+    \item \textbf{Profundidad de Explotación:} Nivel alcanzado en la cadena de explotación (reconocimiento → acceso → escalada → persistencia).
+\end{itemize}
+
+\subsection{Protocolo de Evaluación}
+
+\subsubsection{Fase 1: Auditoría Autónoma}
+Cada modelo será sometido a tres sesiones de auditoría por entorno objetivo, con las siguientes condiciones:
+\begin{itemize}
+    \item \textbf{Objetivo inicial:} "Realizar una auditoría de seguridad completa del sistema X.X.X.X"
+    \item \textbf{Tiempo límite:} 60 minutos por sesión
+    \item \textbf{Intervención humana:} Solo para comandos de alto riesgo clasificados por el motor de seguridad
+\end{itemize}
+
+\subsubsection{Fase 2: Análisis Comparativo Multi-Modelo}
+Se evaluarán las siguientes configuraciones:
+\begin{itemize}
+    \item \textbf{APIs Comerciales:} GPT-4o, Claude Sonnet, Gemini Pro
+    \item \textbf{Modelos Locales (COMPUTAEX):} Llama 3.1 70B, Qwen2.5 72B, DeepSeek-R1
+    \item \textbf{Modelos Locales Cuantizados:} Configuraciones optimizadas para hardware doméstico
+\end{itemize}
+
+\subsubsection{Fase 3: Evaluación de Robustez}
+\begin{itemize}
+    \item \textbf{Pruebas de Estrés:} Ejecución de 10+ jobs simultáneos en segundo plano
+    \item \textbf{Gestión de Fallos:} Inyección de errores en comandos para evaluar capacidad de recuperación
+    \item \textbf{Truncado de Contexto:} Validación del comportamiento ante conversaciones largas (>32K tokens)
+\end{itemize}
+
+\subsection{Metodología de Análisis de Resultados}
+
+Los resultados se analizarán mediante:
+
+\begin{itemize}
+    \item \textbf{Análisis Estadístico Descriptivo:} Mediana, desviación estándar y rangos intercuartílicos para cada métrica
+    \item \textbf{Ranking ELO Actualizado:} Integración de resultados reales en el sistema de clasificación de modelos
+    \item \textbf{Análisis Cualitativo:} Revisión manual de logs de auditoría para identificar patrones de comportamiento y estrategias emergentes
+\end{itemize}
+
+\subsection{Consideraciones Éticas y de Seguridad}
+
+\begin{itemize}
+    \item \textbf{Aislamiento Completo:} Todas las pruebas se ejecutan en entornos contenedorizados sin acceso a internet
+    \item \textbf{Destrucción de Datos:} Los contenedores son recreados tras cada sesión de prueba
+    \item \textbf{Supervisión Humana:} Un auditor humano supervisa cada ejecución para intervenir ante comportamientos inesperados
+\end{itemize}
