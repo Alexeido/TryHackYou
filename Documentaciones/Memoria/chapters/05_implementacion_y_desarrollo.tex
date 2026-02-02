@@ -24,20 +24,16 @@ La plataforma se estructura en tres microservicios con responsabilidades clarame
     Servidor \textbf{FastAPI} que actúa como cerebro del sistema. Gestiona la comunicación con múltiples proveedores de IA (OpenAI, Anthropic, Google, DeepSeek, Ollama), orquesta la ejecución de \textit{tools}, mantiene la persistencia de conversaciones en una estructura de árbol mediante \textbf{SQLite}, y coordina el modo agéntico de misiones autónomas con supervisión humana.
     
     \item[Frontend LLM (Interfaz de Usuario)]
-    Aplicación web construida con \textbf{Next.js} y \textbf{React} que proporciona una interfaz completa para interactuar con el agente. Incluye chat con \textit{streaming} en tiempo real, visualización del árbol de conversación con navegación entre ramas, panel de terminal integrado, selector de modelos con ranking ELO, y panel de misiones con sistema de aprobación de comandos peligrosos.
+    Aplicación web construida con \textbf{Next.js} que proporciona una interfaz completa para interactuar con el agente. Incluye chat con \textit{streaming} en tiempo real, visualización del árbol de conversación con navegación entre ramas, panel de terminal integrado, selector de modelos con ranking ELO, y panel de misiones con sistema de aprobación de comandos peligrosos.
 
 \end{description}
 
-% TO-DO: Insertar figura con diagrama de arquitectura general
-% Descripción del diagrama a crear:
-% - Tres bloques principales: Frontend (izquierda), Backend LLM (centro), KaliSandbox (derecha)
-% - Frontend se conecta al Backend mediante HTTP/SSE (puerto 8000)
-% - Backend se conecta al KaliSandbox mediante HTTP REST (puerto 5000)
-% - KaliSandbox contiene: API Flask + Red Docker aislada (10.10.0.0/24)
-% - Dentro de la red Docker: Agente (10.10.0.2), DVWA (10.10.0.3), Metasploitable (10.10.0.4), Juice Shop (10.10.0.5)
-% - Iconos de proveedores LLM conectados al Backend: OpenAI, Anthropic, Google, DeepSeek, Ollama
-% - Base de datos SQLite conectada al Backend
-% - Flechas bidireccionales indicando el flujo de datos
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{pictures/esquemaArquitectura.jpeg} 
+    \caption{Diagrama de arquitectura general del sistema.}
+    \label{fig:esquema_arquitectura}
+\end{figure}
 
 \begin{table}[H]
 \centering
@@ -49,7 +45,7 @@ La plataforma se estructura en tres microservicios con responsabilidades clarame
 \hline
 KaliSandbox & Flask + Docker & 5000 & Ejecución aislada de comandos \\
 \hline
-Backend LLM & FastAPI & 8000 & Orquestación y persistencia \\
+Backend LLM & FastAPI & 4000 & Orquestación y persistencia \\
 \hline
 Frontend LLM & Next.js & 3000 & Interfaz de usuario \\
 \hline
@@ -82,22 +78,69 @@ La interacción entre los tres microservicios sigue un modelo de comunicación b
 
 El backend implementa un cliente unificado compatible con la especificación OpenAI que abstrae las diferencias entre proveedores. Las comunicaciones se realizan mediante HTTPS con autenticación por API Key, soportando tanto respuestas completas como \textit{streaming} mediante SSE.
 
-% TO-DO: Insertar diagrama de secuencia del flujo completo
-% Descripción del diagrama a crear (diagrama de secuencia UML):
-% Actores: Usuario, Frontend, Backend, Sandbox, LLM Provider
-% Flujo:
-% 1. Usuario escribe mensaje → Frontend
-% 2. Frontend POST /chat → Backend
-% 3. Backend reconstruye thread desde SQLite
-% 4. Backend envía a LLM Provider (streaming)
-% 5. LLM responde con tool_call (execute_command)
-% 6. Backend POST /execute → Sandbox
-% 7. Sandbox ejecuta comando, devuelve resultado
-% 8. Backend envía resultado al LLM
-% 9. LLM genera respuesta final
-% 10. Backend guarda en SQLite, hace checkpoint en Sandbox
-% 11. Backend stream SSE → Frontend
-% 12. Frontend renderiza mensaje
+
+
+\begin{figure}
+    \centering
+    \begin{sequencediagram}
+        \newthread{user}{Usuario}
+        \newinst[2.0]{front}{Frontend}
+        \newinst[2.0]{back}{Backend}
+        \newinst[2.0]{sand}{Sandbox}
+        \newinst[1]{llm}{LLM Provider}
+
+        % 1. Inicio del chat
+        \begin{call}{user}{Escribe mensaje}{front}{Renderiza final}
+            \begin{call}{front}{POST /chat}{back}{Stream Final}
+                
+                % Preparación y primer contacto con LLM
+                \begin{call}{back}{Reconstruye hilo de conversación}{back}{}
+                \end{call}
+                \begin{call}{back}{Envía prompt}{llm}{tool\_call}
+                \end{call}
+
+                \postlevel
+
+                % --- FASE 1: NOTIFICACIÓN Y APROBACIÓN ---
+                
+                % 1. Backend avisa que quiere ejecutar algo (Salida parcial)
+                \mess{back}{SSE: Ejecutando}{front}
+                \begin{call}{front}{Muestra estado}{user}{}
+                \end{call}
+                
+                \postlevel
+
+                % 2. Bloque condicional: Solo si es peligroso
+                \begin{sdblock}{Opción}{Solo si requiere aprobación}
+                    \begin{call}{user}{Clic Aprobar}{front}{}
+                    \end{call}
+                    \mess{front}{Confirma ejecución}{back}
+                \end{sdblock}
+
+                \postlevel
+
+                % --- FASE 2: EJECUCIÓN ---
+                
+                % 3. Ahora sí, se ejecuta en Sandbox
+                \begin{call}{back}{POST /execute}{sand}{Resultado}
+                \end{call}
+
+                \postlevel
+
+                % 4. Se envía el resultado a la IA para que explique
+                \begin{call}{back}{Envía resultado Tool}{llm}{Respuesta final}
+                \end{call}
+
+                % 5. Guardado final
+                \begin{call}{back}{Guarda/Checkpoint}{back}{}
+                \end{call}
+
+            \end{call}
+        \end{call}
+    \end{sequencediagram}
+    \caption{Flujo con Aprobación de Usuario y Ejecución en Sandbox}
+\end{figure}
+
 
 \subsection{Justificación de la Arquitectura de Microservicios}
 
@@ -282,7 +325,7 @@ Angular & Framework completo, TypeScript nativo & Muy verbose, curva de aprendiz
 Se ha seleccionado \textbf{Next.js} por las siguientes razones:
 
 \begin{itemize}
-    \item \textbf{Estándar de la industria en aplicaciones de IA:} Plataformas como ChatGPT, Claude y Perplexity utilizan React/Next.js para sus interfaces. Esta elección alinea el proyecto con las prácticas actuales del sector.
+    \item \textbf{Estándar de la industria en aplicaciones de IA:} Plataformas como ChatGPT, Claude y Perplexity utilizan Next.js para sus interfaces. Esta elección alinea el proyecto con las prácticas actuales del sector.
     \item \textbf{Ecosistema de componentes:} Librerías como \texttt{react-resizable-panels}, \texttt{react-markdown} y \texttt{prism-react-renderer} proporcionan funcionalidades complejas (paneles redimensionables, renderizado de código con sintaxis) sin desarrollo desde cero.
     \item \textbf{App Router y Server Components:} Next.js 16 introduce mejoras significativas en la gestión del estado y la hidratación, optimizando el rendimiento percibido.
     \item \textbf{Integración con Zustand:} La gestión de estado mediante Zustand (alternativa ligera a Redux) se integra de forma natural con React, facilitando la sincronización entre componentes.
@@ -335,25 +378,119 @@ La infraestructura del laboratorio se define mediante un archivo \texttt{docker-
 
 Se ha configurado una red Docker de tipo \textit{bridge} con el rango \texttt{10.10.0.0/24}, completamente aislada del sistema anfitrión y sin acceso a Internet. Esta configuración replica un escenario de laboratorio de pentesting donde el agente puede ejecutar escaneos y ataques sin riesgo de afectar infraestructura real.
 
-% TO-DO: Insertar diagrama de topología de red Docker
-% Descripción del diagrama a crear:
-% - Red rectangular etiquetada "hacking_net (10.10.0.0/24)"
-% - Dentro de la red, 4 nodos con iconos de contenedores:
-%   * Agente (10.10.0.2) - icono de Kali Linux, destacado en color diferente
-%   * DVWA (10.10.0.3) - icono de servidor web
-%   * Metasploitable (10.10.0.4) - icono de servidor Linux
-%   * Juice Shop (10.10.0.5) - icono de aplicación web moderna
-% - Flechas bidireccionales desde el Agente hacia cada víctima
-% - Línea discontinua indicando "Sin acceso a Internet"
-% - Puertos expuestos al host (5000, 8010, 8020, 8030) mostrados como conexiones externas
+\begin{figure}[ht]
+    \centering
+    \begin{tikzpicture}[
+        % Estilos generales
+        node distance=2cm and 4cm,
+        font=\small\sffamily,
+        % Estilo para los contenedores (nodos)
+        docker/.style={
+            rectangle, 
+            draw=blue!50, 
+            thick, 
+            rounded corners, 
+            align=center,
+            minimum size=1.5cm,
+            inner sep=10pt,
+            fill=white
+        },
+        % Estilo destacado para el Agente (Kali)
+        attacker/.style={
+            docker,
+            draw=red!80,
+            line width=1.5pt,
+            fill=red!5
+        },
+        % Estilo para la red (caja contenedora)
+        netbox/.style={
+            draw=gray,
+            dashed,
+            fill=gray!10,
+            inner sep=20pt,
+            rounded corners,
+            label={[anchor=north west, font=\bfseries\color{gray}]north west:hacking\_net (10.10.0.0/24)}
+        }
+    ]
 
-\begin{table}[H]
+    % --- 1. DEFINICIÓN DE NODOS ---
+
+    % Nodo Agente (Izquierda)
+    \node[attacker] (agent) {
+        \includegraphics[width=1cm]{pictures/icons/kali.png}\\ % <--- Icono Kali
+        \textbf{Agente}\\
+        10.10.0.2
+    };
+
+    % Nodos Víctimas (Columna derecha)
+    % Usamos positioning para colocarlos uno debajo del otro
+    
+    % DVWA (Centro)
+    \node[docker, right=of agent] (dvwa) {
+        \includegraphics[width=0.8cm]{pictures/icons/web_server.png}\\ % <--- Icono Web
+        \textbf{DVWA}\\
+        10.10.0.3
+    };
+
+    % Metasploitable (Arriba)
+    \node[docker, above=of dvwa] (meta) {
+        \includegraphics[width=0.8cm]{pictures/icons/linux_server.png}\\ % <--- Icono Linux
+        \textbf{Metasploitable}\\
+        10.10.0.4
+    };
+
+    % Juice Shop (Abajo)
+    \node[docker, below=of dvwa] (juice) {
+        \includegraphics[width=0.8cm]{pictures/icons/juice_shop.png}\\ % <--- Icono App
+        \textbf{Juice Shop}\\
+        10.10.0.5
+    };
+
+    % --- 2. FONDO DE RED (Caja Hacking Net) ---
+    % Usamos la librería 'fit' para englobar todos los nodos
+    \begin{scope}[on background layer]
+        \node[netbox, fit=(agent) (meta) (juice)] (network) {};
+    \end{scope}
+
+    % --- 3. CONEXIONES INTERNAS ---
+    % Flechas bidireccionales del Agente a las víctimas
+    \draw[<->, thick, color=blue!60] (agent) -- (meta);
+    \draw[<->, thick, color=blue!60] (agent) -- (dvwa);
+    \draw[<->, thick, color=blue!60] (agent) -- (juice);
+
+    % --- 4. INDICADOR "SIN INTERNET" ---
+    % Dibujamos un símbolo de prohibido Internet
+    \node[anchor=south east, color=red] at (network.south east) {
+        \begin{tikzpicture}[scale=0.3, baseline]
+            \draw[thick] (0,0) circle (1);
+            \draw[thick] (-0.7,-0.7) -- (0.7,0.7);
+        \end{tikzpicture}
+        \textbf{Sin Acceso a Internet}
+    };
+
+    % --- 5. PUERTOS EXPUESTOS (HOST) ---
+    % Flechas saliendo de la caja de red
+    
+    % Coordenada ficticia fuera de la red (Host)
+    \coordinate (host) at ($(network.east) + (2,0)$);
+
+    % Etiquetas de mapeo de puertos
+    \draw[->, dotted, thick] (agent.west) -- ++(-1.5,0) node[midway, above, font=\tiny] {localhost:5000};
+    \draw[->, dotted, thick] (meta.east) -- ++(1.5,0) node[right, font=\tiny] {localhost:8020};
+    \draw[->, dotted, thick] (dvwa.east) -- ++(1.5,0) node[right, font=\tiny] {localhost:8010};
+    \draw[->, dotted, thick] (juice.east) -- ++(1.5,0) node[right, font=\tiny] {localhost:8030};
+
+    \end{tikzpicture}
+    \caption{Topología de Red del Entorno de Hacking (Docker)}
+\end{figure}
+
+\begin{table}[h]
 \centering
 \renewcommand{\arraystretch}{1.3}
 \begin{tabular}{|l|l|c|c|p{4cm}|}
 \hline
 \rowcolor[gray]{0.85}
-\textbf{Servicio} & \textbf{Imagen Docker} & \textbf{IP} & \textbf{Puerto} & \textbf{Descripción} \\
+\textbf{Servicio} & \textbf{Imagen Docker} & \textbf{IP} & \textbf{Puerto externo} & \textbf{Descripción} \\
 \hline
 \texttt{attacker} & Imagen propia (Kali) & 10.10.0.2 & 5000 & Agente con API Flask y herramientas de pentesting \\
 \hline
@@ -448,39 +585,33 @@ Se han incluido herramientas del ecosistema \textbf{ProjectDiscovery}, ampliamen
 
 \subsubsection{Estructura de Directorios}
 
-% TO-DO: Insertar diagrama de estructura de directorios
-% Descripción del diagrama (árbol de carpetas):
-% /
-% ├── app/                    # Código de la API Flask (montado desde host)
-% │   ├── agent_api.py
-% │   ├── templates/
-% │   └── static/
-% ├── workspace/              # Directorio de trabajo temporal
-% ├── workspace_persistent/   # Volumen Docker para herramientas compartidas
-% │   ├── tools/
-% │   ├── wordlists/
-% │   ├── downloads/
-% │   └── INVENTORY.md
-% ├── workspace_sessions/     # Volumen Docker para repos Git por conversación
-% │   ├── conv_abc123/
-% │   │   ├── .git/
-% │   │   └── (archivos de trabajo)
-% │   └── conv_xyz789/
-% └── usr/share/wordlists/    # Wordlists de Kali (rockyou.txt, etc.)
-
-%TO-DO: Insertar diagrama de estructura de directorios
-%\begin{verbatim}
-%/
-%├── app/                    # Codigo de la API Flask
-%├── workspace/              # Directorio de trabajo temporal
-%├── workspace_persistent/   # Herramientas compartidas (volumen)
-%│   ├── tools/              # Herramientas instaladas por el agente
-%│   ├── wordlists/          # Wordlists personalizadas
-%│   └── INVENTORY.md        # Catalogo de herramientas
-%├── workspace_sessions/     # Repos Git por conversacion (volumen)
-%│   └── conv_{id}/          # Un directorio por conversacion
-%└── usr/share/wordlists/    # Wordlists de Kali (rockyou.txt)
-%\end{verbatim}
+\begin{figure}[ht]
+    \centering
+    \renewcommand*\DTstylecomment{\rmfamily\color{gray}\textsc}
+    \begin{minipage}{0.9\textwidth} % Minipage para que no se rompa
+        \dirtree{%
+        .1 / .
+        .2 app/ \mycomment{Código de la API Flask}.
+        .3 agent\_api.py .
+        .3 templates/ .
+        .3 static/ .
+        .2 workspace/ \mycomment{Directorio de trabajo temporal sin sesion}.
+        .2 workspace\_persistent/ \mycomment{Volumen Docker compartido}.
+        .3 tools/ \mycomment{Herramientas instaladas}.
+        .3 wordlists/ \mycomment{Listas personalizadas}.
+        .3 downloads/ .
+        .3 INVENTORY.md \mycomment{Catálogo}.
+        .2 workspace\_sessions/ \mycomment{Volumen de sesiones de trabajo}.
+        .3 conv\_abc123/ .
+        .4 .git/ .
+        .4 (archivos de trabajo) .
+        .3 conv\_xyz789/ .
+        .2 usr/share/wordlists/ \mycomment{Wordlists de Kali}.
+        }
+    \end{minipage}
+    \caption{Estructura de directorios del sistema}
+    \label{fig:directorios}
+\end{figure}
 
 El archivo \texttt{INVENTORY.md} se genera automáticamente al iniciar el contenedor y sirve como catálogo de herramientas instaladas. El agente LLM consulta este archivo antes de descargar herramientas grandes, evitando duplicaciones y optimizando el uso de almacenamiento.
 
@@ -515,7 +646,7 @@ El endpoint \texttt{POST /execute} es el punto de entrada principal para la ejec
 \label{tab:execute_params}
 \end{table}
 
-% TO-DO: Insertar diagrama de flujo del endpoint /execute
+% TO-DO: ARREGLAR EL DIAGRAMA DE DEBAJO PARA QUE QUEPA O REHACERLO EN SVG
 % Descripción del diagrama (flowchart):
 % 1. Inicio: Recibir POST /execute
 % 2. Decisión: ¿conversation_id tiene repo Git?
@@ -534,6 +665,148 @@ El endpoint \texttt{POST /execute} es el punto de entrada principal para la ejec
 % 7. Leer stdout/stderr
 % 8. Aplicar compress_output()
 % 9. Devolver respuesta JSON
+
+\begin{figure}[H]
+    \centering
+    \begin{adjustbox}{max width=\textwidth, max height=0.9\textheight, keepaspectratio}
+    \begin{tikzpicture}[
+        % --- ESTILOS ---
+        node distance=1.5cm and 2cm, % Distancia vertical y horizontal
+        font=\small\sffamily,
+        % Estilo para el Inicio/Fin
+        startstop/.style={
+            rectangle, 
+            rounded corners, 
+            minimum width=3cm, 
+            minimum height=1cm,
+            text centered, 
+            draw=black, 
+            fill=red!10
+        },
+        % Estilo para Procesos (Rectángulos)
+        process/.style={
+            rectangle, 
+            minimum width=3.5cm, 
+            minimum height=1cm, 
+            text centered, 
+            text width=3.5cm, % Fuerza salto de línea si es largo
+            draw=black, 
+            fill=orange!10
+        },
+        % Estilo para Decisiones (Rombos)
+        decision/.style={
+            diamond, 
+            minimum width=3cm, 
+            minimum height=1cm, 
+            text centered, 
+            text width=2.5cm,
+            draw=black, 
+            fill=blue!10,
+            inner sep=0pt
+        },
+        % Estilo para las flechas
+        arrow/.style={thick, ->, >=Stealth}
+    ]
+
+    % --- 1. DEFINICIÓN DE NODOS (Columna Central) ---
+    
+    \node (start) [startstop] {Inicio: POST /execute};
+
+    % Decisión 1: Repo Git
+    \node (dec_repo) [decision, below=of start] {¿Tiene repo Git?};
+
+    % Proceso: CWD Session (Camino SI)
+    \node (proc_cwd_sess) [process, below=of dec_repo] {CWD = /sessions/\{id\}};
+
+    % Decisión 2: Comando CD
+    \node (dec_cd) [decision, below=of proc_cwd_sess] {¿Comando "cd"?};
+
+    % Proceso: Generar Job ID
+    \node (proc_job) [process, below=of dec_cd] {Crear job\_id (UUID)};
+
+    % Proceso: Subprocess
+    \node (proc_popen) [process, below=of proc_job] {Ejecutar \texttt{subprocess.Popen}};
+
+    % Decisión 3: exit_time
+    \node (dec_exit) [decision, below=of proc_popen] {¿exit\_time $>$ 0?};
+
+    % Decisión 4: wait_time (Si exit_time es NO)
+    \node (dec_wait) [decision, below=of dec_exit] {¿wait\_time $>$ 0?};
+
+    % Proceso: Espera corta (Si wait_time es NO)
+    \node (proc_instant) [process, below=of dec_wait] {Esperar 0.1s (Instantáneo)};
+
+    % Proceso: Leer salida (Punto de convergencia)
+    \node (proc_read) [process, below=of proc_instant] {Leer stdout/stderr};
+
+    % Proceso: Comprimir
+    \node (proc_compress) [process, below=of proc_read] {Aplicar \texttt{compress\_output()}};
+
+    % Fin
+    \node (end) [startstop, below=of proc_compress] {Devolver JSON};
+
+
+    % --- 2. NODOS LATERALES (Ramas alternativas) ---
+
+    % Rama NO de Repo Git
+    \node (proc_cwd_work) [process, right=of dec_repo] {CWD = /workspace};
+
+    % Rama SI de Comando CD
+    \node (proc_update_cwd) [process, right=of dec_cd] {Actualizar SESSION\_CWD};
+
+    % Rama SI de exit_time
+    \node (proc_kill) [process, right=of dec_exit] {Esperar tiempo y Matar proceso};
+
+    % Rama SI de wait_time
+    \node (proc_bg) [process, right=of dec_wait] {Esperar tiempo (Background)};
+
+
+    % --- 3. CONEXIONES (Flechas) ---
+
+    % Flujo Inicial
+    \draw [arrow] (start) -- (dec_repo);
+
+    % Decisión Repo
+    \draw [arrow] (dec_repo) -- node[anchor=east] {Sí} (proc_cwd_sess);
+    \draw [arrow] (dec_repo) -- node[anchor=south] {No} (proc_cwd_work);
+    % Vuelta del No al flujo principal (usando coordenadas ortogonales -|)
+    \draw [arrow] (proc_cwd_work) |- (dec_cd); 
+    \draw [arrow] (proc_cwd_sess) -- (dec_cd);
+
+    % Decisión CD
+    \draw [arrow] (dec_cd) -- node[anchor=east] {No} (proc_job);
+    \draw [arrow] (dec_cd) -- node[anchor=south] {Sí} (proc_update_cwd);
+    \draw [arrow] (proc_update_cwd) |- (proc_job);
+
+    % Ejecución
+    \draw [arrow] (proc_job) -- (proc_popen);
+    \draw [arrow] (proc_popen) -- (dec_exit);
+
+    % Decisión Exit Time
+    \draw [arrow] (dec_exit) -- node[anchor=east] {No} (dec_wait);
+    \draw [arrow] (dec_exit) -- node[anchor=south] {Sí} (proc_kill);
+
+    % Decisión Wait Time
+    \draw [arrow] (dec_wait) -- node[anchor=east] {No} (proc_instant);
+    \draw [arrow] (dec_wait) -- node[anchor=south] {Sí} (proc_bg);
+
+    % Convergencia hacia Leer salida
+    % Usamos un punto auxiliar para que las flechas laterales bajen ordenadas
+    \draw [arrow] (proc_instant) -- (proc_read);
+    
+    % Conectar las ramas laterales al nodo de lectura
+    \draw [arrow] (proc_kill.south) |- ($(proc_read.north) + (0, 0.5)$) -- (proc_read.north);
+    \draw [arrow] (proc_bg.south) |- ($(proc_read.north) + (0, 0.5)$) -- (proc_read.north);
+
+    % Final
+    \draw [arrow] (proc_read) -- (proc_compress);
+    \draw [arrow] (proc_compress) -- (end);
+
+    \end{tikzpicture}
+    \end{adjustbox}
+    \caption{Diagrama de Flujo del Endpoint /execute}
+\end{figure}
+
 
 \subsubsection{Gestión de Jobs en Background}
 
@@ -1210,7 +1483,7 @@ Esta capacidad de adaptación es fundamental para auditorías de seguridad, dond
 \section{Frontend LLM: Interfaz de Usuario}
 \label{sec:frontend_llm}
 
-El Frontend LLM constituye la ``cara'' del sistema: una aplicación web moderna construida con Next.js y React que proporciona una interfaz completa para interactuar con el agente de IA. Este componente gestiona la visualización de conversaciones con estructura de árbol, el \textit{streaming} de respuestas en tiempo real, la supervisión de misiones autónomas y la ejecución directa de comandos.
+El Frontend LLM constituye la ``cara'' del sistema: una aplicación web moderna construida con Next.js que proporciona una interfaz completa para interactuar con el agente de IA. Este componente gestiona la visualización de conversaciones con estructura de árbol, el \textit{streaming} de respuestas en tiempo real, la supervisión de misiones autónomas y la ejecución directa de comandos.
 
 \subsection{Stack Tecnológico del Frontend}
 
@@ -1893,7 +2166,7 @@ El proyecto incluye scripts auxiliares para simplificar la operación:
 % TO-DO: Insertar diagrama de puertos y servicios
 % Descripción:
 % - Frontend: localhost:3000
-% - Backend: localhost:8000
+% - Backend: localhost:4000
 % - KaliSandbox: localhost:5000 (interno)
 % - DVWA: localhost:8080 (target de prueba)
 
@@ -1909,7 +2182,7 @@ El proyecto incluye scripts auxiliares para simplificar la operación:
 \hline
 Frontend & 3000 & Público & Interfaz web del usuario \\
 \hline
-Backend & 8000 & Público & API REST y SSE \\
+Backend & 4000 & Público & API REST y SSE \\
 \hline
 KaliSandbox & 5000 & Interno & API de ejecución de comandos \\
 \hline

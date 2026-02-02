@@ -1,2 +1,750 @@
 \chapter{\resultsname}
-\lipsum[1][1-4]
+
+Este capítulo presenta los resultados obtenidos durante la fase de validación del sistema agéntico de ciberseguridad. Siguiendo la metodología de evaluación definida en capítulos anteriores, se han ejecutado pruebas sistemáticas para verificar el cumplimiento de los objetivos establecidos, comparar el rendimiento entre diferentes configuraciones de infraestructura y evaluar la eficacia del agente frente a entornos de vulnerabilidad controlados.
+
+% ============================================================================
+% 6.1 CONFIGURACIÓN EXPERIMENTAL
+% ============================================================================
+
+\section{Configuración Experimental}
+\label{sec:configuracion_experimental}
+
+Antes de presentar los resultados, es necesario describir las configuraciones de hardware y software utilizadas durante las pruebas, así como los modelos evaluados en cada estrato de infraestructura.
+
+\subsection{Estratos de Infraestructura}
+
+Las pruebas se han ejecutado en tres configuraciones de cómputo diferenciadas, permitiendo un análisis comparativo del rendimiento según la potencia disponible:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\begin{tabular}{|l|p{4cm}|p{4cm}|p{3.5cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Estrato} & \textbf{Hardware} & \textbf{Modelos Evaluados} & \textbf{Características} \\
+\hline
+\textbf{Local (Doméstico)} & 
+% TO-DO: Especificar el hardware del computaex xd (GPU, RAM, CPU)
+GPU RTX 3050, 16GB RAM, Ryzen 5-5600H & 
+Modelos cuantizados (Q4, Q8) vía Ollama & 
+Latencia variable, coste cero, privacidad total \\
+\hline
+\textbf{HPC (COMPUTAEX)} & 
+2x NVIDIA RTX A4500 (20GB VRAM c/u), 128GB RAM & 
+Llama 3.1 70B, Qwen2.5 72B, DeepSeek-R1 & 
+Modelos completos con mínima cuantización, privacidad garantizada \\
+\hline
+\textbf{Cloud (APIs)} & 
+Servidores del proveedor (desconocidos) & Gemini, Deepseek & 
+Mínima latencia, coste por token, datos en servidores externos \\
+\hline
+\end{tabular}
+\caption{Estratos de infraestructura utilizados en la evaluación.}
+\label{tab:estratos_infraestructura}
+\end{table}
+
+\subsection{Modelos Evaluados}
+
+% TO-DO: Ajustar esta tabla con los modelos EXACTOS que vayas a probar
+% Para cada modelo necesitas documentar: nombre exacto, versión, tamaño, si soporta tool calling
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabular}{|l|l|c|c|c|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Modelo} & \textbf{Proveedor/Estrato} & \textbf{Parámetros} & \textbf{Tool Calling} & \textbf{Contexto} \\
+\hline
+\multicolumn{5}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales (Cloud)}} \\
+\hline
+GPT-4o & OpenAI & -- & Nativo & 128K \\
+\hline
+Claude 3.5 Sonnet & Anthropic & -- & Nativo & 200K \\
+\hline
+Gemini 2.0 Flash & Google & -- & Nativo & 1M \\
+\hline
+% TO-DO: Añadir más modelos cloud si los pruebas (DeepSeek API, etc.)
+\multicolumn{5}{|c|}{\cellcolor{green!10}\textbf{Modelos Locales HPC (COMPUTAEX)}} \\
+\hline
+% TO-DO: Confirmar versiones exactas de los modelos en COMPUTAEX
+Llama 3.1 70B & Meta / Ollama & 70B & Sí & 128K \\
+\hline
+Qwen2.5 72B & Alibaba / Ollama & 72B & Sí & 128K \\
+\hline
+DeepSeek-R1 & DeepSeek / Ollama & -- & Sí & 64K \\
+\hline
+% TO-DO: Añadir otros modelos grandes que pruebes en COMPUTAEX
+\multicolumn{5}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados (Doméstico)}} \\
+\hline
+% TO-DO: Especificar los modelos cuantizados que pruebes en local
+Llama 3.1 8B Q4 & Meta / Ollama & 8B (Q4) & Limitado & 128K \\
+\hline
+Qwen2.5 7B Q8 & Alibaba / Ollama & 7B (Q8) & Limitado & 32K \\
+\hline
+% TO-DO: Probar Mistral, Phi-3, u otros modelos pequeños
+\end{tabular}
+\caption{Modelos de lenguaje evaluados organizados por estrato de infraestructura.}
+\label{tab:modelos_evaluados}
+\end{table}
+
+\subsection{Entornos de Vulnerabilidad}
+
+Las pruebas de auditoría se han ejecutado contra los tres entornos vulnerables desplegados en la red Docker aislada:
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|c|l|p{5cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Entorno} & \textbf{IP} & \textbf{Tipo} & \textbf{Vulnerabilidades Principales} \\
+\hline
+DVWA & 10.10.0.3 & Aplicación Web & SQLi, XSS, CSRF, Command Injection, File Upload \\
+\hline
+Metasploitable2 & 10.10.0.4 & Sistema Linux & Servicios desactualizados, FTP anónimo, Samba, SSH débil \\
+\hline
+Juice Shop & 10.10.0.5 & Aplicación Web & OWASP Top 10, APIs inseguras, autenticación débil \\
+\hline
+\end{tabular}
+\caption{Entornos de vulnerabilidad utilizados en las pruebas.}
+\label{tab:entornos_vulnerabilidad}
+\end{table}
+
+% ============================================================================
+% 6.2 EVALUACIÓN DE EFICACIA EN AUDITORÍAS
+% ============================================================================
+
+\section{Evaluación de Eficacia en Auditorías Autónomas}
+\label{sec:evaluacion_eficacia}
+
+Esta sección presenta los resultados de las auditorías de seguridad ejecutadas de forma autónoma por el agente contra cada entorno de prueba. Se evalúa la capacidad del sistema para identificar vulnerabilidades, completar objetivos de pentesting y generar informes técnicos útiles.
+
+\subsection{Protocolo de Prueba}
+
+Cada combinación modelo-entorno se ha evaluado mediante el siguiente protocolo:
+
+\begin{enumerate}
+    \item \textbf{Prompt inicial:} \textit{``Realiza una auditoría de seguridad completa del sistema [IP]. Identifica vulnerabilidades, intenta explotarlas y documenta los hallazgos.''}
+    \item \textbf{Tiempo límite:} 60 minutos por sesión
+    \item \textbf{Repeticiones:} 3 ejecuciones por combinación modelo-entorno
+    \item \textbf{Intervención humana:} Solo para aprobar comandos de riesgo CRITICAL
+\end{enumerate}
+
+\subsection{Resultados por Entorno: DVWA}
+
+% TO-DO: Ejecutar las pruebas contra DVWA con cada modelo y rellenar la tabla
+% Métricas a medir por cada modelo:
+% - Número de vulnerabilidades encontradas (de un total conocido ~10-12)
+% - Tiempo hasta primera vulnerabilidad (minutos)
+% - Tiempo total de auditoría (minutos)
+% - Falsos positivos reportados
+% - ¿Consiguió explotación? (Sí/No)
+% - Tokens consumidos (aproximado)
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabular}{|l|c|c|c|c|c|c|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Modelo} & \textbf{Vulns.} & \textbf{T. Primera} & \textbf{T. Total} & \textbf{FP} & \textbf{Explot.} & \textbf{Tokens} \\
+\hline
+\multicolumn{7}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales}} \\
+\hline
+% TO-DO: Rellenar con datos reales de las pruebas
+GPT-4o & --/12 & -- min & -- min & -- & Sí/No & --K \\
+\hline
+Claude 3.5 Sonnet & --/12 & -- min & -- min & -- & Sí/No & --K \\
+\hline
+Gemini 2.0 Flash & --/12 & -- min & -- min & -- & Sí/No & --K \\
+\hline
+\multicolumn{7}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
+\hline
+% TO-DO: Rellenar con datos reales
+Llama 3.1 70B & --/12 & -- min & -- min & -- & Sí/No & --K \\
+\hline
+Qwen2.5 72B & --/12 & -- min & -- min & -- & Sí/No & --K \\
+\hline
+\multicolumn{7}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados}} \\
+\hline
+% TO-DO: Rellenar con datos reales
+Llama 3.1 8B Q4 & --/12 & -- min & -- min & -- & Sí/No & --K \\
+\hline
+\end{tabular}
+\caption{Resultados de auditoría autónoma contra DVWA.}
+\label{tab:resultados_dvwa}
+\end{table}
+
+% TO-DO: Imagen - Captura de pantalla mostrando una auditoría exitosa contra DVWA
+% Debe mostrar: el chat con el agente identificando una vulnerabilidad SQLi,
+% el terminal ejecutando sqlmap, y el panel de misión con objetivos completados
+
+% TO-DO: Análisis cualitativo de los resultados de DVWA
+% - ¿Qué vulnerabilidades encontraron todos los modelos?
+% - ¿Cuáles solo encontraron los modelos más potentes?
+% - ¿Hubo diferencias en las estrategias de auditoría?
+
+\subsection{Resultados por Entorno: Metasploitable2}
+
+% TO-DO: Ejecutar las pruebas contra Metasploitable2
+% Este entorno es más complejo (servicios de red, no solo web)
+% Métricas adicionales a considerar:
+% - Servicios enumerados correctamente
+% - Intentos de explotación de servicios (FTP, Samba, SSH)
+% - ¿Consiguió shell/acceso?
+% - ¿Intentó escalada de privilegios?
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabular}{|l|c|c|c|c|c|c|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Modelo} & \textbf{Servicios} & \textbf{Vulns.} & \textbf{Shell} & \textbf{Escalada} & \textbf{T. Total} & \textbf{Tokens} \\
+\hline
+\multicolumn{7}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales}} \\
+\hline
+% TO-DO: Rellenar con datos reales
+GPT-4o & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
+\hline
+Claude 3.5 Sonnet & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
+\hline
+Gemini 2.0 Flash & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
+\hline
+\multicolumn{7}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
+\hline
+% TO-DO: Rellenar con datos reales
+Llama 3.1 70B & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
+\hline
+Qwen2.5 72B & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
+\hline
+\multicolumn{7}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados}} \\
+\hline
+% TO-DO: Rellenar con datos reales
+Llama 3.1 8B Q4 & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
+\hline
+\end{tabular}
+\caption{Resultados de auditoría autónoma contra Metasploitable2.}
+\label{tab:resultados_metasploitable}
+\end{table}
+
+% TO-DO: Imagen - Captura mostrando enumeración de servicios con nmap
+% y posterior explotación de un servicio vulnerable
+
+\subsection{Resultados por Entorno: OWASP Juice Shop}
+
+% TO-DO: Ejecutar las pruebas contra Juice Shop
+% Este es el entorno más moderno y realista
+% Métricas específicas:
+% - Challenges completados (Juice Shop tiene un sistema de puntuación)
+% - Tipos de vulnerabilidades explotadas (auth bypass, XSS, etc.)
+% - ¿Extrajo datos sensibles?
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabular}{|l|c|c|c|c|c|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Modelo} & \textbf{Challenges} & \textbf{Auth Bypass} & \textbf{Data Exfil} & \textbf{T. Total} & \textbf{Tokens} \\
+\hline
+\multicolumn{6}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales}} \\
+\hline
+% TO-DO: Rellenar con datos reales
+GPT-4o & --/100 & Sí/No & Sí/No & -- min & --K \\
+\hline
+Claude 3.5 Sonnet & --/100 & Sí/No & Sí/No & -- min & --K \\
+\hline
+Gemini 2.0 Flash & --/100 & Sí/No & Sí/No & -- min & --K \\
+\hline
+\multicolumn{6}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
+\hline
+% TO-DO: Rellenar con datos reales
+Llama 3.1 70B & --/100 & Sí/No & Sí/No & -- min & --K \\
+\hline
+Qwen2.5 72B & --/100 & Sí/No & Sí/No & -- min & --K \\
+\hline
+\multicolumn{6}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados}} \\
+\hline
+% TO-DO: Rellenar con datos reales
+Llama 3.1 8B Q4 & --/100 & Sí/No & Sí/No & -- min & --K \\
+\hline
+\end{tabular}
+\caption{Resultados de auditoría autónoma contra OWASP Juice Shop.}
+\label{tab:resultados_juiceshop}
+\end{table}
+
+% TO-DO: Imagen - Captura mostrando el agente resolviendo un challenge de Juice Shop
+% Idealmente mostrando bypass de autenticación o extracción de datos
+
+\subsection{Análisis Comparativo de Eficacia}
+
+% TO-DO: Una vez tengas todos los datos, calcular:
+% - Tasa de éxito media por modelo (vulnerabilidades encontradas / total)
+% - Modelo más eficaz por entorno
+% - Modelo más eficaz globalmente
+% - Diferencias significativas entre estratos
+
+% TO-DO: Gráfico de barras comparando tasa de éxito por modelo y entorno
+% Usar pgfplots o incluir imagen generada externamente
+
+\begin{figure}[H]
+    \centering
+    % TO-DO: Imagen - Gráfico de barras comparativo
+    % Eje X: Modelos (agrupados por estrato)
+    % Eje Y: Tasa de éxito (%)
+    % Barras agrupadas por entorno (DVWA, Meta, Juice)
+    \fbox{\parbox{0.9\textwidth}{\centering\vspace{3cm}
+    \textbf{TO-DO: Gráfico de barras comparativo de tasa de éxito por modelo y entorno}
+    \vspace{3cm}}}
+    \caption{Comparativa de tasa de éxito en auditorías por modelo y entorno.}
+    \label{fig:comparativa_eficacia}
+\end{figure}
+
+% ============================================================================
+% 6.3 EVALUACIÓN DE RENDIMIENTO POR INFRAESTRUCTURA
+% ============================================================================
+
+\section{Evaluación de Rendimiento por Infraestructura}
+\label{sec:evaluacion_rendimiento}
+
+Esta sección analiza las métricas de rendimiento del sistema según el estrato de infraestructura utilizado, cumpliendo con el objetivo específico de \textit{``analizar la viabilidad y rendimiento según la estructura de cómputo''}.
+
+\subsection{Métricas de Latencia}
+
+% TO-DO: Medir para cada modelo/estrato:
+% - Tiempo hasta primer token (TTFT) en segundos
+% - Tokens por segundo (TPS) generados
+% - Latencia total de respuesta para prompt estándar
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|l|c|c|c|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Estrato} & \textbf{Modelo} & \textbf{TTFT (s)} & \textbf{TPS} & \textbf{Latencia Total (s)} \\
+\hline
+\multirow{3}{*}{Cloud (APIs)} 
+& GPT-4o & -- & -- & -- \\
+\cline{2-5}
+& Claude 3.5 Sonnet & -- & -- & -- \\
+\cline{2-5}
+& Gemini 2.0 Flash & -- & -- & -- \\
+\hline
+\multirow{3}{*}{HPC (COMPUTAEX)} 
+% TO-DO: Rellenar con mediciones reales
+& Llama 3.1 70B & -- & -- & -- \\
+\cline{2-5}
+& Qwen2.5 72B & -- & -- & -- \\
+\cline{2-5}
+& DeepSeek-R1 & -- & -- & -- \\
+\hline
+\multirow{2}{*}{Local (Doméstico)} 
+% TO-DO: Rellenar con mediciones reales
+& Llama 3.1 8B Q4 & -- & -- & -- \\
+\cline{2-5}
+& Qwen2.5 7B Q8 & -- & -- & -- \\
+\hline
+\end{tabular}
+\caption{Métricas de latencia por modelo y estrato de infraestructura.}
+\label{tab:metricas_latencia}
+\end{table}
+
+% TO-DO: Imagen - Gráfico de líneas mostrando TTFT vs TPS para cada estrato
+% Ayuda a visualizar el trade-off latencia/throughput
+
+\subsection{Análisis de Costes}
+
+% TO-DO: Calcular coste por auditoría completa para cada configuración
+% Para APIs: tokens consumidos * precio por token
+% Para HPC: coste de tiempo de cómputo (si aplica) o coste energético estimado
+% Para Local: coste energético estimado (kWh * precio)
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|l|c|c|c|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Estrato} & \textbf{Modelo} & \textbf{Tokens/Auditoría} & \textbf{Coste/Auditoría} & \textbf{Coste/Hora} \\
+\hline
+\multirow{3}{*}{Cloud} 
+% TO-DO: Calcular con precios reales de cada API
+% GPT-4o: ~$5/1M input, ~$15/1M output (verificar precios actuales)
+% Claude: ~$3/1M input, ~$15/1M output
+% Gemini: gratuito con límites o $X por token
+& GPT-4o & --K & \$-- & \$-- \\
+\cline{2-5}
+& Claude 3.5 Sonnet & --K & \$-- & \$-- \\
+\cline{2-5}
+& Gemini 2.0 Flash & --K & \$-- & \$-- \\
+\hline
+\multirow{2}{*}{HPC} 
+% TO-DO: Si COMPUTAEX tiene coste por hora de cómputo, calcularlo
+% Si no, indicar "Infraestructura cedida" y estimar coste energético
+& Llama 3.1 70B & --K & €--* & €--* \\
+\cline{2-5}
+& Qwen2.5 72B & --K & €--* & €--* \\
+\hline
+\multirow{2}{*}{Local} 
+% TO-DO: Estimar consumo eléctrico de la GPU durante inferencia
+% Ejemplo: GPU 200W * 1h = 0.2 kWh * €0.15/kWh = €0.03
+& Llama 3.1 8B Q4 & --K & €--** & €--** \\
+\cline{2-5}
+& Qwen2.5 7B Q8 & --K & €--** & €--** \\
+\hline
+\end{tabular}
+\caption{Análisis de costes por modelo y estrato. *Infraestructura cedida. **Coste energético estimado.}
+\label{tab:analisis_costes}
+\end{table}
+
+\subsection{Relación Coste-Eficacia}
+
+% TO-DO: Calcular ratio eficacia/coste para cada modelo
+% Crear gráfico de dispersión: Eje X = Coste, Eje Y = Tasa de éxito
+% Identificar el "punto óptimo" (mejor relación calidad-precio)
+
+\begin{figure}[H]
+    \centering
+    % TO-DO: Imagen - Gráfico de dispersión coste vs eficacia
+    % Cada punto es un modelo, coloreado por estrato
+    % Ideal: puntos arriba-izquierda (alta eficacia, bajo coste)
+    \fbox{\parbox{0.9\textwidth}{\centering\vspace{3cm}
+    \textbf{TO-DO: Gráfico de dispersión Coste vs Eficacia por modelo}\\
+    Eje X: Coste por auditoría (€/\$)\\
+    Eje Y: Tasa de éxito (\%)\\
+    Colores: Azul=Cloud, Verde=HPC, Naranja=Local
+    \vspace{3cm}}}
+    \caption{Relación coste-eficacia de los modelos evaluados.}
+    \label{fig:coste_eficacia}
+\end{figure}
+
+% ============================================================================
+% 6.4 EVALUACIÓN DEL SISTEMA DE SUPERVISIÓN HUMANA
+% ============================================================================
+
+\section{Evaluación del Sistema de Supervisión Humana}
+\label{sec:evaluacion_hitl}
+
+Esta sección evalúa la efectividad del mecanismo \textit{Human-in-the-Loop} implementado, verificando el cumplimiento del objetivo de \textit{``diseñar una interfaz de control y supervisión humana''}.
+
+\subsection{Clasificación de Comandos por Riesgo}
+
+% TO-DO: Durante las pruebas, registrar:
+% - Total de comandos ejecutados por el agente
+% - Distribución por nivel de riesgo (SAFE, LOW, MEDIUM, HIGH, CRITICAL)
+% - Comandos que requirieron aprobación manual
+% - Falsos positivos del clasificador (comandos seguros marcados como peligrosos)
+% - Falsos negativos (comandos peligrosos no detectados)
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Nivel de Riesgo} & \textbf{Comandos} & \textbf{\% Total} & \textbf{Aprobación Req.} & \textbf{Rechazados} \\
+\hline
+% TO-DO: Rellenar con datos reales de las auditorías
+SAFE & -- & --\% & No & -- \\
+\hline
+LOW & -- & --\% & No & -- \\
+\hline
+MEDIUM & -- & --\% & Opcional & -- \\
+\hline
+HIGH & -- & --\% & Sí & -- \\
+\hline
+CRITICAL & -- & --\% & Sí & -- \\
+\hline
+\rowcolor[gray]{0.95}
+\textbf{TOTAL} & -- & 100\% & -- & -- \\
+\hline
+\end{tabular}
+\caption{Distribución de comandos ejecutados por nivel de riesgo.}
+\label{tab:distribucion_riesgo}
+\end{table}
+
+% TO-DO: Imagen - Captura del diálogo de aprobación de comandos peligrosos
+% Mostrando: comando propuesto, nivel de riesgo, justificación del agente, botones aprobar/rechazar
+
+\subsection{Métricas de Autonomía}
+
+% TO-DO: Calcular para cada modelo:
+% - % de comandos ejecutados sin intervención
+% - Tiempo medio de espera por aprobación humana
+% - Impacto de la supervisión en el tiempo total de auditoría
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|c|c|c|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Modelo} & \textbf{Autonomía (\%)} & \textbf{Aprobaciones} & \textbf{T. Espera Medio} \\
+\hline
+% TO-DO: Rellenar con datos reales
+GPT-4o & --\% & -- & -- s \\
+\hline
+Claude 3.5 Sonnet & --\% & -- & -- s \\
+\hline
+Llama 3.1 70B & --\% & -- & -- s \\
+\hline
+Llama 3.1 8B Q4 & --\% & -- & -- s \\
+\hline
+\end{tabular}
+\caption{Métricas de autonomía operativa por modelo.}
+\label{tab:metricas_autonomia}
+\end{table}
+
+\subsection{Análisis de Falsos Positivos y Negativos}
+
+% TO-DO: Revisar manualmente los logs para identificar:
+% - Comandos seguros que fueron clasificados como peligrosos (FP)
+% - Comandos potencialmente peligrosos que pasaron sin detección (FN)
+% Calcular precisión y recall del clasificador de riesgo
+
+% ============================================================================
+% 6.5 EVALUACIÓN DE ROBUSTEZ Y RESILIENCIA
+% ============================================================================
+
+\section{Evaluación de Robustez y Resiliencia}
+\label{sec:evaluacion_robustez}
+
+Esta sección documenta las pruebas de estrés y resiliencia del sistema, evaluando su comportamiento ante condiciones adversas.
+
+\subsection{Pruebas de Gestión de Contexto Largo}
+
+% TO-DO: Ejecutar conversaciones largas hasta agotar ventana de contexto
+% Medir:
+% - Número de mensajes/tokens antes de degradación
+% - Comportamiento del truncado inteligente
+% - ¿El agente "olvida" información crítica?
+% - ¿El auto-summarize mantiene información técnica relevante?
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|l|c|c|c|c|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Modelo} & \textbf{Contexto Máx.} & \textbf{Tokens Usados} & \textbf{Truncados} & \textbf{Coherencia} \\
+\hline
+% TO-DO: Rellenar con pruebas de contexto largo
+GPT-4o & 128K & --K & --\% & Alta/Media/Baja \\
+\hline
+Claude 3.5 Sonnet & 200K & --K & --\% & Alta/Media/Baja \\
+\hline
+Llama 3.1 70B & 128K & --K & --\% & Alta/Media/Baja \\
+\hline
+\end{tabular}
+\caption{Comportamiento ante conversaciones de contexto largo.}
+\label{tab:contexto_largo}
+\end{table}
+
+\subsection{Pruebas de Recuperación ante Errores}
+
+% TO-DO: Inyectar errores controlados y observar recuperación:
+% - Comando que falla (timeout, error de sintaxis)
+% - Herramienta no disponible
+% - Respuesta inesperada de servicio
+% Documentar: ¿El agente se recupera? ¿Intenta alternativas? ¿Se rinde?
+
+\subsection{Pruebas de Jobs en Background}
+
+% TO-DO: Ejecutar múltiples jobs largos simultáneamente
+% Medir:
+% - Número máximo de jobs concurrentes soportados
+% - Latencia de notificación al completar
+% - ¿El agente gestiona correctamente múltiples resultados?
+
+% ============================================================================
+% 6.6 EVALUACIÓN DE SEGURIDAD DEL PROPIO AGENTE
+% ============================================================================
+
+\section{Evaluación de Seguridad del Propio Agente}
+\label{sec:evaluacion_seguridad_agente}
+
+Cumpliendo con el objetivo de \textit{``analizar la seguridad propia del agente y riesgos adversarios''}, esta sección documenta las pruebas de seguridad realizadas sobre el sistema.
+
+\subsection{Pruebas de Prompt Injection}
+
+% TO-DO: Intentar ataques de prompt injection contra el agente:
+% - Inyección en outputs de herramientas (página web maliciosa con instrucciones)
+% - Manipulación del system prompt vía entrada de usuario
+% - Intentos de hacer que el agente ejecute comandos fuera del scope
+% Documentar: ¿El agente resistió? ¿Qué defensas funcionaron?
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|p{5cm}|c|c|p{4cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Vector de Ataque} & \textbf{Intentos} & \textbf{Éxito} & \textbf{Mitigación} \\
+\hline
+% TO-DO: Documentar pruebas de prompt injection
+Inyección vía output de curl & -- & --/-- & -- \\
+\hline
+Manipulación de system prompt & -- & --/-- & -- \\
+\hline
+Comando malicioso en página web & -- & --/-- & -- \\
+\hline
+Jailbreak directo & -- & --/-- & -- \\
+\hline
+\end{tabular}
+\caption{Resultados de pruebas de prompt injection.}
+\label{tab:prompt_injection}
+\end{table}
+
+\subsection{Aislamiento del Sandbox}
+
+% TO-DO: Verificar que el sandbox está correctamente aislado:
+% - Intentar acceder al host desde el contenedor
+% - Verificar que no hay fugas de red fuera de la subred Docker
+% - Confirmar que los volúmenes montados no exponen datos sensibles
+
+% ============================================================================
+% 6.7 EVALUACIÓN DE LA PERSISTENCIA Y GESTIÓN DE ESTADO
+% ============================================================================
+
+\section{Evaluación de Persistencia y Gestión de Estado}
+\label{sec:evaluacion_persistencia}
+
+Esta sección evalúa el sistema de gestión de conversaciones por ramas y la persistencia del estado del sandbox mediante Git.
+
+\subsection{Pruebas de Ramificación de Conversaciones}
+
+% TO-DO: Probar el sistema de ramas:
+% - Crear conversación, ejecutar comandos, crear rama alternativa
+% - Verificar que el estado del filesystem se restaura correctamente
+% - Medir tiempo de cambio entre ramas
+% - Verificar que el agente mantiene coherencia tras cambio de rama
+
+% TO-DO: Imagen - Captura mostrando el árbol de conversación con múltiples ramas
+% Debe verse: nodo raíz, bifurcación, estados diferentes en cada rama
+
+\subsection{Integridad de Checkpoints Git}
+
+% TO-DO: Verificar sistema de checkpoints:
+% - Ejecutar secuencia de comandos
+% - Verificar que cada mensaje crea un commit/tag
+% - Cambiar a rama anterior y verificar estado del filesystem
+% - Medir overhead de Git en tiempo de ejecución
+
+% ============================================================================
+% 6.8 SÍNTESIS DE RESULTADOS
+% ============================================================================
+
+\section{Síntesis de Resultados}
+\label{sec:sintesis_resultados}
+
+Esta sección consolida los hallazgos principales de la fase de evaluación, proporcionando una visión global del rendimiento del sistema.
+
+\subsection{Ranking de Modelos por Eficacia Global}
+
+% TO-DO: Calcular puntuación global para cada modelo
+% Fórmula sugerida: (Tasa_Éxito * 0.4) + (1/Tiempo * 0.2) + (1/Coste * 0.2) + (Autonomía * 0.2)
+% Ordenar de mayor a menor
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{|c|l|c|c|c|c|c|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{\#} & \textbf{Modelo} & \textbf{Eficacia} & \textbf{Velocidad} & \textbf{Coste} & \textbf{Autonomía} & \textbf{Score} \\
+\hline
+% TO-DO: Rellenar con ranking final calculado
+1 & -- & --\% & -- & -- & --\% & -- \\
+\hline
+2 & -- & --\% & -- & -- & --\% & -- \\
+\hline
+3 & -- & --\% & -- & -- & --\% & -- \\
+\hline
+4 & -- & --\% & -- & -- & --\% & -- \\
+\hline
+5 & -- & --\% & -- & -- & --\% & -- \\
+\hline
+\end{tabular}
+\caption{Ranking global de modelos según métricas combinadas.}
+\label{tab:ranking_global}
+\end{table}
+
+\subsection{Recomendaciones por Caso de Uso}
+
+% TO-DO: Basándote en los resultados, recomendar:
+% - Mejor modelo para auditorías rápidas (prioriza velocidad)
+% - Mejor modelo para auditorías exhaustivas (prioriza eficacia)
+% - Mejor modelo para entornos con restricciones de privacidad (solo local)
+% - Mejor relación calidad-precio
+
+\begin{description}[style=nextline, leftmargin=1.5cm, font=\bfseries]
+    \item[Auditorías Rápidas (< 15 min)]
+    % TO-DO: Completar recomendación basada en resultados
+    Pendiente de resultados experimentales.
+    
+    \item[Auditorías Exhaustivas]
+    % TO-DO: Completar recomendación
+    Pendiente de resultados experimentales.
+    
+    \item[Entornos con Requisitos de Privacidad]
+    % TO-DO: Recomendar mejor modelo local
+    Pendiente de resultados experimentales.
+    
+    \item[Mejor Relación Coste-Eficacia]
+    % TO-DO: Identificar el punto óptimo del gráfico de dispersión
+    Pendiente de resultados experimentales.
+\end{description}
+
+\subsection{Cumplimiento de Objetivos}
+
+% TO-DO: Verificar cada objetivo específico del Capítulo 2 y documentar su cumplimiento
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.3}
+\small
+\begin{tabular}{|p{6cm}|c|p{5cm}|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Objetivo Específico} & \textbf{Estado} & \textbf{Evidencia} \\
+\hline
+Arquitectura de ejecución aislada y persistente & 
+% TO-DO: Marcar cumplido/parcial/no cumplido
+$\square$ Cumplido & 
+Sección~\ref{sec:evaluacion_persistencia} \\
+\hline
+Motor de razonamiento agéntico & 
+$\square$ Cumplido & 
+Sección~\ref{sec:evaluacion_eficacia} \\
+\hline
+Sistema de evaluación y selección de modelos & 
+$\square$ Cumplido & 
+Sección~\ref{sec:sintesis_resultados} \\
+\hline
+Interfaz de control y supervisión humana & 
+$\square$ Cumplido & 
+Sección~\ref{sec:evaluacion_hitl} \\
+\hline
+Análisis de rendimiento por infraestructura & 
+$\square$ Cumplido & 
+Sección~\ref{sec:evaluacion_rendimiento} \\
+\hline
+Validación en entornos controlados & 
+$\square$ Cumplido & 
+Sección~\ref{sec:evaluacion_eficacia} \\
+\hline
+Análisis de seguridad del agente & 
+$\square$ Cumplido & 
+Sección~\ref{sec:evaluacion_seguridad_agente} \\
+\hline
+\end{tabular}
+\caption{Verificación de cumplimiento de objetivos específicos.}
+\label{tab:cumplimiento_objetivos}
+\end{table}
