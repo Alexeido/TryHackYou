@@ -539,6 +539,9 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, lea
             objectives = db.get_objectives(mission_id)
             progress = db.get_mission_progress(mission_id)
             
+            # Obtener scratchpad para incluir en el status
+            scratchpad = db.get_mission_scratchpad(mission_id)
+            
             return json.dumps({
                 "status": "success",
                 "mission": {
@@ -557,7 +560,8 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, lea
                     }
                     for obj in objectives
                 ],
-                "progress": progress
+                "progress": progress,
+                "scratchpad": scratchpad if scratchpad else "(empty - use write_scratchpad to save important findings)"
             })
         
         elif action == "modify_objectives":
@@ -611,10 +615,83 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, lea
                 ]
             })
         
+        # ======================================================================
+        # SCRATCHPAD / MEMORIA DEL AGENTE
+        # ======================================================================
+        
+        elif action == "write_scratchpad":
+            content = function_args.get("scratchpad_content", "")
+            mode = function_args.get("scratchpad_mode", "append")  # append por defecto
+            mission_id = function_args.get("mission_id")
+            
+            if not content:
+                return json.dumps({"error": "Se requiere 'scratchpad_content' para escribir"})
+            
+            # Buscar misión activa si no se proporciona
+            if not mission_id:
+                active_mission = db.get_active_mission(conversation_id)
+                if not active_mission:
+                    return json.dumps({"error": "No hay misión activa. Crea una misión primero."})
+                mission_id = active_mission['id']
+            
+            success = db.update_mission_scratchpad(mission_id, content, mode)
+            
+            if success:
+                return json.dumps({
+                    "status": "success",
+                    "message": f"Notas guardadas en scratchpad (modo: {mode})",
+                    "saved_content": content[:100] + "..." if len(content) > 100 else content
+                })
+            else:
+                return json.dumps({"error": "No se pudo actualizar el scratchpad"})
+        
+        elif action == "read_scratchpad":
+            mission_id = function_args.get("mission_id")
+            
+            # Buscar misión activa si no se proporciona
+            if not mission_id:
+                active_mission = db.get_active_mission(conversation_id)
+                if not active_mission:
+                    return json.dumps({
+                        "status": "no_scratchpad",
+                        "message": "No hay misión activa con scratchpad"
+                    })
+                mission_id = active_mission['id']
+            
+            content = db.get_mission_scratchpad(mission_id)
+            
+            if content:
+                return json.dumps({
+                    "status": "success",
+                    "scratchpad": content,
+                    "length": len(content)
+                })
+            else:
+                return json.dumps({
+                    "status": "empty",
+                    "message": "El scratchpad está vacío. Usa write_scratchpad para guardar notas."
+                })
+        
+        elif action == "clear_scratchpad":
+            mission_id = function_args.get("mission_id")
+            
+            if not mission_id:
+                active_mission = db.get_active_mission(conversation_id)
+                if not active_mission:
+                    return json.dumps({"error": "No hay misión activa"})
+                mission_id = active_mission['id']
+            
+            success = db.clear_mission_scratchpad(mission_id)
+            
+            return json.dumps({
+                "status": "success" if success else "error",
+                "message": "Scratchpad limpiado" if success else "Error al limpiar scratchpad"
+            })
+        
         else:
             return json.dumps({
                 "error": f"Action '{action}' no reconocida",
-                "valid_actions": ["create", "update_objective", "update_phase", "complete", "get_status", "modify_objectives"]
+                "valid_actions": ["create", "update_objective", "update_phase", "complete", "get_status", "modify_objectives", "write_scratchpad", "read_scratchpad", "clear_scratchpad"]
             })
     
     # ==========================================================================
@@ -1436,8 +1513,9 @@ async def stream_chat_response(
             print(f"🔄 Continuando conversación con resultados de {len(tool_results)} tools...")
             
             # Reconstruir mensajes para el siguiente llamado
-            # OPTIMIZACIÓN: Limitar el contexto para no exceder tokens
-            MAX_MESSAGES_IN_LOOP = 30
+            # OPTIMIZACIÓN: Limitar el contexto pero con margen suficiente para loops agénticos
+            # 50 mensajes permite ~15-20 iteraciones de tool calls antes de truncar
+            MAX_MESSAGES_IN_LOOP = 50
             current_messages = messages.copy()
             
             # Debug: mostrar los tool_calls que vamos a enviar
@@ -1463,7 +1541,7 @@ async def stream_chat_response(
             # Variables para el loop
             current_parent_id = tool_msg_id
             current_assistant_msg_id = assistant_msg_id
-            max_iterations = 15  # Límite REDUCIDO para evitar loops infinitos
+            max_iterations = 100  # Límite alto - el agente debe ser autónomo
             iteration = 0
             last_was_mission_state_change = has_mission_state_change_first  # Heredar del primer bloque
             last_had_terminal_error = False  # Track de errores de terminal
@@ -1471,6 +1549,15 @@ async def stream_chat_response(
             while iteration < max_iterations:
                 iteration += 1
                 print(f"🔁 Iteración {iteration} del loop de tools...")
+                
+                # VALIDACIÓN PRE-ENVÍO: Asegurar secuencia válida para Gemini
+                # Aplicar validación de secuencia SIEMPRE antes de enviar
+                current_messages = db.ensure_valid_message_sequence(current_messages)
+                
+                # Debug: mostrar secuencia de roles
+                roles_seq = [m.get('role', '?') for m in current_messages[:5]]
+                roles_seq_end = [m.get('role', '?') for m in current_messages[-3:]]
+                print(f"📋 Secuencia de mensajes: inicio={roles_seq}... fin=...{roles_seq_end} (total={len(current_messages)})")
                 
                 # Llamar al LLM con los resultados
                 loop_params = {

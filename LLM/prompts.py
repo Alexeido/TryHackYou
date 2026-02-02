@@ -129,22 +129,31 @@ TOOLS_SECHEMA = [
             "name": "manage_mission",
             "description": (
                 "CRITICAL: Manages your autonomous mission state. "
-                "Use this tool to create plans, track progress, and update objectives. "
-                "For complex tasks, ALWAYS create a mission first with action='create'.\n\n"
+                "Use this tool to create plans, track progress, update objectives, and manage your SCRATCHPAD memory.\n\n"
                 "ACTIONS:\n"
                 "- 'create': Create a new mission with objectives\n"
                 "- 'update_objective': Update objective status (PENDING/IN_PROGRESS/COMPLETED/FAILED)\n"
                 "- 'update_phase': Change current mission phase\n"
                 "- 'complete': Finalize the mission\n"
-                "- 'get_status': Get current mission state\n"
-                "- 'modify_objectives': Reorganize plan (insert/delete/update objectives)"
+                "- 'get_status': Get current mission state (includes scratchpad)\n"
+                "- 'modify_objectives': Reorganize plan (insert/delete/update objectives)\n"
+                "- 'write_scratchpad': Write important findings to your private memory (credentials, IPs, paths, etc.)\n"
+                "- 'read_scratchpad': Read your saved notes from scratchpad\n"
+                "- 'clear_scratchpad': Clear all scratchpad notes\n\n"
+                "SCRATCHPAD MEMORY:\n"
+                "Your scratchpad is a PERSISTENT private notepad. Use it to save:\n"
+                "- Found credentials (user:pass)\n"
+                "- Discovered IPs, ports, directories\n"
+                "- Important tokens, cookies, hashes\n"
+                "- Any data you might need later in the mission\n"
+                "The scratchpad is NOT visible to the user and persists across context truncation."
             ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "action": {
                         "type": "string",
-                        "enum": ["create", "update_objective", "update_phase", "complete", "get_status", "modify_objectives"],
+                        "enum": ["create", "update_objective", "update_phase", "complete", "get_status", "modify_objectives", "write_scratchpad", "read_scratchpad", "clear_scratchpad"],
                         "description": "The action to perform on the mission."
                     },
                     "mission_id": {
@@ -198,6 +207,15 @@ TOOLS_SECHEMA = [
                     "metadata": {
                         "type": "object",
                         "description": "Additional info: target IP, test type, etc."
+                    },
+                    "scratchpad_content": {
+                        "type": "string",
+                        "description": "Content to write to scratchpad. For 'write_scratchpad' action."
+                    },
+                    "scratchpad_mode": {
+                        "type": "string",
+                        "enum": ["replace", "append"],
+                        "description": "Write mode: 'replace' to overwrite, 'append' to add. Default: append."
                     }
                 },
                 "required": ["action"]
@@ -271,6 +289,18 @@ You must strictly follow this mission protocol to ensure structured and effectiv
     4. You may fail a status, but if someone tells you to exploit or access root, you must understand that your goal is to find vulnerabilities. If you cannot find them one way, try another. Do not place all your responsibility on your tools. Visit the website and manually search for vulnerabilities if the website is poorly designed.
     5. If you are unsure about the success of an action, use `get_original_output` to retrieve the full output for analysis.
 
+### 📝 SCRATCHPAD MEMORY (CRITICAL FOR LONG MISSIONS)
+You have a PERSISTENT private notepad called **scratchpad** to save important findings:
+- **USE IT**: When you discover credentials, tokens, IPs, cookies, paths, or ANY important data, IMMEDIATELY save it using `manage_mission(action='write_scratchpad', scratchpad_content='...')`.
+- **WHY**: Your conversation context may be truncated over time. The scratchpad PERSISTS even if early messages are trimmed.
+- **FORMAT**: Use clear labels: `CREDS: admin:password123`, `TOKEN: abc123`, `TARGET: 10.10.0.3:8080`, etc.
+- **READ IT**: Use `manage_mission(action='read_scratchpad')` to recall your saved notes at any time.
+- **AUTO-READ**: The scratchpad is automatically included when you call `get_status`.
+
+**Example workflow:**
+1. Find credential → `manage_mission(action='write_scratchpad', scratchpad_content='CREDS: admin:password')`
+2. Later in mission → `manage_mission(action='get_status')` → scratchpad contents are included
+3. Use saved credentials for exploitation
     
 ### 🛠️ TOOL USAGE PROTOCOL (CRITICAL)
 You have access to a REST API via function calling. Follow these rules strictly:

@@ -190,6 +190,16 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_command_audit_conversation ON command_audit(conversation_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_command_audit_status ON command_audit(status)")
     
+    # =========================================================================
+    # MIGRACIÓN: Añadir columna scratchpad a missions (si no existe)
+    # =========================================================================
+    try:
+        cursor.execute("ALTER TABLE missions ADD COLUMN scratchpad TEXT")
+        print("📝 Columna 'scratchpad' añadida a tabla missions")
+    except sqlite3.OperationalError:
+        # La columna ya existe, ignorar
+        pass
+    
     print("🎯 Tablas de modo agéntico inicializadas")
     
     conn.commit()
@@ -559,14 +569,17 @@ MAX_MESSAGES_FOR_LLM = 30  # Máximo de mensajes a enviar al LLM
 MAX_TOOL_RESPONSE_LENGTH = 2000  # Máximo de caracteres para respuestas de tools
 
 
-def smart_truncate_messages(messages: List[Dict], max_messages: int) -> List[Dict]:
+def smart_truncate_messages(messages: List[Dict], max_messages: int, preserve_user: bool = True) -> List[Dict]:
     """
     Trunca mensajes de forma inteligente, preservando pares de tool_call/tool_response.
     
-    REGLAS:
-    1. Siempre preservar el system prompt (si existe)
-    2. Nunca separar un assistant con tool_calls de sus tool responses
-    3. Eliminar bloques completos de interacción, no mensajes sueltos
+    REGLAS CRÍTICAS:
+    1. SIEMPRE preservar el system prompt (si existe)
+    2. SIEMPRE preservar AL MENOS el primer mensaje de usuario (Gemini lo requiere)
+    3. Nunca separar un assistant con tool_calls de sus tool responses
+    4. Eliminar bloques completos de interacción, no mensajes sueltos
+    5. Gemini: El historial debe empezar con user/system, NUNCA con assistant
+    6. Gemini: Después de tool_calls debe venir tool responses, no otro assistant
     
     Un "bloque" es:
     - Un mensaje user + assistant (conversación normal)
@@ -575,85 +588,116 @@ def smart_truncate_messages(messages: List[Dict], max_messages: int) -> List[Dic
     if len(messages) <= max_messages:
         return messages
     
-    # Separar system prompt
-    system_msg = None
-    if messages and messages[0].get('role') == 'system':
-        system_msg = messages[0]
-        messages = messages[1:]
+    original_messages = messages.copy()
     
-    # Identificar bloques de interacción
+    # =========================================================================
+    # PASO 1: Separar y preservar mensajes críticos
+    # =========================================================================
+    system_msg = None
+    first_user_msg = None
+    first_user_idx = None
+    work_messages = []  # Mensajes a procesar (sin system, sin primer user)
+    
+    start_idx = 0
+    if original_messages and original_messages[0].get('role') == 'system':
+        system_msg = original_messages[0]
+        start_idx = 1
+    
+    # Encontrar el primer mensaje de usuario (CRÍTICO)
+    for i in range(start_idx, len(original_messages)):
+        if original_messages[i].get('role') == 'user':
+            first_user_msg = original_messages[i]
+            first_user_idx = i
+            break
+    
+    if first_user_msg is None:
+        # Sin usuario - NUNCA debería pasar, pero si pasa, devolver todo sin truncar
+        print("⚠️ CRÍTICO: No hay mensaje de usuario en el historial - devolviendo sin truncar")
+        return original_messages
+    
+    # Mensajes después del primer usuario (estos son los que podemos truncar)
+    work_messages = original_messages[first_user_idx + 1:]
+    
+    # =========================================================================
+    # PASO 2: Identificar bloques de interacción en work_messages
+    # =========================================================================
     blocks = []
     i = 0
-    while i < len(messages):
-        msg = messages[i]
+    while i < len(work_messages):
+        msg = work_messages[i]
         
         if msg.get('role') == 'assistant' and msg.get('tool_calls'):
-            # Este assistant tiene tool_calls, necesitamos incluir todos los tool responses
+            # Este assistant tiene tool_calls, agrupar con sus tool responses
             block = [msg]
             tool_call_ids = {tc.get('id') for tc in msg.get('tool_calls', [])}
             
-            # Buscar los tool responses que corresponden a estos tool_calls
             j = i + 1
-            while j < len(messages):
-                next_msg = messages[j]
+            while j < len(work_messages):
+                next_msg = work_messages[j]
                 if next_msg.get('role') == 'tool' and next_msg.get('tool_call_id') in tool_call_ids:
                     block.append(next_msg)
                     tool_call_ids.discard(next_msg.get('tool_call_id'))
                     j += 1
                 else:
-                    # Si no es un tool response correspondiente, salir
                     break
             
             blocks.append(block)
             i = j
         else:
-            # Mensaje normal (user o assistant sin tools)
             blocks.append([msg])
             i += 1
     
-    # Calcular cuántos mensajes podemos incluir
-    available_slots = max_messages - (1 if system_msg else 0)
+    # =========================================================================
+    # PASO 3: Seleccionar bloques más recientes que quepan
+    # =========================================================================
+    # Espacio disponible = max_messages - system_msg - first_user_msg
+    reserved = (1 if system_msg else 0) + 1  # +1 por el first_user_msg
+    available_slots = max_messages - reserved
+    
+    if available_slots <= 0:
+        # Caso extremo: no hay espacio para nada más
+        print(f"⚠️ Espacio muy limitado ({max_messages} msgs), solo system+user")
+        result = []
+        if system_msg:
+            result.append(system_msg)
+        result.append(first_user_msg)
+        return result
     
     # Tomar los bloques más recientes que quepan
     selected_blocks = []
     total_msgs = 0
     
     for block in reversed(blocks):
-        if total_msgs + len(block) <= available_slots:
+        block_size = len(block)
+        if total_msgs + block_size <= available_slots:
             selected_blocks.insert(0, block)
-            total_msgs += len(block)
-        elif total_msgs == 0:
-            # Si es el primer bloque y no cabe completo:
-            # - Si es un bloque de tools, NO truncar (causaría error de Gemini)
-            # - Si es un bloque normal, truncar con cuidado
-            has_tools = any(m.get('role') == 'tool' or m.get('tool_calls') for m in block)
-            if has_tools:
-                # Saltar este bloque por completo - es más seguro que truncarlo
-                print(f"⚠️ Bloque de tools demasiado grande ({len(block)} msgs), saltando...")
-                continue
-            else:
-                truncated_block = block[:available_slots]
-                selected_blocks.insert(0, truncated_block)
-                total_msgs += len(truncated_block)
-            break
+            total_msgs += block_size
         else:
-            # No cabe más
+            # No cabe este bloque completo
+            # Si no hemos seleccionado nada aún, intentar meter parte del bloque
+            if total_msgs == 0:
+                has_tools = any(m.get('role') == 'tool' or m.get('tool_calls') for m in block)
+                if has_tools:
+                    # Bloque de tools - NO se puede truncar (rompería Gemini)
+                    print(f"⚠️ Bloque de tools ({block_size} msgs) no cabe, saltando...")
+                    continue
+                else:
+                    # Bloque normal - truncar
+                    partial = block[-available_slots:] if available_slots > 0 else []
+                    if partial:
+                        selected_blocks.insert(0, partial)
+                        total_msgs += len(partial)
             break
     
-    # VALIDACIÓN FINAL: Eliminar tool responses huérfanos
-    # (tool responses sin su tool_call correspondiente)
-    tool_call_ids_in_result = set()
-    for msg in result if 'result' in dir() else []:
-        if msg.get('tool_calls'):
-            for tc in msg.get('tool_calls', []):
-                tool_call_ids_in_result.add(tc.get('id'))
-    
-    # Reconstruir la lista con validación
+    # =========================================================================
+    # PASO 4: Reconstruir el resultado
+    # =========================================================================
     result = []
     if system_msg:
         result.append(system_msg)
+    result.append(first_user_msg)  # SIEMPRE incluir el primer usuario
     
-    # Recolectar todos los tool_call_ids de los bloques seleccionados
+    # Recolectar todos los tool_call_ids para filtrar huérfanos
     all_tool_call_ids = set()
     for block in selected_blocks:
         for msg in block:
@@ -661,17 +705,130 @@ def smart_truncate_messages(messages: List[Dict], max_messages: int) -> List[Dic
                 for tc in msg.get('tool_calls', []):
                     all_tool_call_ids.add(tc.get('id'))
     
-    # Ahora agregar mensajes, filtrando tool responses huérfanos
+    # Agregar mensajes de los bloques seleccionados
     for block in selected_blocks:
         for msg in block:
             if msg.get('role') == 'tool':
-                # Solo incluir si existe el tool_call correspondiente
                 if msg.get('tool_call_id') in all_tool_call_ids:
                     result.append(msg)
                 else:
                     print(f"⚠️ Eliminando tool response huérfano: {msg.get('tool_call_id')}")
             else:
                 result.append(msg)
+    
+    # =========================================================================
+    # PASO 5: Validación final de secuencia
+    # =========================================================================
+    result = ensure_valid_message_sequence(result)
+    
+    # GARANTÍA FINAL: Si después de la validación quedó solo system, agregar el user
+    has_user = any(m.get('role') == 'user' for m in result)
+    if not has_user and first_user_msg:
+        print("⚠️ Restaurando mensaje de usuario eliminado por validación")
+        insert_idx = 1 if system_msg else 0
+        result.insert(insert_idx, first_user_msg)
+    
+    print(f"📦 Truncado: {len(original_messages)} -> {len(result)} msgs (preservado user original)")
+    return result
+
+
+def ensure_valid_message_sequence(messages: List[Dict]) -> List[Dict]:
+    """
+    Asegura que la secuencia de mensajes sea válida para Gemini:
+    1. Después del system prompt, debe venir un mensaje de usuario
+    2. Un assistant con tool_calls solo puede venir después de user o tool
+    3. No puede haber dos assistant seguidos (sin tool responses entre medio)
+    4. Los tool responses deben venir inmediatamente después de assistant con tool_calls
+    
+    REGLA CLAVE DE GEMINI: "function call turn comes immediately after a user turn 
+    or after a function response turn"
+    """
+    if not messages:
+        return messages
+    
+    result = []
+    
+    # Preservar system prompt si existe
+    start_idx = 0
+    if messages[0].get('role') == 'system':
+        result.append(messages[0])
+        start_idx = 1
+    
+    # Encontrar el primer mensaje de usuario después del system prompt
+    first_user_idx = None
+    for i in range(start_idx, len(messages)):
+        if messages[i].get('role') == 'user':
+            first_user_idx = i
+            break
+    
+    if first_user_idx is None:
+        # No hay mensajes de usuario, devolver solo el system prompt o vacío
+        print("⚠️ No se encontró mensaje de usuario en el historial truncado")
+        return result
+    
+    # Agregar mensajes desde el primer usuario
+    i = first_user_idx
+    while i < len(messages):
+        msg = messages[i]
+        role = msg.get('role')
+        has_tool_calls = bool(msg.get('tool_calls'))
+        
+        # Obtener info del último mensaje en result
+        last_role = result[-1].get('role') if result else None
+        last_has_tool_calls = bool(result[-1].get('tool_calls')) if result else False
+        
+        # REGLA 1: Después de assistant con tool_calls DEBE venir tool
+        if last_role == 'assistant' and last_has_tool_calls:
+            if role != 'tool':
+                # El assistant anterior tenía tool_calls pero no siguen tool responses
+                # Esto rompe la secuencia - eliminar el assistant problemático
+                print(f"⚠️ Eliminando assistant con tool_calls sin responses (siguiente es {role})")
+                result.pop()
+                # Recalcular last_role
+                last_role = result[-1].get('role') if result else None
+                last_has_tool_calls = bool(result[-1].get('tool_calls')) if result else False
+        
+        # REGLA 2: assistant con tool_calls solo puede venir después de user o tool
+        if role == 'assistant' and has_tool_calls:
+            if last_role not in (None, 'user', 'tool', 'system'):
+                # Inválido: assistant con tool_calls después de assistant
+                print(f"⚠️ Saltando assistant+tool_calls inválido (después de {last_role})")
+                i += 1
+                continue
+        
+        # REGLA 3: No dos assistant seguidos (a menos que el primero tenga tool_calls pendientes de tools)
+        if role == 'assistant' and last_role == 'assistant' and not last_has_tool_calls:
+            # Dos assistant seguidos sin tools - eliminar el anterior
+            print(f"⚠️ Eliminando assistant duplicado consecutivo")
+            result.pop()
+        
+        # REGLA 4: tool solo puede venir después de assistant con tool_calls
+        if role == 'tool':
+            if last_role != 'assistant' or not last_has_tool_calls:
+                # Tool huérfano - buscar si hay un assistant con tool_calls antes
+                # Si no hay, saltar este tool
+                print(f"⚠️ Saltando tool response huérfano (anterior es {last_role})")
+                i += 1
+                continue
+        
+        result.append(msg)
+        i += 1
+    
+    # Validación final: si termina con assistant con tool_calls sin tools, quitarlo
+    while result and result[-1].get('role') == 'assistant' and result[-1].get('tool_calls'):
+        # Verificar si hay más mensajes después que sean tools
+        # En este punto ya procesamos todo, así que si termina así, es porque no hay tools
+        # Pero esto puede ser válido si estamos en medio de una iteración del agente
+        # Solo lo quitamos si no hay ningún tool después
+        has_pending_tools = False
+        for remaining_msg in messages[i:]:
+            if remaining_msg.get('role') == 'tool':
+                has_pending_tools = True
+                break
+        
+        if not has_pending_tools:
+            print(f"ℹ️ Historial termina con assistant+tool_calls (estado normal si hay ejecución pendiente)")
+        break
     
     return result
 
@@ -953,6 +1110,71 @@ def complete_mission(mission_id: str, status: str = 'COMPLETED') -> bool:
         """, (status, now, mission_id))
         conn.commit()
         print(f"🏁 Misión {mission_id[:12]}... completada con estado: {status}")
+        return cursor.rowcount > 0
+
+
+# =============================================================================
+# MODO AGÉNTICO - SCRATCHPAD/MEMORIA DEL AGENTE
+# =============================================================================
+
+def get_mission_scratchpad(mission_id: str) -> str:
+    """
+    Obtiene el scratchpad (memoria) de una misión.
+    El scratchpad es un bloc de notas privado del agente para guardar
+    hallazgos importantes, credenciales, IPs, etc.
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT scratchpad FROM missions WHERE id = ?", (mission_id,))
+        row = cursor.fetchone()
+        if row and row[0]:
+            return row[0]
+        return ""
+
+
+def update_mission_scratchpad(mission_id: str, content: str, mode: str = 'replace') -> bool:
+    """
+    Actualiza el scratchpad de una misión.
+    
+    Args:
+        mission_id: ID de la misión
+        content: Contenido a escribir
+        mode: 'replace' para reemplazar todo, 'append' para añadir al final
+    
+    Returns:
+        True si se actualizó correctamente
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        if mode == 'append':
+            # Obtener contenido actual
+            cursor.execute("SELECT scratchpad FROM missions WHERE id = ?", (mission_id,))
+            row = cursor.fetchone()
+            current = row[0] if row and row[0] else ""
+            
+            # Añadir separador si hay contenido previo
+            if current:
+                content = current + "\n---\n" + content
+        
+        cursor.execute("""
+            UPDATE missions SET scratchpad = ? WHERE id = ?
+        """, (content, mission_id))
+        conn.commit()
+        
+        print(f"📝 Scratchpad actualizado para misión {mission_id[:12]}... (modo: {mode})")
+        return cursor.rowcount > 0
+
+
+def clear_mission_scratchpad(mission_id: str) -> bool:
+    """Limpia el scratchpad de una misión."""
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE missions SET scratchpad = NULL WHERE id = ?
+        """, (mission_id,))
+        conn.commit()
+        print(f"🗑️ Scratchpad limpiado para misión {mission_id[:12]}...")
         return cursor.rowcount > 0
 
 
