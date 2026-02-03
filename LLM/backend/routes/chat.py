@@ -16,6 +16,79 @@ import database as db
 
 router = APIRouter(tags=["Chat"])
 
+
+# =============================================================================
+# HELPER: Separar JSONs concatenados (Fix para Gemini 3)
+# =============================================================================
+def split_concatenated_json(json_str: str) -> list:
+    """
+    Gemini 3 a veces concatena múltiples objetos JSON sin separador:
+    {"goal":"..."}{"command":"nmap..."}
+    
+    Esta función detecta y separa estos JSONs concatenados.
+    Retorna una lista de strings JSON válidos.
+    """
+    if not json_str or not json_str.strip():
+        return ['{}']
+    
+    json_str = json_str.strip()
+    
+    # Intento rápido: si es JSON válido directamente, retornar
+    try:
+        json.loads(json_str)
+        return [json_str]
+    except json.JSONDecodeError:
+        pass
+    
+    # Buscar patrón de JSONs concatenados: }{ o }\n{
+    # Usamos un approach más robusto: encontrar los límites de cada objeto JSON
+    results = []
+    depth = 0
+    current_start = 0
+    in_string = False
+    escape_next = False
+    
+    for i, char in enumerate(json_str):
+        if escape_next:
+            escape_next = False
+            continue
+            
+        if char == '\\' and in_string:
+            escape_next = True
+            continue
+            
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            continue
+            
+        if in_string:
+            continue
+            
+        if char == '{':
+            if depth == 0:
+                current_start = i
+            depth += 1
+        elif char == '}':
+            depth -= 1
+            if depth == 0:
+                # Encontramos un objeto JSON completo
+                json_obj = json_str[current_start:i+1]
+                try:
+                    json.loads(json_obj)  # Validar
+                    results.append(json_obj)
+                except json.JSONDecodeError:
+                    pass
+    
+    # Si encontramos múltiples JSONs, retornarlos
+    if len(results) > 1:
+        print(f"🔧 GEMINI FIX: Detectados {len(results)} JSONs concatenados, separando...")
+        return results
+    elif len(results) == 1:
+        return results
+    else:
+        # No pudimos parsear, retornar original
+        return [json_str]
+
 # URL del sandbox para ejecutar comandos
 SANDBOX_URL = "http://localhost:5000"
 
@@ -1029,6 +1102,26 @@ async def chat_completion(req: ChatRequest):
     messages_for_llm = db.get_conversation_for_llm(user_msg_id)
     
     # ==========================================================================
+    # 4.1 GEMINI 3 FIX: Añadir thought_signature a tool_calls cargados de BD
+    # Gemini 3 REQUIERE thought_signature en todos los tool_calls
+    # ==========================================================================
+    model_id = req.model_id or ""
+    if model_id.startswith('gemini-3') or model_id.startswith('models/gemini-3'):
+        for msg in messages_for_llm:
+            if msg.get('role') == 'assistant' and msg.get('tool_calls'):
+                for tc in msg['tool_calls']:
+                    # Verificar si ya tiene thought_signature
+                    has_signature = ('thought_signature' in tc or 
+                                    'thoughtSignature' in tc or 
+                                    ('extra_content' in tc and tc.get('extra_content', {}).get('google', {}).get('thought_signature')))
+                    if not has_signature:
+                        tc['extra_content'] = {
+                            'google': {
+                                'thought_signature': 'skip_thought_signature_validator'
+                            }
+                        }
+    
+    # ==========================================================================
     # 4.5 DETECCIÓN DE MODO AGÉNTICO
     # ==========================================================================
     
@@ -1480,7 +1573,55 @@ async def stream_chat_response(
                     print(f"⚠️ Tool call ignorado: nombre de función inválido '{func_name}'")
                     continue
                 
-                # Validar argumentos JSON
+                # ================================================================
+                # GEMINI 3 FIX: Detectar JSONs concatenados
+                # Gemini a veces envía: {"action":"create"}{"command":"nmap..."}
+                # ================================================================
+                json_parts = split_concatenated_json(func_args_str)
+                
+                if len(json_parts) > 1:
+                    # Múltiples JSONs concatenados - crear tool calls separados
+                    print(f"🔧 GEMINI FIX: Separando {len(json_parts)} tool calls concatenados")
+                    original_id = tc.get('id', 'split')
+                    for i, json_part in enumerate(json_parts):
+                        try:
+                            args = json.loads(json_part)
+                            
+                            # Inferir el tipo de tool call basado en los argumentos
+                            inferred_func = func_name
+                            if 'command' in args:
+                                inferred_func = 'execute_command'
+                            elif 'action' in args:
+                                inferred_func = 'manage_mission'
+                            elif 'job_id' in args:
+                                inferred_func = 'check_job_status'
+                            
+                            if inferred_func not in valid_tools:
+                                continue
+                            
+                            # Crear nuevo tool call
+                            new_tc = {
+                                'id': f"{original_id}_{i}",
+                                'type': 'function',
+                                'function': {
+                                    'name': inferred_func,
+                                    'arguments': json_part
+                                },
+                                # IMPORTANTE: Guardar referencia al ID original para heredar campos extra
+                                '_original_id': original_id
+                            }
+                            # Copiar campos extra del original (incluyendo extra_content con thought_signature)
+                            for k, v in tc.items():
+                                if k not in ['id', 'type', 'function']:
+                                    new_tc[k] = v
+                            
+                            valid_tool_calls.append(new_tc)
+                            print(f"   ✅ Tool call separado [{i}]: {inferred_func}")
+                        except json.JSONDecodeError:
+                            continue
+                    continue
+                
+                # Validar argumentos JSON (caso normal, un solo JSON)
                 try:
                     args = json.loads(func_args_str)
                     
@@ -1543,20 +1684,25 @@ async def stream_chat_response(
             # Añadir campos extra a los tool_calls reconstruidos
             for tc in reconstructed_tool_calls:
                 tc_id = tc.get('id')
-                if tc_id and tc_id in extra_fields_map:
-                    for key, value in extra_fields_map[tc_id].items():
+                # Buscar por ID directo o por ID original (para tool calls separados de JSONs concatenados)
+                original_id = tc.get('_original_id')
+                lookup_id = tc_id if tc_id in extra_fields_map else original_id
+                
+                if lookup_id and lookup_id in extra_fields_map:
+                    for key, value in extra_fields_map[lookup_id].items():
                         tc[key] = value
-                    print(f"   ✅ Preservando campos extra para {tc_id}: {list(extra_fields_map[tc_id].keys())}")
+                    print(f"   ✅ Preservando campos extra para {tc_id} (from {lookup_id}): {list(extra_fields_map[lookup_id].keys())}")
             
             # GEMINI 3 WORKAROUND: Si no hay thought_signature y es Google, añadir el skip validator
             # El SDK de OpenAI no expone correctamente extra_content de Gemini
             # Formato: extra_content.google.thought_signature para API OpenAI compatible
+            # IMPORTANTE: Gemini 3 requiere thought_signature en TODOS los tool calls, no solo el primero
             if model_id.startswith('gemini-3') or model_id.startswith('gemini-2.5'):
                 for i, tc in enumerate(reconstructed_tool_calls):
                     has_signature = ('thought_signature' in tc or 
                                     'thoughtSignature' in tc or 
                                     ('extra_content' in tc and tc.get('extra_content', {}).get('google', {}).get('thought_signature')))
-                    if not has_signature and i == 0:  # Solo el primer tool_call necesita firma
+                    if not has_signature:  # Aplicar a TODOS los tool calls que no tengan firma
                         tc['extra_content'] = {
                             'google': {
                                 'thought_signature': 'skip_thought_signature_validator'
@@ -1797,6 +1943,21 @@ async def stream_chat_response(
                 # Aplicar validación de secuencia SIEMPRE antes de enviar
                 current_messages = db.ensure_valid_message_sequence(current_messages)
                 
+                # GEMINI 3 FIX: Añadir thought_signature a tool_calls en loop
+                if model_id.startswith('gemini-3') or model_id.startswith('gemini-2.5') or model_id.startswith('models/gemini-3') or model_id.startswith('models/gemini-2.5'):
+                    for msg in current_messages:
+                        if msg.get('role') == 'assistant' and msg.get('tool_calls'):
+                            for tc in msg['tool_calls']:
+                                has_signature = ('thought_signature' in tc or 
+                                                'thoughtSignature' in tc or 
+                                                ('extra_content' in tc and tc.get('extra_content', {}).get('google', {}).get('thought_signature')))
+                                if not has_signature:
+                                    tc['extra_content'] = {
+                                        'google': {
+                                            'thought_signature': 'skip_thought_signature_validator'
+                                        }
+                                    }
+                
                 # SANITIZACIÓN EXTRA: Forzar content="" si es null (para DeepSeek)
                 for msg in current_messages:
                     if msg.get('content') is None:
@@ -2009,6 +2170,7 @@ async def stream_chat_response(
                 
                 # ================================================================
                 # VALIDACIÓN DE TOOL CALLS EN LOOP (Fix para Gemini 2.5 Pro)
+                # + GEMINI 3 FIX: Detectar JSONs concatenados
                 # ================================================================
                 valid_loop_tools = []
                 valid_tool_names = ['execute_command', 'manage_mission', 'check_job_status', 'stop_job', 'get_original_output']
@@ -2020,6 +2182,52 @@ async def stream_chat_response(
                     
                     if not func_name or func_name not in valid_tool_names:
                         print(f"⚠️ Loop: tool call ignorado - nombre inválido '{func_name}'")
+                        continue
+                    
+                    # ================================================================
+                    # GEMINI 3 FIX: Detectar JSONs concatenados en loop
+                    # ================================================================
+                    json_parts = split_concatenated_json(func_args_str)
+                    
+                    if len(json_parts) > 1:
+                        # Múltiples JSONs concatenados - crear tool calls separados
+                        print(f"🔧 GEMINI FIX (Loop): Separando {len(json_parts)} tool calls concatenados")
+                        original_id = tc.get('id', 'split')
+                        for i, json_part in enumerate(json_parts):
+                            try:
+                                args = json.loads(json_part)
+                                
+                                # Inferir el tipo de tool call basado en los argumentos
+                                inferred_func = func_name
+                                if 'command' in args:
+                                    inferred_func = 'execute_command'
+                                elif 'action' in args:
+                                    inferred_func = 'manage_mission'
+                                elif 'job_id' in args:
+                                    inferred_func = 'check_job_status'
+                                
+                                if inferred_func not in valid_tool_names:
+                                    continue
+                                
+                                # Crear nuevo tool call
+                                new_tc = {
+                                    'id': f"{original_id}_{i}",
+                                    'type': 'function',
+                                    'function': {
+                                        'name': inferred_func,
+                                        'arguments': json_part
+                                    },
+                                    '_original_id': original_id
+                                }
+                                # Copiar campos extra del original
+                                for k, v in tc.items():
+                                    if k not in ['id', 'type', 'function']:
+                                        new_tc[k] = v
+                                
+                                valid_loop_tools.append(new_tc)
+                                print(f"   ✅ Loop tool call separado [{i}]: {inferred_func}")
+                            except json.JSONDecodeError:
+                                continue
                         continue
                     
                     try:
@@ -2059,17 +2267,20 @@ async def stream_chat_response(
                 # Añadir campos extra a los tool_calls reconstruidos (thought_signature)
                 for tc in loop_reconstructed:
                     tc_id = tc.get('id')
-                    if tc_id and tc_id in loop_extra_fields_map:
-                        for key, value in loop_extra_fields_map[tc_id].items():
+                    original_id = tc.get('_original_id')
+                    lookup_id = tc_id if tc_id in loop_extra_fields_map else original_id
+                    
+                    if lookup_id and lookup_id in loop_extra_fields_map:
+                        for key, value in loop_extra_fields_map[lookup_id].items():
                             tc[key] = value
                 
-                # GEMINI 3 WORKAROUND: Añadir skip validator si es necesario
+                # GEMINI 3 WORKAROUND: Añadir skip validator a TODOS los tool calls
                 if model_id.startswith('gemini-3') or model_id.startswith('gemini-2.5'):
                     for i, tc in enumerate(loop_reconstructed):
                         has_signature = ('thought_signature' in tc or 
                                         'thoughtSignature' in tc or 
                                         ('extra_content' in tc and tc.get('extra_content', {}).get('google', {}).get('thought_signature')))
-                        if not has_signature and i == 0:
+                        if not has_signature:  # Aplicar a TODOS
                             tc['extra_content'] = {
                                 'google': {
                                     'thought_signature': 'skip_thought_signature_validator'

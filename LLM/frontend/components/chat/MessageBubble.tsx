@@ -29,6 +29,64 @@ import remarkGfm from "remark-gfm";
 import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
 import { oneDark } from "react-syntax-highlighter/dist/esm/styles/prism";
 
+// ============================================================================
+// GEMINI 3 FIX: Parser seguro para JSONs concatenados
+// Gemini a veces envía: {"action":"create"}{"command":"nmap..."}
+// ============================================================================
+function safeParseToolArgs(jsonStr: string): Record<string, unknown> {
+  if (!jsonStr || !jsonStr.trim()) return {};
+  
+  // Intento directo
+  try {
+    return JSON.parse(jsonStr);
+  } catch {
+    // Si falla, puede ser JSONs concatenados - extraer el primero
+    let depth = 0;
+    let start = -1;
+    let inString = false;
+    let escapeNext = false;
+    
+    for (let i = 0; i < jsonStr.length; i++) {
+      const char = jsonStr[i];
+      
+      if (escapeNext) {
+        escapeNext = false;
+        continue;
+      }
+      
+      if (char === '\\' && inString) {
+        escapeNext = true;
+        continue;
+      }
+      
+      if (char === '"' && !escapeNext) {
+        inString = !inString;
+        continue;
+      }
+      
+      if (inString) continue;
+      
+      if (char === '{') {
+        if (depth === 0) start = i;
+        depth++;
+      } else if (char === '}') {
+        depth--;
+        if (depth === 0 && start >= 0) {
+          // Primer objeto JSON completo encontrado
+          const firstJson = jsonStr.substring(start, i + 1);
+          try {
+            return JSON.parse(firstJson);
+          } catch {
+            return {};
+          }
+        }
+      }
+    }
+  }
+  
+  return {};
+}
+
 interface MessageBubbleProps {
   message: Message;
   isStreaming?: boolean;
@@ -484,16 +542,9 @@ export function MessageBubble({ message, isStreaming, streamContent, toolRespons
               {(() => {
                 const firstTool = toolCallsArray[0];
                 const toolName = firstTool?.function?.name || '';
-                let args: { command?: string; job_id?: string } = {};
-                try {
-                  const rawArgs = firstTool?.function?.arguments || '{}';
-                  console.log('🔧 Raw tool args:', rawArgs);
-                  args = JSON.parse(rawArgs);
-                  console.log('🔧 Parsed args:', args);
-                  console.log('🔧 Command:', args.command);
-                } catch (e) {
-                  console.error('🔧 Error parsing args:', e);
-                }
+                // Usar parser seguro para JSONs concatenados (Gemini 3 fix)
+                const rawArgs = firstTool?.function?.arguments || '{}';
+                const args = safeParseToolArgs(rawArgs) as { command?: string; job_id?: string };
                 
                 const isCheckJob = toolName === 'check_job_status';
                 
@@ -736,13 +787,13 @@ export function MessageBubble({ message, isStreaming, streamContent, toolRespons
             {showToolCalls && (
               <div className="mt-2 space-y-2">
                 {toolCallsArray.map((tc, i) => {
-                  // Parsear argumentos para mostrar info útil
-                  let args: { command?: string; wait_time?: number; exit_time?: number; job_id?: string } = {};
-                  try {
-                    args = JSON.parse(tc.function.arguments);
-                  } catch {
-                    args = {};
-                  }
+                  // Parsear argumentos con parser seguro (Gemini 3 fix)
+                  const args = safeParseToolArgs(tc.function.arguments) as { 
+                    command?: string; 
+                    wait_time?: number; 
+                    exit_time?: number; 
+                    job_id?: string 
+                  };
                   
                   const isCheckJob = tc.function.name === 'check_job_status';
                   // Si el mensaje ya tiene contenido, el comando ya se completó
