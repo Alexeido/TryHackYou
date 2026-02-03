@@ -14,6 +14,14 @@ from typing import Dict, List, Tuple, Optional
 from datetime import datetime
 from enum import Enum
 
+# =============================================================================
+# 🔧 CONFIGURACIÓN DE APROBACIÓN DE COMANDOS
+# =============================================================================
+# Cambiar a False para desactivar TODAS las solicitudes de aprobación
+# Útil para pruebas de autonomía completa del agente
+REQUIRE_APPROVAL_ENABLED = False  # ← CAMBIAR AQUÍ PARA ACTIVAR/DESACTIVAR
+# =============================================================================
+
 
 class RiskLevel(Enum):
     """Niveles de riesgo para comandos."""
@@ -158,8 +166,8 @@ def analyze_command(command: str) -> Dict:
             elif risk_level.value == RiskLevel.MEDIUM.value and max_risk not in [RiskLevel.CRITICAL, RiskLevel.HIGH]:
                 max_risk = RiskLevel.MEDIUM
     
-    # Determinar si requiere aprobación
-    requires_approval = max_risk in [RiskLevel.CRITICAL, RiskLevel.HIGH]
+    # Determinar si requiere aprobación (respeta la variable global)
+    requires_approval = REQUIRE_APPROVAL_ENABLED and max_risk in [RiskLevel.CRITICAL, RiskLevel.HIGH]
     
     if not matched:
         return {

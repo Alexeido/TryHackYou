@@ -386,19 +386,22 @@ async def approve_objective(objective_id: int, req: ApprovalRequest):
             if audit_log:
                 db.update_audit_log(audit_log["id"], "EXECUTING")
             
-            # Ejecutar en el sandbox
-            async with httpx.AsyncClient(timeout=120.0) as client:
+            # Ejecutar en el sandbox con tiempo de espera generoso para comandos aprobados
+            # Los comandos críticos pueden tardar más (scripts complejos, conexiones de red, etc.)
+            async with httpx.AsyncClient(timeout=180.0) as client:
                 payload = {
                     "command": command,
                     "conversation_id": conversation_id,
-                    "wait_time": 30  # Default wait time
+                    "wait_time": 60  # Mayor tiempo para comandos aprobados (pueden ser complejos)
                 }
                 
                 response = await client.post(f"{SANDBOX_URL}/execute", json=payload)
                 response.raise_for_status()
                 exec_result = response.json()
                 
-                # Formatear salida
+                print(f"📥 Sandbox response keys: {list(exec_result.keys())}")
+                
+                # Formatear salida - el sandbox devuelve stdout/stderr y return_code
                 output_parts = []
                 
                 if exec_result.get("status") == "running" and exec_result.get("job_id"):
@@ -406,16 +409,24 @@ async def approve_objective(objective_id: int, req: ApprovalRequest):
                     output_parts.append(f"STATUS: running (background)")
                     output_parts.append("NOTE: Full output available when command completes.")
                 
+                # El sandbox devuelve stdout/stderr, no output
+                if exec_result.get("stdout"):
+                    output_parts.append(exec_result["stdout"])
+                if exec_result.get("stderr"):
+                    output_parts.append(f"STDERR: {exec_result['stderr']}")
+                # Fallback para 'output' si existe
                 if exec_result.get("output"):
                     output_parts.append(exec_result["output"])
                 
-                if exec_result.get("exit_code") is not None:
-                    output_parts.append(f"EXIT_CODE: {exec_result['exit_code']}")
+                # El sandbox devuelve return_code, no exit_code
+                exit_code = exec_result.get("return_code") or exec_result.get("exit_code")
+                if exit_code is not None:
+                    output_parts.append(f"EXIT_CODE: {exit_code}")
                 
                 execution_result = {
                     "success": True,
-                    "output": "\n".join(output_parts) if output_parts else "Command executed",
-                    "exit_code": exec_result.get("exit_code"),
+                    "output": "\n".join(output_parts) if output_parts else "Command executed (no output yet)",
+                    "exit_code": exit_code,
                     "job_id": exec_result.get("job_id"),
                     "status": exec_result.get("status", "completed")
                 }
@@ -424,7 +435,31 @@ async def approve_objective(objective_id: int, req: ApprovalRequest):
                 if audit_log:
                     db.update_audit_log(audit_log["id"], "EXECUTED")
                 
-                print(f"✅ Comando ejecutado: exit_code={exec_result.get('exit_code')}")
+                print(f"✅ Comando ejecutado: exit_code={exit_code}, output_len={len(execution_result['output']) if execution_result['output'] else 0}")
+                
+                # =================================================================
+                # IMPORTANTE: Actualizar el mensaje tool que tenía AWAITING_AUTHORIZATION
+                # Esto permite que cuando se reanude el chat, el LLM reciba el resultado real
+                # =================================================================
+                if conversation_id:
+                    tool_result_content = json.dumps({
+                        "status": "EXECUTED",
+                        "command": command,
+                        "exit_code": exec_result.get("exit_code"),
+                        "output": execution_result["output"],
+                        "message": "Comando aprobado y ejecutado exitosamente"
+                    })
+                    
+                    print(f"📝 Actualizando mensaje tool para objetivo {objective_id} en conv {conversation_id}")
+                    updated = db.find_and_update_awaiting_tool_message(
+                        conversation_id=conversation_id,
+                        objective_id=objective_id,
+                        new_content=tool_result_content
+                    )
+                    if not updated:
+                        print(f"⚠️ No se pudo actualizar el mensaje tool - el LLM no recibirá el resultado")
+                else:
+                    print(f"⚠️ No hay conversation_id - no se puede actualizar mensaje tool")
                 
         except httpx.HTTPStatusError as e:
             execution_result = {

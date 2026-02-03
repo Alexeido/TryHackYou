@@ -148,6 +148,81 @@ For each action:
 Remember: The user is watching your mission progress in a panel. Keep it updated!"""
 
 
+def build_mission_context(conversation_id: str) -> Optional[str]:
+    """
+    Construye el contexto de la misión activa para inyectar en el prompt.
+    Incluye: estado de la misión, objetivos, progreso y SCRATCHPAD.
+    Retorna None si no hay misión activa.
+    """
+    active_mission = db.get_active_mission(conversation_id)
+    if not active_mission:
+        return None
+    
+    mission_id = active_mission['id']
+    objectives = db.get_objectives(mission_id)
+    progress = db.get_mission_progress(mission_id)
+    scratchpad = db.get_mission_scratchpad(mission_id)
+    
+    mission_context = f"""
+## 🎯 ACTIVE MISSION STATE (CURRENT - DO NOT CREATE NEW MISSION)
+- **Mission ID**: {mission_id}
+- **Goal**: {active_mission['goal']}
+- **Phase**: {active_mission.get('current_phase', 'Not set')}
+- **Progress**: {progress['completed']}/{progress['total']} objectives
+
+### Objectives:"""
+    
+    for obj in objectives:
+        status_emoji = {
+            'PENDING': '⏸️',
+            'IN_PROGRESS': '🔄',
+            'COMPLETED': '✅',
+            'FAILED': '❌',
+            'SKIPPED': '⏭️',
+            'AWAITING_AUTHORIZATION': '🛑'
+        }.get(obj['status'], '❓')
+        mission_context += f"\n{status_emoji} [{obj['id']}] {obj['task']} - {obj['status']}"
+        if obj.get('result_summary'):
+            mission_context += f"\n   Result: {obj['result_summary'][:150]}..."
+    
+    # INCLUIR SCRATCHPAD - CRÍTICO para persistencia de hallazgos
+    if scratchpad:
+        mission_context += f"\n\n### 📝 Your Scratchpad (saved findings):\n```\n{scratchpad}\n```"
+    else:
+        mission_context += "\n\n### 📝 Your Scratchpad: (empty - use write_scratchpad to save important findings)"
+    
+    mission_context += "\n\n**⚠️ CRITICAL: A mission already exists! DO NOT call manage_mission(action='create'). CONTINUE from where you left off. Check the objectives above and proceed with the next PENDING or IN_PROGRESS item.**"
+    
+    return mission_context
+
+
+def update_system_with_mission_context(messages: List[Dict], conversation_id: str) -> List[Dict]:
+    """
+    Actualiza el system prompt con el contexto de misión actual.
+    Esto asegura que el modelo siempre sepa qué misión está activa aunque
+    el historial se haya truncado.
+    """
+    mission_context = build_mission_context(conversation_id)
+    if not mission_context:
+        return messages
+    
+    # Buscar el system prompt
+    if messages and messages[0].get('role') == 'system':
+        current_system = messages[0].get('content', '')
+        
+        # Eliminar cualquier misión anterior del system prompt
+        # (buscar desde "## 🎯 ACTIVE MISSION" hasta el siguiente "##" o fin)
+        import re
+        pattern = r'\n## 🎯 ACTIVE MISSION STATE.*?(?=\n## |\Z)'
+        current_system = re.sub(pattern, '', current_system, flags=re.DOTALL)
+        
+        # Añadir el contexto de misión actualizado al final del system prompt
+        messages[0]['content'] = current_system.rstrip() + "\n" + mission_context
+        print(f"📋 System prompt actualizado con misión activa")
+    
+    return messages
+
+
 async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, leaf_id: Optional[int] = None) -> str:
     """
     Ejecuta una tool call en el sandbox y retorna el resultado.
@@ -380,6 +455,57 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, lea
             except httpx.HTTPError as e:
                 return f"JOB_ID: {job_id}\nSTATUS: error\nERROR: No se pudo conectar con el sandbox"
     
+    elif function_name == "stop_job":
+        """
+        Detiene un job en background que está corriendo en el sandbox.
+        Útil cuando un comando está tardando mucho o no es útil.
+        """
+        job_id = function_args.get("job_id")
+        
+        if not job_id:
+            return json.dumps({"error": "job_id no especificado"})
+        
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            try:
+                # Llamar al endpoint del sandbox para detener el job
+                response = await client.post(f"{SANDBOX_URL}/stop/{job_id}")
+                response.raise_for_status()
+                result = response.json()
+                
+                print(f"🛑 Job {job_id[:8]} detenido exitosamente")
+                
+                return json.dumps({
+                    "status": "success",
+                    "message": f"Job {job_id} detenido exitosamente",
+                    "job_id": job_id,
+                    "sandbox_response": result
+                })
+                
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 404:
+                    return json.dumps({
+                        "status": "not_found",
+                        "message": f"Job {job_id} no existe o ya terminó",
+                        "job_id": job_id
+                    })
+                return json.dumps({
+                    "status": "error",
+                    "message": f"Error HTTP {e.response.status_code} al detener job",
+                    "job_id": job_id
+                })
+            except httpx.HTTPError as e:
+                return json.dumps({
+                    "status": "error",
+                    "message": f"Error de conexión: {str(e)}",
+                    "job_id": job_id
+                })
+            except Exception as e:
+                return json.dumps({
+                    "status": "error",
+                    "message": f"Error inesperado: {str(e)}",
+                    "job_id": job_id
+                })
+    
     # ==========================================================================
     # TOOLS AGÉNTICAS - GESTIÓN DE MISIONES
     # ==========================================================================
@@ -419,11 +545,12 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, lea
             
             return json.dumps({
                 "status": "success",
-                "message": "Misión creada exitosamente",
+                "message": f"✅ Misión creada exitosamente. Mission ID: {mission_id}",
                 "mission_id": mission_id,
                 "objective_ids": obj_ids,
                 "objectives_count": len(obj_ids),
-                "NEXT_ACTION": "IMPORTANTE: Ahora DEBES ejecutar el primer objetivo del plan. Usa execute_command para comenzar."
+                "CRITICAL_INSTRUCTION": f"⚠️ ALWAYS use mission_id='{mission_id}' in ALL subsequent manage_mission calls. First objective ID is {obj_ids[0] if obj_ids else 'N/A'}.",
+                "NEXT_ACTION": f"Now execute: manage_mission(action='update_objective', mission_id='{mission_id}', objective_id={obj_ids[0] if obj_ids else 1}, status='IN_PROGRESS') and then execute_command for the first task."
             })
         
         elif action == "update_objective":
@@ -516,7 +643,9 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, lea
             return json.dumps({
                 "status": "success",
                 "message": f"Misión finalizada con estado: {final_status}",
-                "final_progress": progress
+                "final_progress": progress,
+                "MISSION_COMPLETED": True,  # Flag para NO forzar continuación
+                "NEXT_ACTION": "STOP: La misión ha finalizado. Presenta el informe final al usuario y espera instrucciones."
             })
         
         elif action == "get_status":
@@ -920,45 +1049,9 @@ async def chat_completion(req: ChatRequest):
                 "content": AGENTIC_SYSTEM_PROMPT
             })
         
-        # Añadir un mensaje de contexto sobre la misión activa si existe
-        active_mission = db.get_active_mission(conversation_id)
-        if active_mission:
-            objectives = db.get_objectives(active_mission['id'])
-            progress = db.get_mission_progress(active_mission['id'])
-            
-            mission_context = f"""
-## 🎯 ACTIVE MISSION STATE
-- **Mission ID**: {active_mission['id']}
-- **Goal**: {active_mission['goal']}
-- **Phase**: {active_mission.get('current_phase', 'Not set')}
-- **Progress**: {progress['completed']}/{progress['total']} objectives
-
-### Objectives:
-"""
-            for obj in objectives:
-                status_emoji = {
-                    'PENDING': '⏸️',
-                    'IN_PROGRESS': '🔄',
-                    'COMPLETED': '✅',
-                    'FAILED': '❌',
-                    'SKIPPED': '⏭️',
-                    'AWAITING_AUTHORIZATION': '🛑'
-                }.get(obj['status'], '❓')
-                mission_context += f"\n{status_emoji} [{obj['id']}] {obj['task']} - {obj['status']}"
-                if obj.get('result_summary'):
-                    mission_context += f"\n   Result: {obj['result_summary'][:100]}..."
-            
-            mission_context += "\n\n**CONTINUE from where you left off. Check objective statuses and proceed.**"
-            
-            # Insertar como segundo mensaje (después del system)
-            messages_for_llm.insert(1, {
-                "role": "user",
-                "content": mission_context
-            })
-            messages_for_llm.insert(2, {
-                "role": "assistant",
-                "content": "Understood. I'll continue the mission from the current state."
-            })
+        # Inyectar contexto de misión activa EN EL SYSTEM PROMPT (no como mensaje separado)
+        # Esto asegura que NO se pierda cuando el historial se trunca
+        messages_for_llm = update_system_with_mission_context(messages_for_llm, conversation_id)
     
     # ==========================================================================
     # 5. LLAMAR AL LLM
@@ -1135,6 +1228,13 @@ async def stream_chat_response(
     full_content = ""
     tool_calls_accumulator = []
     finish_reason = "stop"
+    reasoning_content = ""  # DeepSeek reasoning mode
+    
+    # SANITIZACIÓN PRE-ENVÍO: Asegurar que ningún mensaje tenga content=null
+    # DeepSeek y otros proveedores no aceptan null, solo string vacío
+    for msg in messages:
+        if msg.get('content') is None:
+            msg['content'] = ""
     
     try:
         params = {
@@ -1167,9 +1267,21 @@ async def stream_chat_response(
                 # Solo logear el primer tool_call para no saturar
                 try:
                     chunk_raw = chunk.model_dump() if hasattr(chunk, 'model_dump') else str(chunk)
-                    print(f"🔍 DEBUG chunk estructura: {json.dumps(chunk_raw, default=str)[:1000]}")
+                    #print(f"🔍 DEBUG chunk estructura: {json.dumps(chunk_raw, default=str)[:1000]}")
                 except Exception as e:
                     print(f"🔍 DEBUG chunk error: {e}")
+            
+            # DEEPSEEK REASONING MODE: Capturar reasoning_content si existe
+            # El modelo razonador envía su "pensamiento" en este campo
+            if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                reasoning_content += delta.reasoning_content
+                # Opcional: enviar al frontend como evento especial
+                reasoning_event = json.dumps({
+                    "type": "reasoning",
+                    "chunk": delta.reasoning_content,
+                    "done": False
+                })
+                yield f"event: reasoning\ndata: {reasoning_event}\n\n"
             
             # Procesar contenido de texto
             if delta.content:
@@ -1182,44 +1294,76 @@ async def stream_chat_response(
                 yield f"event: message\ndata: {event_data}\n\n"
             
             # Procesar tool calls (si vienen en streaming)
+            # IMPORTANTE: En streaming, los tool_calls vienen como DELTAS incrementales
+            # Cada delta tiene un 'index' que indica qué tool_call se está continuando
+            # Debemos FUSIONAR los deltas, no acumularlos como elementos separados
             if delta.tool_calls:
                 for tc in delta.tool_calls:
-                    # Usar model_dump con mode='python' para obtener todos los campos
                     tc_dict = tc.model_dump(mode='python', exclude_unset=False) if hasattr(tc, 'model_dump') else dict(tc)
+                    tc_index = tc_dict.get('index', 0)
                     
-                    # GEMINI 3 THOUGHT SIGNATURE: Capturar de múltiples formas posibles
-                    # El SDK puede no incluirlo en model_dump(), así que intentamos acceso directo
-                    if hasattr(tc, 'thought_signature') and tc.thought_signature:
-                        tc_dict['thought_signature'] = tc.thought_signature
-                    if hasattr(tc, 'thoughtSignature') and tc.thoughtSignature:
-                        tc_dict['thought_signature'] = tc.thoughtSignature
-                    # También verificar en extra_content (formato API OpenAI compatible de Google)
-                    if hasattr(tc, 'extra_content') and tc.extra_content:
-                        tc_dict['extra_content'] = tc.extra_content
-                        if isinstance(tc.extra_content, dict) and 'google' in tc.extra_content:
-                            google_data = tc.extra_content['google']
-                            if isinstance(google_data, dict) and 'thought_signature' in google_data:
-                                tc_dict['thought_signature'] = google_data['thought_signature']
-                    # Acceso a __dict__ para campos que pydantic no expone
-                    if hasattr(tc, '__dict__'):
-                        for key in ['thought_signature', 'thoughtSignature', 'extra_content']:
-                            if key in tc.__dict__ and tc.__dict__[key]:
-                                tc_dict[key] = tc.__dict__[key]
+                    # DEBUG: Log detallado de cada delta
+                    tc_id = tc_dict.get('id')
+                    func = tc_dict.get('function', {})
+                    func_name = func.get('name') if func else None
+                    func_args = func.get('arguments', '') if func else ''
+                    #print(f"🔧 TC Delta: index={tc_index}, id={tc_id}, name={func_name}, args_chunk='{func_args[:50] if func_args else ''}...'")
                     
-                    # Log para debug de campos extra (thought_signature)
-                    extra_fields = {k: v for k, v in tc_dict.items() if k not in ['id', 'type', 'function', 'index']}
-                    if extra_fields:
-                        print(f"🔐 Tool call extra fields: {list(extra_fields.keys())}")
+                    # Buscar si ya existe un tool_call con este index
+                    existing_tc = None
+                    for existing in tool_calls_accumulator:
+                        if existing.get('index') == tc_index:
+                            existing_tc = existing
+                            break
                     
+                    if existing_tc is None:
+                        # Nuevo tool_call - añadir al acumulador
+                        # Asegurar que tiene estructura completa
+                        if 'function' not in tc_dict:
+                            tc_dict['function'] = {'name': None, 'arguments': ''}
+                        if tc_dict['function'] is None:
+                            tc_dict['function'] = {'name': None, 'arguments': ''}
+                        
+                        # GEMINI thought_signature: Capturar de múltiples formas posibles
+                        if hasattr(tc, 'thought_signature') and tc.thought_signature:
+                            tc_dict['thought_signature'] = tc.thought_signature
+                        if hasattr(tc, 'thoughtSignature') and tc.thoughtSignature:
+                            tc_dict['thought_signature'] = tc.thoughtSignature
+                        if hasattr(tc, '__dict__'):
+                            for key in ['thought_signature', 'thoughtSignature']:
+                                if key in tc.__dict__ and tc.__dict__[key]:
+                                    tc_dict[key] = tc.__dict__[key]
+                        
+                        tool_calls_accumulator.append(tc_dict)
+                        #print(f"   ➕ Nuevo TC[{tc_index}]: id={tc_id}, name={func_name}")
+                    else:
+                        # Delta de un tool_call existente - FUSIONAR
+                        # Actualizar id si viene (solo el primer chunk lo tiene)
+                        if tc_id:
+                            existing_tc['id'] = tc_id
+                        
+                        # Actualizar function.name si viene
+                        if func_name:
+                            if 'function' not in existing_tc or existing_tc['function'] is None:
+                                existing_tc['function'] = {'name': None, 'arguments': ''}
+                            existing_tc['function']['name'] = func_name
+                        
+                        # CONCATENAR arguments (esto es un delta incremental)
+                        if func_args:
+                            if 'function' not in existing_tc or existing_tc['function'] is None:
+                                existing_tc['function'] = {'name': None, 'arguments': ''}
+                            current_args = existing_tc['function'].get('arguments') or ''
+                            existing_tc['function']['arguments'] = current_args + func_args
+                        
+                        #print(f"   🔄 Merge TC[{tc_index}]: args ahora tiene {len(existing_tc['function'].get('arguments', ''))} chars")
+                    
+                    # Enviar evento al frontend (para UI en tiempo real)
                     tc_data = json.dumps({
                         "type": "tool_call",
                         "tool_call": tc_dict,
                         "done": False
                     })
                     yield f"event: tool_call\ndata: {tc_data}\n\n"
-                    
-                    # Acumular para guardar después (incluir todos los campos)
-                    tool_calls_accumulator.append(tc_dict)
             
             # Capturar finish_reason
             if chunk_finish:
@@ -1229,7 +1373,19 @@ async def stream_chat_response(
         # GUARDAR MENSAJE COMPLETO AL FINALIZAR
         # =======================================================================
         
-        tool_calls_json = json.dumps(tool_calls_accumulator) if tool_calls_accumulator else None
+        # Incluir reasoning_content como metadata si existe (DeepSeek reasoning mode)
+        # Lo guardamos en el JSON de tool_calls para no modificar la BD
+        tool_calls_data = tool_calls_accumulator.copy() if tool_calls_accumulator else []
+        if reasoning_content:
+            # Guardar reasoning_content como primer elemento especial del array
+            tool_calls_data.insert(0, {
+                "_metadata": {
+                    "reasoning_content": reasoning_content
+                }
+            })
+            print(f"🧠 DeepSeek reasoning capturado: {len(reasoning_content)} chars")
+        
+        tool_calls_json = json.dumps(tool_calls_data) if tool_calls_data else None
         
         # Log para debug
         print(f"📊 Stream finalizado: finish_reason={finish_reason}, tool_calls={len(tool_calls_accumulator)}, content_len={len(full_content)}")
@@ -1262,7 +1418,7 @@ async def stream_chat_response(
         
         if should_execute_tools:
             print(f"🔧 Ejecutando {len(tool_calls_accumulator)} tool calls automáticamente...")
-            print(f"🔧 Raw tool_calls_accumulator: {json.dumps(tool_calls_accumulator, indent=2)[:500]}")
+            #print(f"🔧 Raw tool_calls_accumulator: {json.dumps(tool_calls_accumulator, indent=2)[:500]}")
             
             # Reconstruir tool_calls en formato completo
             # Algunos proveedores envían deltas (chunks), otros envían completo
@@ -1273,8 +1429,11 @@ async def stream_chat_response(
                 # Verificar si ya es un tool_call completo (tiene id y function.name)
                 tc_id = tc_delta.get('id')
                 func_info = tc_delta.get('function', {})
-                func_name = func_info.get('name', '')
-                func_args = func_info.get('arguments', '')
+                func_name = func_info.get('name', '') or ''
+                func_args = func_info.get('arguments', '') or ''
+                
+                # Limpiar saltos de línea en nombres de función (bug de Gemini 2.5)
+                func_name = func_name.replace('\n', '').replace('\r', '').strip()
                 
                 # Si tiene ID, es un nuevo tool_call o uno completo
                 if tc_id:
@@ -1291,13 +1450,78 @@ async def stream_chat_response(
                             'arguments': func_args
                         }
                     }
-                elif current_tc and func_args:
-                    # Es un chunk de argumentos adicional, concatenar
-                    current_tc['function']['arguments'] += func_args
+                elif current_tc:
+                    # Es un chunk adicional, concatenar nombre y/o argumentos
+                    if func_name:
+                        current_tc['function']['name'] += func_name
+                    if func_args:
+                        current_tc['function']['arguments'] += func_args
             
             # No olvidar el último
             if current_tc:
                 reconstructed_tool_calls.append(current_tc)
+            
+            # ================================================================
+            # VALIDACIÓN Y LIMPIEZA DE TOOL CALLS (Fix para Gemini 2.5 Pro)
+            # ================================================================
+            valid_tool_calls = []
+            valid_tools = ['execute_command', 'manage_mission', 'check_job_status', 'stop_job', 'get_original_output']
+            
+            for tc in reconstructed_tool_calls:
+                func_name = tc.get('function', {}).get('name', '').strip()
+                func_args_str = tc.get('function', {}).get('arguments', '{}')
+                
+                # Limpiar nombre de función de caracteres extraños
+                func_name = func_name.replace('\n', '').replace('\r', '').strip()
+                tc['function']['name'] = func_name
+                
+                # Validar que el nombre de función sea válido
+                if not func_name or func_name not in valid_tools:
+                    print(f"⚠️ Tool call ignorado: nombre de función inválido '{func_name}'")
+                    continue
+                
+                # Validar argumentos JSON
+                try:
+                    args = json.loads(func_args_str)
+                    
+                    # Detectar argumentos malformados (Gemini 2.5 a veces envía results en vez de args)
+                    if 'results' in args and len(args) == 1:
+                        print(f"⚠️ Tool call ignorado: argumentos malformados (solo contiene 'results')")
+                        continue
+                    
+                    # Validación específica para manage_mission
+                    if func_name == 'manage_mission':
+                        action = args.get('action')
+                        if not action:
+                            print(f"⚠️ Tool call ignorado: manage_mission sin 'action'")
+                            continue
+                    
+                    # Validación específica para check_job_status
+                    if func_name == 'check_job_status':
+                        job_id = args.get('job_id')
+                        if not job_id:
+                            # Si solo tiene 'results', es un error de Gemini
+                            if 'results' in args:
+                                print(f"⚠️ Tool call ignorado: check_job_status con 'results' en vez de 'job_id'")
+                                continue
+                    
+                    # Validación específica para execute_command
+                    if func_name == 'execute_command':
+                        # Si tiene 'results' pero no 'command', es un error
+                        if 'results' in args and 'command' not in args and 'job_id' not in args:
+                            print(f"⚠️ Tool call ignorado: execute_command con 'results' en vez de argumentos válidos")
+                            continue
+                    
+                    valid_tool_calls.append(tc)
+                    
+                except json.JSONDecodeError as e:
+                    print(f"⚠️ Tool call ignorado: JSON inválido en argumentos - {e}")
+                    continue
+            
+            reconstructed_tool_calls = valid_tool_calls
+            print(f"🔧 Tool calls válidos después de filtrado: {len(reconstructed_tool_calls)}")
+            
+            # ================================================================
             
             print(f"🔧 Reconstructed tool_calls: {len(reconstructed_tool_calls)}")
             for i, tc in enumerate(reconstructed_tool_calls):
@@ -1390,9 +1614,14 @@ async def stream_chat_response(
                     print(f"🛑 Detectado AWAITING_AUTHORIZATION - pausando después del primer bloque")
                 
                 # Detectar si fue una operación de manage_mission
+                # PERO NO forzar continuación si la misión se completó
                 if func_name == "manage_mission":
-                    has_mission_state_change_first = True
-                    print(f"📋 Detectado manage_mission - forzar continuación después del primer bloque")
+                    if "MISSION_COMPLETED" in result:
+                        print(f"🏁 Misión completada - NO forzar continuación")
+                        # No setear has_mission_state_change_first para que termine el loop
+                    else:
+                        has_mission_state_change_first = True
+                        print(f"📋 Detectado manage_mission - forzar continuación después del primer bloque")
                 
                 # ============================================================
                 # AUTO-SUMMARIZE: Resumir outputs largos automáticamente
@@ -1524,11 +1753,18 @@ async def stream_chat_response(
                 extra_keys = [k for k in tc.keys() if k not in ['id', 'type', 'function']]
                 print(f"   - {tc.get('id')}: extra_fields={extra_keys}")
             
-            current_messages.append({
+            # Construir mensaje assistant con tool_calls
+            assistant_message = {
                 "role": "assistant",
                 "content": full_content if full_content else None,
                 "tool_calls": reconstructed_tool_calls
-            })
+            }
+            # DEEPSEEK REASONING MODE: Incluir reasoning_content si existe
+            if reasoning_content:
+                assistant_message['reasoning_content'] = reasoning_content
+                print(f"🧠 reasoning_content incluido en mensaje assistant ({len(reasoning_content)} chars)")
+            
+            current_messages.append(assistant_message)
             for tr in tool_results:
                 current_messages.append(tr)
             
@@ -1550,9 +1786,21 @@ async def stream_chat_response(
                 iteration += 1
                 print(f"🔁 Iteración {iteration} del loop de tools...")
                 
+                # ============================================================
+                # CRÍTICO: Actualizar el system prompt con la misión activa
+                # Esto asegura que el modelo SIEMPRE sepa qué misión existe,
+                # incluso si el historial se truncó
+                # ============================================================
+                current_messages = update_system_with_mission_context(current_messages, conversation_id)
+                
                 # VALIDACIÓN PRE-ENVÍO: Asegurar secuencia válida para Gemini
                 # Aplicar validación de secuencia SIEMPRE antes de enviar
                 current_messages = db.ensure_valid_message_sequence(current_messages)
+                
+                # SANITIZACIÓN EXTRA: Forzar content="" si es null (para DeepSeek)
+                for msg in current_messages:
+                    if msg.get('content') is None:
+                        msg['content'] = ""
                 
                 # Debug: mostrar secuencia de roles
                 roles_seq = [m.get('role', '?') for m in current_messages[:5]]
@@ -1576,13 +1824,19 @@ async def stream_chat_response(
                 
                 # Streaming de esta iteración
                 loop_content = ""
-                loop_tool_calls = []
+                loop_tool_calls = []  # Acumulador con fusión por índice
+                loop_reasoning_content = ""  # DeepSeek reasoning mode
                 
                 loop_stream = await client.chat.completions.create(**loop_params)
                 async for chunk in loop_stream:
                     if not chunk.choices:
                         continue
                     delta = chunk.choices[0].delta
+                    
+                    # DEEPSEEK REASONING MODE: Capturar reasoning_content
+                    if hasattr(delta, 'reasoning_content') and delta.reasoning_content:
+                        loop_reasoning_content += delta.reasoning_content
+                    
                     if delta.content:
                         loop_content += delta.content
                         event_data = json.dumps({
@@ -1591,21 +1845,52 @@ async def stream_chat_response(
                             "done": False
                         })
                         yield f"event: message\ndata: {event_data}\n\n"
+                    
+                    # Tool calls con fusión por índice (DeepSeek streaming)
                     if delta.tool_calls:
                         for tc in delta.tool_calls:
                             tc_data = tc.model_dump() if hasattr(tc, 'model_dump') else dict(tc)
-                            # GEMINI 3: Capturar thought_signature
-                            if hasattr(tc, 'thought_signature') and tc.thought_signature:
-                                tc_data['thought_signature'] = tc.thought_signature
-                            if hasattr(tc, 'thoughtSignature') and tc.thoughtSignature:
-                                tc_data['thought_signature'] = tc.thoughtSignature
-                            if hasattr(tc, 'extra_content') and tc.extra_content:
-                                tc_data['extra_content'] = tc.extra_content
-                            if hasattr(tc, '__dict__'):
-                                for key in ['thought_signature', 'thoughtSignature', 'extra_content']:
-                                    if key in tc.__dict__ and tc.__dict__[key]:
-                                        tc_data[key] = tc.__dict__[key]
-                            loop_tool_calls.append(tc_data)
+                            tc_index = tc_data.get('index', 0)
+                            tc_id = tc_data.get('id')
+                            func = tc_data.get('function', {})
+                            func_name = func.get('name') if func else None
+                            func_args = func.get('arguments', '') if func else ''
+                            
+                            # Buscar si ya existe un tool_call con este index
+                            existing_tc = None
+                            for existing in loop_tool_calls:
+                                if existing.get('index') == tc_index:
+                                    existing_tc = existing
+                                    break
+                            
+                            if existing_tc is None:
+                                # Nuevo tool_call
+                                if 'function' not in tc_data or tc_data['function'] is None:
+                                    tc_data['function'] = {'name': None, 'arguments': ''}
+                                # GEMINI 3: Capturar thought_signature
+                                if hasattr(tc, 'thought_signature') and tc.thought_signature:
+                                    tc_data['thought_signature'] = tc.thought_signature
+                                if hasattr(tc, 'thoughtSignature') and tc.thoughtSignature:
+                                    tc_data['thought_signature'] = tc.thoughtSignature
+                                if hasattr(tc, '__dict__'):
+                                    for key in ['thought_signature', 'thoughtSignature']:
+                                        if key in tc.__dict__ and tc.__dict__[key]:
+                                            tc_data[key] = tc.__dict__[key]
+                                loop_tool_calls.append(tc_data)
+                            else:
+                                # Fusionar delta
+                                if tc_id:
+                                    existing_tc['id'] = tc_id
+                                if func_name:
+                                    if 'function' not in existing_tc or existing_tc['function'] is None:
+                                        existing_tc['function'] = {'name': None, 'arguments': ''}
+                                    existing_tc['function']['name'] = func_name
+                                if func_args:
+                                    if 'function' not in existing_tc or existing_tc['function'] is None:
+                                        existing_tc['function'] = {'name': None, 'arguments': ''}
+                                    current_args = existing_tc['function'].get('arguments') or ''
+                                    existing_tc['function']['arguments'] = current_args + func_args
+                            
                             # Notificar tool call al frontend
                             tc_event = json.dumps({
                                 "type": "tool_call",
@@ -1614,8 +1899,14 @@ async def stream_chat_response(
                             })
                             yield f"event: tool_call\ndata: {tc_event}\n\n"
                 
+                # Guardar reasoning_content con tool_calls si existe
+                loop_tool_calls_data = loop_tool_calls.copy() if loop_tool_calls else []
+                if loop_reasoning_content:
+                    loop_tool_calls_data.insert(0, {"_metadata": {"reasoning_content": loop_reasoning_content}})
+                    print(f"🧠 Loop iteration {iteration}: reasoning capturado ({len(loop_reasoning_content)} chars)")
+                
                 # Guardar respuesta del asistente de esta iteración
-                loop_tool_calls_json = json.dumps(loop_tool_calls) if loop_tool_calls else None
+                loop_tool_calls_json = json.dumps(loop_tool_calls_data) if loop_tool_calls_data else None
                 loop_assistant_msg_id = db.add_message(
                     conversation_id=conversation_id,
                     role="assistant",
@@ -1691,8 +1982,8 @@ async def stream_chat_response(
                 for tc_delta in loop_tool_calls:
                     tc_id = tc_delta.get('id')
                     func_info = tc_delta.get('function', {})
-                    func_name = func_info.get('name', '')
-                    func_args = func_info.get('arguments', '')
+                    func_name = (func_info.get('name', '') or '').replace('\n', '').replace('\r', '').strip()
+                    func_args = func_info.get('arguments', '') or ''
                     # Capturar campos extra
                     if tc_id:
                         extra = {k: v for k, v in tc_delta.items() 
@@ -1707,10 +1998,63 @@ async def stream_chat_response(
                             'type': tc_delta.get('type', 'function'),
                             'function': {'name': func_name, 'arguments': func_args}
                         }
-                    elif current_tc and func_args:
-                        current_tc['function']['arguments'] += func_args
+                    elif current_tc:
+                        # Concatenar nombre y argumentos si vienen en chunks
+                        if func_name:
+                            current_tc['function']['name'] += func_name
+                        if func_args:
+                            current_tc['function']['arguments'] += func_args
                 if current_tc:
                     loop_reconstructed.append(current_tc)
+                
+                # ================================================================
+                # VALIDACIÓN DE TOOL CALLS EN LOOP (Fix para Gemini 2.5 Pro)
+                # ================================================================
+                valid_loop_tools = []
+                valid_tool_names = ['execute_command', 'manage_mission', 'check_job_status', 'stop_job', 'get_original_output']
+                
+                for tc in loop_reconstructed:
+                    func_name = (tc.get('function', {}).get('name', '') or '').replace('\n', '').replace('\r', '').strip()
+                    func_args_str = tc.get('function', {}).get('arguments', '{}')
+                    tc['function']['name'] = func_name  # Guardar nombre limpio
+                    
+                    if not func_name or func_name not in valid_tool_names:
+                        print(f"⚠️ Loop: tool call ignorado - nombre inválido '{func_name}'")
+                        continue
+                    
+                    try:
+                        args = json.loads(func_args_str)
+                        
+                        # Detectar argumentos malformados
+                        if 'results' in args and len(args) == 1:
+                            print(f"⚠️ Loop: tool call ignorado - solo contiene 'results'")
+                            continue
+                        
+                        if func_name == 'manage_mission' and not args.get('action'):
+                            print(f"⚠️ Loop: manage_mission sin 'action'")
+                            continue
+                        
+                        if func_name == 'check_job_status' and not args.get('job_id') and 'results' in args:
+                            print(f"⚠️ Loop: check_job_status con 'results' en vez de 'job_id'")
+                            continue
+                        
+                        if func_name == 'execute_command' and 'results' in args and 'command' not in args and 'job_id' not in args:
+                            print(f"⚠️ Loop: execute_command con 'results' en vez de argumentos válidos")
+                            continue
+                        
+                        valid_loop_tools.append(tc)
+                    except json.JSONDecodeError as e:
+                        print(f"⚠️ Loop: JSON inválido en argumentos - {e}")
+                        continue
+                
+                loop_reconstructed = valid_loop_tools
+                print(f"🔧 Loop: {len(loop_reconstructed)} tool calls válidos")
+                
+                # Si no hay tool calls válidos después del filtrado, terminar esta iteración
+                if not loop_reconstructed:
+                    print(f"⚠️ Loop: no hay tool calls válidos, continuando sin ejecutar")
+                    continue
+                # ================================================================
                 
                 # Añadir campos extra a los tool_calls reconstruidos (thought_signature)
                 for tc in loop_reconstructed:
@@ -1766,9 +2110,14 @@ async def stream_chat_response(
                         print(f"🛑 Detectado AWAITING_AUTHORIZATION - pausando loop")
                     
                     # Detectar si fue una operación de manage_mission
+                    # PERO NO forzar continuación si la misión se completó
                     if func_name == "manage_mission":
-                        has_mission_state_change = True
-                        print(f"📋 Detectado manage_mission - forzar continuación")
+                        if "MISSION_COMPLETED" in result:
+                            print(f"🏁 Misión completada en loop - NO forzar continuación")
+                            # No setear has_mission_state_change para que termine
+                        else:
+                            has_mission_state_change = True
+                            print(f"📋 Detectado manage_mission - forzar continuación")
                     
                     # Detectar errores de terminal (exit code != 0)
                     if func_name == "execute_command" and "EXIT CODE:" in result:
@@ -1829,11 +2178,17 @@ async def stream_chat_response(
                 last_had_terminal_error = has_terminal_error
                 
                 # Actualizar mensajes para la siguiente iteración
-                current_messages.append({
+                loop_assistant_message = {
                     "role": "assistant",
                     "content": loop_content if loop_content else None,
                     "tool_calls": loop_reconstructed
-                })
+                }
+                # DEEPSEEK REASONING MODE: Incluir reasoning_content si existe
+                if loop_reasoning_content:
+                    loop_assistant_message['reasoning_content'] = loop_reasoning_content
+                    print(f"🧠 Loop iter {iteration}: reasoning_content incluido ({len(loop_reasoning_content)} chars)")
+                
+                current_messages.append(loop_assistant_message)
                 for tr in loop_tool_results:
                     current_messages.append(tr)
                 
@@ -1890,11 +2245,61 @@ async def stream_chat_response(
             friendly_msg = "Has alcanzado el límite de peticiones. Espera unos segundos."
         elif "400" in error_msg:
             code = "INVALID_REQUEST"
+            # LOG DETALLADO PARA DEBUG DE MENSAJES
+            print("=" * 80)
+            print("🔴 ERROR 400 - DUMP DE MENSAJES ENVIADOS:")
+            print("=" * 80)
+            for i, msg in enumerate(messages):
+                role = msg.get('role', '?')
+                content = msg.get('content')
+                tool_calls = msg.get('tool_calls')
+                tc_id = msg.get('tool_call_id', '')
+                reasoning = msg.get('reasoning_content')
+                
+                content_preview = "None" if content is None else f"'{content[:80]}...'" if len(str(content)) > 80 else f"'{content}'"
+                print(f"  [{i}] role={role}, content={content_preview}")
+                
+                # Mostrar reasoning_content (DeepSeek)
+                if reasoning:
+                    print(f"      🧠 reasoning_content={len(reasoning)} chars")
+                elif role == 'assistant' and tool_calls:
+                    print(f"      ⚠️ ASSISTANT CON TOOL_CALLS PERO SIN reasoning_content!")
+                
+                # Mostrar tool_calls en detalle
+                if tool_calls:
+                    print(f"      🔧 tool_calls ({len(tool_calls)} calls):")
+                    for j, tc in enumerate(tool_calls):
+                        tc_id_inner = tc.get('id', 'NO_ID')
+                        func = tc.get('function', {})
+                        func_name = func.get('name', 'NO_NAME')
+                        func_args = func.get('arguments', 'NO_ARGS')
+                        
+                        # Detectar nulls
+                        if tc_id_inner is None:
+                            print(f"         ⚠️ [{j}] ID ES NULL!")
+                        if func_name is None:
+                            print(f"         ⚠️ [{j}] FUNCTION NAME ES NULL!")
+                        if func_args is None:
+                            print(f"         ⚠️ [{j}] FUNCTION ARGUMENTS ES NULL!")
+                        
+                        args_preview = str(func_args)[:60] if func_args else "null"
+                        print(f"         [{j}] id={tc_id_inner}, name={func_name}, args={args_preview}...")
+                
+                if tc_id:
+                    print(f"      tool_call_id={tc_id}")
+                
+                # Detectar content null
+                if content is None:
+                    print(f"      ⚠️ ¡CONTENT ES NULL!")
+            print("=" * 80)
+            
             # Detectar errores específicos de formato
             if "Name cannot be empty" in error_msg or "function_response" in error_msg:
                 friendly_msg = "Error de formato en respuesta de herramienta. Intenta de nuevo o inicia nueva conversación."
             elif "INVALID_ARGUMENT" in error_msg:
                 friendly_msg = "Argumento inválido en la petición al modelo."
+            elif "null" in error_msg.lower() and "string" in error_msg.lower():
+                friendly_msg = "Error: Un mensaje tiene contenido null. Inicia nueva conversación."
             else:
                 friendly_msg = f"Petición malformada: {error_msg[:100]}"
         elif "500" in error_msg or "503" in error_msg:

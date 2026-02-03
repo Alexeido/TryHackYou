@@ -560,191 +560,410 @@ def update_message_content(message_id: int, new_content: str) -> bool:
         return cursor.rowcount > 0
 
 
+def find_and_update_awaiting_tool_message(conversation_id: str, objective_id: int, new_content: str) -> bool:
+    """
+    Busca el mensaje tool más reciente que contiene AWAITING_AUTHORIZATION
+    para un objetivo específico y lo actualiza con el resultado real de la ejecución.
+    
+    Esto es necesario para que cuando el loop de chat se reanude después de
+    una aprobación, el LLM reciba el resultado real del comando en lugar
+    del mensaje de "esperando aprobación".
+    
+    Args:
+        conversation_id: ID de la conversación
+        objective_id: ID del objetivo que fue aprobado
+        new_content: Nuevo contenido (resultado de la ejecución)
+    
+    Returns:
+        True si se actualizó un mensaje, False si no se encontró
+    """
+    with get_db() as conn:
+        cursor = conn.cursor()
+        
+        # Buscar mensajes tool recientes de esta conversación que contengan AWAITING
+        cursor.execute("""
+            SELECT id, content FROM messages 
+            WHERE conversation_id = ? 
+            AND role = 'tool'
+            AND content LIKE '%AWAITING_AUTHORIZATION%'
+            ORDER BY created_at DESC
+            LIMIT 10
+        """, (conversation_id,))
+        
+        rows = cursor.fetchall()
+        
+        for row in rows:
+            msg_id, content = row
+            # Verificar si este mensaje corresponde al objetivo
+            if content and (f'"objective_id": {objective_id}' in content or 
+                           f'"objective_id":{objective_id}' in content or
+                           'AWAITING_AUTHORIZATION' in content):
+                # Actualizar este mensaje
+                cursor.execute("""
+                    UPDATE messages SET content = ? WHERE id = ?
+                """, (new_content, msg_id))
+                conn.commit()
+                print(f"✅ Mensaje tool {msg_id} actualizado con resultado real")
+                return True
+        
+        # Si no encontramos por objetivo_id, buscar el más reciente con AWAITING
+        if rows:
+            msg_id = rows[0][0]
+            cursor.execute("""
+                UPDATE messages SET content = ? WHERE id = ?
+            """, (new_content, msg_id))
+            conn.commit()
+            print(f"✅ Mensaje tool {msg_id} (más reciente con AWAITING) actualizado")
+            return True
+        
+        print(f"⚠️ No se encontró mensaje tool con AWAITING_AUTHORIZATION para objetivo {objective_id}")
+        return False
+
+
 # =============================================================================
 # UTILIDADES
 # =============================================================================
 
 # Configuración de límites para el contexto del LLM
-MAX_MESSAGES_FOR_LLM = 30  # Máximo de mensajes a enviar al LLM
+MAX_MESSAGES_FOR_LLM = 50  # Máximo de mensajes a enviar al LLM (mismo que loop agéntico)
 MAX_TOOL_RESPONSE_LENGTH = 2000  # Máximo de caracteres para respuestas de tools
+
+# Configuración para truncado inteligente agéntico
+RECENT_MESSAGES_TO_KEEP = 35  # Mensajes recientes que se mantienen intactos (referencia)
+SUMMARY_SLOT_COUNT = 0  # El resumen se inyecta en el system prompt, no usa slots extra
+
+
+def _generate_truncated_summary(truncated_messages: List[Dict]) -> str:
+    """
+    Genera un resumen compacto de los mensajes truncados.
+    Este resumen se inyecta como mensaje de contexto para que el modelo
+    no pierda el hilo de lo que ya hizo.
+    """
+    if not truncated_messages:
+        return ""
+    
+    # Extraer información relevante de los mensajes truncados
+    tool_calls_made = []
+    key_findings = []
+    commands_executed = []
+    
+    for msg in truncated_messages:
+        role = msg.get('role')
+        content = msg.get('content', '') or ''
+        
+        if role == 'assistant' and msg.get('tool_calls'):
+            # Registrar qué tools se llamaron
+            import json
+            try:
+                tcs = msg.get('tool_calls', [])
+                if isinstance(tcs, str):
+                    tcs = json.loads(tcs)
+                for tc in tcs:
+                    func_name = tc.get('function', {}).get('name', 'unknown')
+                    args_str = tc.get('function', {}).get('arguments', '{}')
+                    try:
+                        args = json.loads(args_str)
+                        if func_name == 'execute_command' and 'command' in args:
+                            cmd = args['command'][:80]
+                            commands_executed.append(cmd)
+                        elif func_name == 'manage_mission':
+                            action = args.get('action', '')
+                            tool_calls_made.append(f"manage_mission({action})")
+                    except:
+                        tool_calls_made.append(func_name)
+            except:
+                pass
+        
+        elif role == 'tool':
+            # Extraer hallazgos clave de respuestas de tools
+            if content:
+                # Buscar patrones importantes en la salida
+                content_lower = content.lower()
+                if any(kw in content_lower for kw in ['found', 'vulnerable', 'credential', 'password', 'token', 'success', 'open port']):
+                    # Truncar a 100 chars
+                    finding = content[:100].replace('\n', ' ')
+                    if finding not in key_findings:
+                        key_findings.append(finding)
+    
+    # Construir el resumen
+    summary_parts = []
+    summary_parts.append(f"[CONTEXT: {len(truncated_messages)} earlier messages truncated]")
+    
+    if commands_executed:
+        # Limitar a los últimos 10 comandos únicos
+        unique_cmds = list(dict.fromkeys(commands_executed[-10:]))
+        summary_parts.append(f"Commands executed: {', '.join(unique_cmds[:5])}{'...' if len(unique_cmds) > 5 else ''}")
+    
+    if key_findings:
+        summary_parts.append(f"Key findings: {'; '.join(key_findings[:3])}")
+    
+    return "\n".join(summary_parts)
 
 
 def smart_truncate_messages(messages: List[Dict], max_messages: int, preserve_user: bool = True) -> List[Dict]:
     """
-    Trunca mensajes de forma inteligente, preservando pares de tool_call/tool_response.
+    Trunca mensajes de forma inteligente para agentes autónomos.
     
-    REGLAS CRÍTICAS:
-    1. SIEMPRE preservar el system prompt (si existe)
-    2. SIEMPRE preservar AL MENOS el primer mensaje de usuario (Gemini lo requiere)
-    3. Nunca separar un assistant con tool_calls de sus tool responses
-    4. Eliminar bloques completos de interacción, no mensajes sueltos
-    5. Gemini: El historial debe empezar con user/system, NUNCA con assistant
-    6. Gemini: Después de tool_calls debe venir tool responses, no otro assistant
+    ESTRATEGIA:
+    1. SIEMPRE preservar el system prompt
+    2. SIEMPRE preservar TODOS los mensajes del usuario (son pocos en modo agéntico)
+    3. Mantener los últimos RECENT_MESSAGES_TO_KEEP mensajes intactos
+    4. Para mensajes intermedios: generar un resumen compacto
+    5. Nunca romper pares assistant+tool_calls / tool_responses
     
-    Un "bloque" es:
-    - Un mensaje user + assistant (conversación normal)
-    - Un mensaje assistant con tool_calls + todos sus tool responses
+    En un proceso agéntico típico:
+    - Hay 1-5 mensajes del usuario como máximo
+    - El resto son assistant+tool_calls y tool_responses
+    - Los mensajes más recientes son los más relevantes
     """
     if len(messages) <= max_messages:
         return messages
     
+    print(f"🔄 Truncando: {len(messages)} mensajes -> max {max_messages}")
+    
     original_messages = messages.copy()
     
     # =========================================================================
-    # PASO 1: Separar y preservar mensajes críticos
+    # PASO 1: Identificar mensajes críticos que NUNCA se eliminan
     # =========================================================================
     system_msg = None
-    first_user_msg = None
-    first_user_idx = None
-    work_messages = []  # Mensajes a procesar (sin system, sin primer user)
+    user_messages = []  # Índices de TODOS los mensajes de usuario
+    user_msg_objects = []  # Los mensajes de usuario en sí
     
     start_idx = 0
     if original_messages and original_messages[0].get('role') == 'system':
         system_msg = original_messages[0]
         start_idx = 1
     
-    # Encontrar el primer mensaje de usuario (CRÍTICO)
+    # Encontrar TODOS los mensajes de usuario
     for i in range(start_idx, len(original_messages)):
         if original_messages[i].get('role') == 'user':
-            first_user_msg = original_messages[i]
-            first_user_idx = i
-            break
+            user_messages.append(i)
+            user_msg_objects.append(original_messages[i])
     
-    if first_user_msg is None:
-        # Sin usuario - NUNCA debería pasar, pero si pasa, devolver todo sin truncar
-        print("⚠️ CRÍTICO: No hay mensaje de usuario en el historial - devolviendo sin truncar")
+    if not user_messages:
+        print("⚠️ CRÍTICO: No hay mensajes de usuario - devolviendo sin truncar")
         return original_messages
     
-    # Mensajes después del primer usuario (estos son los que podemos truncar)
-    work_messages = original_messages[first_user_idx + 1:]
+    print(f"📋 Encontrados {len(user_messages)} mensajes de usuario")
     
     # =========================================================================
-    # PASO 2: Identificar bloques de interacción en work_messages
+    # PASO 2: Calcular cuántos mensajes podemos mantener
     # =========================================================================
+    # Espacio: max_messages - system - usuarios - resumen
+    reserved_for_users = len(user_msg_objects)
+    reserved_for_system = 1 if system_msg else 0
+    reserved_for_summary = SUMMARY_SLOT_COUNT
+    
+    available_for_recent = max_messages - reserved_for_system - reserved_for_users - reserved_for_summary
+    
+    if available_for_recent < 10:
+        # Muy poco espacio - al menos mantener 10 mensajes recientes
+        available_for_recent = 10
+    
+    # =========================================================================
+    # PASO 3: Identificar BLOQUES de interacción (assistant+tools o mensaje suelto)
+    # =========================================================================
+    # Un bloque es:
+    # - Un assistant con tool_calls + todos sus tool responses
+    # - O un mensaje suelto (assistant sin tools, user, etc.)
+    
     blocks = []
-    i = 0
-    while i < len(work_messages):
-        msg = work_messages[i]
+    non_user_indices = []  # Índices de mensajes no-user para tracking
+    
+    i = start_idx
+    while i < len(original_messages):
+        msg = original_messages[i]
+        
+        # Saltar mensajes de usuario (se manejan por separado)
+        if msg.get('role') == 'user':
+            i += 1
+            continue
         
         if msg.get('role') == 'assistant' and msg.get('tool_calls'):
-            # Este assistant tiene tool_calls, agrupar con sus tool responses
-            block = [msg]
-            tool_call_ids = {tc.get('id') for tc in msg.get('tool_calls', [])}
+            # Bloque: assistant con tool_calls + sus tool responses
+            block_indices = [i]
+            tool_call_ids = set()
+            tcs = msg.get('tool_calls', [])
+            if isinstance(tcs, str):
+                import json
+                try:
+                    tcs = json.loads(tcs)
+                except:
+                    tcs = []
+            for tc in tcs:
+                if isinstance(tc, dict):
+                    tool_call_ids.add(tc.get('id'))
             
             j = i + 1
-            while j < len(work_messages):
-                next_msg = work_messages[j]
+            while j < len(original_messages):
+                next_msg = original_messages[j]
                 if next_msg.get('role') == 'tool' and next_msg.get('tool_call_id') in tool_call_ids:
-                    block.append(next_msg)
+                    block_indices.append(j)
                     tool_call_ids.discard(next_msg.get('tool_call_id'))
                     j += 1
+                elif next_msg.get('role') == 'user':
+                    j += 1  # Saltar usuarios
                 else:
                     break
             
-            blocks.append(block)
+            blocks.append(block_indices)
+            non_user_indices.extend(block_indices)
             i = j
         else:
-            blocks.append([msg])
+            # Mensaje suelto (assistant sin tools)
+            blocks.append([i])
+            non_user_indices.append(i)
             i += 1
     
     # =========================================================================
-    # PASO 3: Seleccionar bloques más recientes que quepan
+    # PASO 4: Seleccionar bloques más recientes que quepan
     # =========================================================================
-    # Espacio disponible = max_messages - system_msg - first_user_msg
-    reserved = (1 if system_msg else 0) + 1  # +1 por el first_user_msg
-    available_slots = max_messages - reserved
+    if not blocks:
+        return original_messages
     
-    if available_slots <= 0:
-        # Caso extremo: no hay espacio para nada más
-        print(f"⚠️ Espacio muy limitado ({max_messages} msgs), solo system+user")
-        result = []
-        if system_msg:
-            result.append(system_msg)
-        result.append(first_user_msg)
-        return result
+    # Calcular cuántos mensajes (no de usuario) tenemos en total
+    total_non_user = len(non_user_indices)
     
-    # Tomar los bloques más recientes que quepan
+    if total_non_user <= available_for_recent:
+        # Todo cabe - no necesitamos truncar
+        return original_messages
+    
+    # Seleccionar bloques desde el final hasta llenar el espacio
     selected_blocks = []
-    total_msgs = 0
+    total_selected = 0
     
     for block in reversed(blocks):
         block_size = len(block)
-        if total_msgs + block_size <= available_slots:
+        if total_selected + block_size <= available_for_recent:
             selected_blocks.insert(0, block)
-            total_msgs += block_size
+            total_selected += block_size
         else:
-            # No cabe este bloque completo
-            # Si no hemos seleccionado nada aún, intentar meter parte del bloque
-            if total_msgs == 0:
-                has_tools = any(m.get('role') == 'tool' or m.get('tool_calls') for m in block)
-                if has_tools:
-                    # Bloque de tools - NO se puede truncar (rompería Gemini)
-                    print(f"⚠️ Bloque de tools ({block_size} msgs) no cabe, saltando...")
-                    continue
-                else:
-                    # Bloque normal - truncar
-                    partial = block[-available_slots:] if available_slots > 0 else []
-                    if partial:
-                        selected_blocks.insert(0, partial)
-                        total_msgs += len(partial)
+            # Este bloque no cabe completo - no lo partimos
             break
     
+    # Índices que se mantienen
+    recent_indices = set()
+    for block in selected_blocks:
+        recent_indices.update(block)
+    
+    # Índices que se truncan (para el resumen)
+    truncate_indices = set(non_user_indices) - recent_indices
+    
+    print(f"📊 Zona reciente: {len(recent_indices)} msgs en {len(selected_blocks)} bloques")
+    print(f"📊 Zona a truncar: {len(truncate_indices)} msgs")
+    
     # =========================================================================
-    # PASO 4: Reconstruir el resultado
+    # PASO 5: Generar resumen de los mensajes truncados
+    # =========================================================================
+    truncated_msgs = [original_messages[i] for i in sorted(truncate_indices)]
+    summary_text = _generate_truncated_summary(truncated_msgs)
+    
+    # =========================================================================
+    # PASO 6: Reconstruir el resultado
     # =========================================================================
     result = []
+    
+    # 1. System prompt (con resumen de truncados incluido si hay)
     if system_msg:
-        result.append(system_msg)
-    result.append(first_user_msg)  # SIEMPRE incluir el primer usuario
+        # Si hay resumen, añadirlo al system prompt
+        if summary_text and truncate_indices:
+            enhanced_system = system_msg.copy()
+            current_content = enhanced_system.get('content', '')
+            enhanced_system['content'] = current_content + f"\n\n## 📜 TRUNCATED CONTEXT SUMMARY\n{summary_text}"
+            result.append(enhanced_system)
+            print(f"📝 Resumen inyectado en system prompt")
+        else:
+            result.append(system_msg)
+    elif summary_text and truncate_indices:
+        # No hay system prompt pero hay resumen - crear uno
+        result.append({
+            "role": "system",
+            "content": f"## 📜 TRUNCATED CONTEXT SUMMARY\n{summary_text}"
+        })
     
-    # Recolectar todos los tool_call_ids para filtrar huérfanos
-    all_tool_call_ids = set()
-    for block in selected_blocks:
-        for msg in block:
-            if msg.get('tool_calls'):
-                for tc in msg.get('tool_calls', []):
-                    all_tool_call_ids.add(tc.get('id'))
+    # 2. Primer mensaje de usuario (OBLIGATORIO para Gemini)
+    first_user_added = False
+    if user_msg_objects:
+        result.append(user_msg_objects[0])
+        first_user_added = True
     
-    # Agregar mensajes de los bloques seleccionados
-    for block in selected_blocks:
-        for msg in block:
-            if msg.get('role') == 'tool':
-                if msg.get('tool_call_id') in all_tool_call_ids:
-                    result.append(msg)
-                else:
-                    print(f"⚠️ Eliminando tool response huérfano: {msg.get('tool_call_id')}")
-            else:
-                result.append(msg)
+    # 3. Ahora añadir los mensajes de la zona reciente Y los usuarios restantes
+    #    en su orden cronológico correcto
+    
+    # Crear lista de mensajes a incluir (zona reciente + usuarios excepto el primero)
+    remaining_users = user_messages[1:] if first_user_added else user_messages
+    indices_to_include = recent_indices | set(remaining_users)
+    
+    for i in range(start_idx, len(original_messages)):
+        if i in indices_to_include:
+            result.append(original_messages[i])
     
     # =========================================================================
-    # PASO 5: Validación final de secuencia
+    # PASO 6: Validación de secuencia para Gemini
     # =========================================================================
     result = ensure_valid_message_sequence(result)
     
-    # GARANTÍA FINAL: Si después de la validación quedó solo system, agregar el user
+    # Garantía final: al menos un usuario
     has_user = any(m.get('role') == 'user' for m in result)
-    if not has_user and first_user_msg:
-        print("⚠️ Restaurando mensaje de usuario eliminado por validación")
+    if not has_user and user_msg_objects:
+        print("⚠️ Restaurando mensaje de usuario")
         insert_idx = 1 if system_msg else 0
-        result.insert(insert_idx, first_user_msg)
+        result.insert(insert_idx, user_msg_objects[0])
     
-    print(f"📦 Truncado: {len(original_messages)} -> {len(result)} msgs (preservado user original)")
+    print(f"✅ Truncado completado: {len(original_messages)} -> {len(result)} msgs")
+    print(f"   - System: {1 if system_msg else 0}")
+    print(f"   - Usuarios preservados: {len([m for m in result if m.get('role') == 'user'])}")
+    print(f"   - Resumen incluido: {'Sí' if summary_text else 'No'}")
+    
     return result
 
 
 def ensure_valid_message_sequence(messages: List[Dict]) -> List[Dict]:
     """
-    Asegura que la secuencia de mensajes sea válida para Gemini:
+    Asegura que la secuencia de mensajes sea válida para Gemini/DeepSeek:
     1. Después del system prompt, debe venir un mensaje de usuario
     2. Un assistant con tool_calls solo puede venir después de user o tool
     3. No puede haber dos assistant seguidos (sin tool responses entre medio)
     4. Los tool responses deben venir inmediatamente después de assistant con tool_calls
+    5. NO puede haber tool responses duplicados para el mismo tool_call_id
+    6. NO puede haber tool responses huérfanos (sin assistant con ese tool_call_id)
     
     REGLA CLAVE DE GEMINI: "function call turn comes immediately after a user turn 
     or after a function response turn"
     """
     if not messages:
         return messages
+    
+    # PRIMERA PASADA: Recolectar todos los tool_call_ids válidos de los assistants
+    valid_tool_call_ids = set()
+    for msg in messages:
+        if msg.get('role') == 'assistant' and msg.get('tool_calls'):
+            for tc in msg['tool_calls']:
+                tc_id = tc.get('id')
+                if tc_id:
+                    valid_tool_call_ids.add(tc_id)
+    
+    # SEGUNDA PASADA: Eliminar tool responses duplicados Y huérfanos
+    seen_tool_call_ids = set()
+    deduped_messages = []
+    
+    for msg in messages:
+        if msg.get('role') == 'tool':
+            tc_id = msg.get('tool_call_id')
+            if tc_id:
+                # Verificar si es huérfano (no existe assistant con este tool_call_id)
+                if tc_id not in valid_tool_call_ids:
+                    print(f"⚠️ Eliminando tool response HUÉRFANO para {tc_id} (sin assistant correspondiente)")
+                    continue  # Saltar huérfano
+                # Verificar si es duplicado
+                if tc_id in seen_tool_call_ids:
+                    print(f"⚠️ Eliminando tool response DUPLICADO para {tc_id}")
+                    continue  # Saltar duplicado
+                seen_tool_call_ids.add(tc_id)
+        deduped_messages.append(msg)
+    
+    messages = deduped_messages
     
     result = []
     
@@ -802,17 +1021,40 @@ def ensure_valid_message_sequence(messages: List[Dict]) -> List[Dict]:
             print(f"⚠️ Eliminando assistant duplicado consecutivo")
             result.pop()
         
-        # REGLA 4: tool solo puede venir después de assistant con tool_calls
+        # REGLA 4: tool solo puede venir después de assistant con tool_calls O después de otro tool
+        # (un assistant puede hacer múltiples tool_calls, cada uno genera un tool response)
         if role == 'tool':
-            if last_role != 'assistant' or not last_has_tool_calls:
-                # Tool huérfano - buscar si hay un assistant con tool_calls antes
-                # Si no hay, saltar este tool
+            if last_role == 'tool':
+                # Múltiples tool responses consecutivos - esto es válido si hay un assistant
+                # con tool_calls antes en la secuencia. Verificar que existe.
+                has_pending_assistant = False
+                for j in range(len(result) - 1, -1, -1):
+                    if result[j].get('role') == 'assistant' and result[j].get('tool_calls'):
+                        has_pending_assistant = True
+                        break
+                    elif result[j].get('role') == 'assistant':
+                        # Assistant sin tool_calls antes de los tools - inválido
+                        break
+                
+                if not has_pending_assistant:
+                    print(f"⚠️ Saltando tool response sin assistant con tool_calls previo")
+                    i += 1
+                    continue
+                # Es válido - continuar
+            elif last_role != 'assistant' or not last_has_tool_calls:
+                # Tool huérfano - no hay assistant con tool_calls antes
                 print(f"⚠️ Saltando tool response huérfano (anterior es {last_role})")
                 i += 1
                 continue
         
         result.append(msg)
         i += 1
+    
+    # SANITIZACIÓN FINAL: Asegurar que ningún mensaje tenga content=null
+    # DeepSeek y otros proveedores no aceptan null, solo string vacío
+    for msg in result:
+        if msg.get('content') is None:
+            msg['content'] = ""
     
     # Validación final: si termina con assistant con tool_calls sin tools, quitarlo
     while result and result[-1].get('role') == 'assistant' and result[-1].get('tool_calls'):
@@ -869,10 +1111,47 @@ def get_conversation_for_llm(leaf_id: int) -> List[Dict[str, str]]:
         
         message = {"role": msg['role'], "content": content}
         
-        # Si tiene tool_calls, añadirlo
+        # Si tiene tool_calls, añadirlo (con sanitización)
         if msg['tool_calls']:
             import json
-            message['tool_calls'] = json.loads(msg['tool_calls'])
+            raw_tool_calls = json.loads(msg['tool_calls'])
+            
+            # DEEPSEEK REASONING MODE: Extraer reasoning_content si existe
+            # Lo guardamos como primer elemento con _metadata
+            reasoning_content = None
+            if raw_tool_calls and isinstance(raw_tool_calls[0], dict) and '_metadata' in raw_tool_calls[0]:
+                metadata = raw_tool_calls[0].get('_metadata', {})
+                reasoning_content = metadata.get('reasoning_content')
+                raw_tool_calls = raw_tool_calls[1:]  # Quitar metadata del array de tool_calls
+                if reasoning_content:
+                    print(f"🧠 DeepSeek reasoning extraído: {len(reasoning_content)} chars")
+            
+            # SANITIZACIÓN: Filtrar tool_calls corruptos (DeepSeek streaming bug)
+            # Los tool_calls válidos DEBEN tener id y function.name
+            valid_tool_calls = []
+            for tc in raw_tool_calls:
+                tc_id = tc.get('id')
+                func_name = tc.get('function', {}).get('name')
+                
+                if tc_id and func_name:
+                    # También sanitizar arguments null -> "{}"
+                    if tc.get('function', {}).get('arguments') is None:
+                        tc['function']['arguments'] = "{}"
+                    valid_tool_calls.append(tc)
+            
+            if valid_tool_calls:
+                message['tool_calls'] = valid_tool_calls
+                # DEEPSEEK REASONING MODE: Incluir reasoning_content en el mensaje
+                # Si no hay reasoning_content pero hay tool_calls, usar placeholder vacío
+                # DeepSeek reasoner REQUIERE este campo en todos los assistant con tool_calls
+                if reasoning_content:
+                    message['reasoning_content'] = reasoning_content
+                else:
+                    # Placeholder para evitar error de DeepSeek reasoner
+                    message['reasoning_content'] = ""
+            else:
+                # Si no quedaron tool_calls válidos, no incluir el campo
+                print(f"⚠️ Todos los tool_calls de un mensaje eran inválidos - eliminando campo")
         
         # Si es respuesta de tool, añadir tool_call_id Y el nombre de la función
         if msg['tool_call_id']:
@@ -893,6 +1172,13 @@ def get_conversation_for_llm(leaf_id: int) -> List[Dict[str, str]]:
         original_len = len(messages)
         messages = smart_truncate_messages(messages, MAX_MESSAGES_FOR_LLM)
         print(f"⚠️ Contexto truncado inteligente: {original_len} msgs -> {len(messages)} msgs")
+    
+    # SANITIZACIÓN FINAL: Asegurar que ningún mensaje tenga content=null
+    # DeepSeek y otros proveedores no aceptan null, solo string vacío
+    # DEBE estar DESPUÉS de smart_truncate_messages porque ese copia mensajes originales
+    for msg in messages:
+        if msg.get('content') is None:
+            msg['content'] = ""
     
     return messages
 

@@ -143,13 +143,28 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
               let command = '';
               let waitTime: number | undefined;
               let exitTime: number | undefined;
+              const rawArgs = tc.function.arguments || '{}';
+              
               try {
-                const args = JSON.parse(tc.function.arguments || '{}');
+                const args = JSON.parse(rawArgs);
                 command = args.command || '';
                 waitTime = args.wait_time;
                 exitTime = args.exit_time;
+                
+                // Fallback: si es manage_mission, mostrar action
+                if (!command && args.action) {
+                  command = `[manage_mission] ${args.action}`;
+                }
+                // Fallback: si es check_job_status, mostrar job_id
+                if (!command && args.job_id) {
+                  command = `[check_job_status] ${args.job_id}`;
+                }
               } catch {
-                // Si falla el parse, usar los argumentos raw
+                // Si falla el parse, intentar extraer command con regex
+                const cmdMatch = rawArgs.match(/"command"\s*:\s*"([^"]+)"/);
+                if (cmdMatch) {
+                  command = cmdMatch[1];
+                }
               }
               
               // Agregar el tool call
@@ -187,13 +202,28 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
         let command = '';
         let waitTime: number | undefined;
         let exitTime: number | undefined;
+        const rawArgs = tc.function.arguments || '{}';
+        
         try {
-          const args = JSON.parse(tc.function.arguments || '{}');
+          const args = JSON.parse(rawArgs);
           command = args.command || '';
           waitTime = args.wait_time;
           exitTime = args.exit_time;
+          
+          // Fallback para otros tipos de tools
+          if (!command && args.action) {
+            command = `[manage_mission] ${args.action}`;
+          }
+          if (!command && args.job_id) {
+            command = `[check_job_status] ${args.job_id}`;
+          }
         } catch {
           // Los argumentos pueden estar incompletos durante streaming
+          // Intentar regex como fallback
+          const cmdMatch = rawArgs.match(/"command"\s*:\s*"([^"]+)"/);
+          if (cmdMatch) {
+            command = cmdMatch[1];
+          }
         }
         
         newLogs.push({
@@ -338,10 +368,29 @@ export function TerminalPanel({ onClose }: TerminalPanelProps) {
                             {log.timestamp.toLocaleTimeString()}
                           </span>
                         </div>
-                        {log.command && (
+                        {log.command ? (
                           <div className="bg-black/40 rounded px-2 py-1.5 text-zinc-200">
                             <span className="text-green-400">$</span> {log.command}
                           </div>
+                        ) : (
+                          <button
+                            onClick={() => toggleExpand(log.id)}
+                            className="w-full text-left"
+                          >
+                            <div className="flex items-center gap-1 text-zinc-500 text-xs">
+                              {log.expanded ? (
+                                <ChevronDown className="h-3 w-3" />
+                              ) : (
+                                <ChevronRight className="h-3 w-3" />
+                              )}
+                              <span>Ver argumentos ({log.name})</span>
+                            </div>
+                            {log.expanded && (
+                              <pre className="mt-2 p-2 bg-black/30 rounded overflow-x-auto text-zinc-400 whitespace-pre-wrap text-xs">
+                                {formatJson(log.content)}
+                              </pre>
+                            )}
+                          </button>
                         )}
                       </div>
                     ) : (

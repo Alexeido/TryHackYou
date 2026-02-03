@@ -486,8 +486,14 @@ export function MessageBubble({ message, isStreaming, streamContent, toolRespons
                 const toolName = firstTool?.function?.name || '';
                 let args: { command?: string; job_id?: string } = {};
                 try {
-                  args = JSON.parse(firstTool?.function?.arguments || '{}');
-                } catch {}
+                  const rawArgs = firstTool?.function?.arguments || '{}';
+                  console.log('🔧 Raw tool args:', rawArgs);
+                  args = JSON.parse(rawArgs);
+                  console.log('🔧 Parsed args:', args);
+                  console.log('🔧 Command:', args.command);
+                } catch (e) {
+                  console.error('🔧 Error parsing args:', e);
+                }
                 
                 const isCheckJob = toolName === 'check_job_status';
                 

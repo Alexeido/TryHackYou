@@ -27,7 +27,7 @@ TOOLS_SECHEMA = [
                 "RESOURCEFULNESS: If a wordlist is missing, use 'find / -name *.txt' to search or 'wget' to download one from GitHub (e.g., SecLists).\n"
                 "WAF BYPASS: If you hit Cloudflare, use 'subfinder', 'dig', or 'censys' logic to find origin IPs."
                 "INSTALLED ARSENAL:\n"
-                "- Recon/Discovery: nmap, netcat, ping, dig, subfinder, arjun\n"
+                "- Recon/Discovery: nmap, netcat (NETCAT ADVICE: PLEASE NOTE THAT YOUR SHELL IS NOT INTERACTIVE. To perform a reverse shell, upload custom interactive Python scripts to the vulnerable server.), ping, dig, subfinder, arjun\n"
                 "- Web/JS Analysis: curl, httpie, nuclei, katana, zaproxy (use 'zap-cli' for headless scans like burpsuite), lynx, pup, "
                 "LinkFinder (python3 /opt/linkfinder/linkfinder.py), "
                 "SecretFinder (python3 /opt/secretfinder/SecretFinder.py)\n"
