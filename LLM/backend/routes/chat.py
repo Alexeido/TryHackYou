@@ -14,6 +14,15 @@ from typing import Optional, List, Dict, Any
 from models import ChatRequest, ChatResponse, ERROR_CODES
 import database as db
 
+# Logger de tokens para Ollama
+from ollama_logger import (
+    log_ollama_tokens,
+    log_ollama_tokens_with_estimation,
+    extract_usage_from_chunk,
+    extract_usage_from_response,
+    is_logging_enabled as is_ollama_logging_enabled
+)
+
 router = APIRouter(tags=["Chat"])
 
 
@@ -1033,6 +1042,130 @@ def get_client(provider: str, api_key: str) -> AsyncOpenAI:
         raise ValueError(f"Proveedor '{provider}' no soportado")
 
 
+# =============================================================================
+# ENDPOINTS DE CONTROL PARA OLLAMA TOKEN LOGGING
+# =============================================================================
+
+from ollama_logger import (
+    enable_logging as enable_ollama_logging,
+    disable_logging as disable_ollama_logging,
+    get_conversation_totals as get_ollama_conversation_totals,
+    get_all_conversations_summary as get_ollama_summary,
+    reset_conversation_totals as reset_ollama_totals,
+    get_csv_path as get_ollama_csv_path,
+    read_csv_as_dict as read_ollama_csv
+)
+
+
+@router.get("/ollama/logging/status")
+async def ollama_logging_status():
+    """Obtiene el estado del logging de tokens para Ollama."""
+    return {
+        "enabled": is_ollama_logging_enabled(),
+        "csv_path": str(get_ollama_csv_path())
+    }
+
+
+@router.post("/ollama/logging/enable")
+async def enable_ollama_token_logging():
+    """Activa el logging de tokens para modelos Ollama."""
+    enable_ollama_logging()
+    return {"status": "enabled", "message": "Ollama token logging activado"}
+
+
+@router.post("/ollama/logging/disable")
+async def disable_ollama_token_logging():
+    """Desactiva el logging de tokens para modelos Ollama."""
+    disable_ollama_logging()
+    return {"status": "disabled", "message": "Ollama token logging desactivado"}
+
+
+@router.get("/ollama/tokens/summary")
+async def get_ollama_tokens_summary():
+    """Obtiene un resumen de tokens por conversación (en memoria)."""
+    return {
+        "conversations": get_ollama_summary(),
+        "logging_enabled": is_ollama_logging_enabled()
+    }
+
+
+@router.get("/ollama/tokens/{conversation_id}")
+async def get_ollama_conversation_tokens(conversation_id: str):
+    """Obtiene los tokens acumulados de una conversación específica."""
+    totals = get_ollama_conversation_totals(conversation_id)
+    return {
+        "conversation_id": conversation_id,
+        "totals": totals
+    }
+
+
+@router.post("/ollama/tokens/reset")
+async def reset_ollama_tokens(conversation_id: Optional[str] = None):
+    """
+    Resetea los totales de tokens en memoria.
+    Si se proporciona conversation_id, solo resetea esa conversación.
+    """
+    reset_ollama_totals(conversation_id)
+    return {
+        "status": "reset",
+        "conversation_id": conversation_id or "all"
+    }
+
+
+@router.get("/ollama/tokens/csv")
+async def get_ollama_csv_data():
+    """Obtiene todos los registros del CSV como JSON."""
+    return {
+        "records": read_ollama_csv(),
+        "csv_path": str(get_ollama_csv_path())
+    }
+
+
+@router.post("/ollama/test-usage")
+async def test_ollama_usage_capture(
+    ollama_url: str = "http://localhost:11434",
+    model: str = "llama3.2:latest"
+):
+    """
+    Prueba capturar usage de Ollama con petición no-streaming.
+    Útil para debug y comparar con estimaciones.
+    """
+    from openai import AsyncOpenAI
+    
+    try:
+        client = AsyncOpenAI(
+            api_key="ollama",
+            base_url=f"{ollama_url.rstrip('/')}/v1"
+        )
+        
+        # Petición simple no-streaming
+        response = await client.chat.completions.create(
+            model=model,
+            messages=[{"role": "user", "content": "Hello, count to 3"}],
+            stream=False
+        )
+        
+        usage_info = extract_usage_from_response(response)
+        
+        return {
+            "status": "success",
+            "ollama_url": ollama_url,
+            "model": model,
+            "usage_captured": usage_info,
+            "response_content": response.choices[0].message.content if response.choices else None,
+            "has_usage_field": hasattr(response, 'usage'),
+            "usage_field_value": response.usage if hasattr(response, 'usage') else None
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "ollama_url": ollama_url,
+            "model": model
+        }
+
+
 @router.post("/chat")
 async def chat_completion(req: ChatRequest):
     """
@@ -1180,7 +1313,8 @@ async def chat_completion(req: ChatRequest):
                     top_p=req.top_p,
                     max_tokens=req.max_tokens,
                     auto_summarize=req.auto_summarize,
-                    summarizer_model=req.summarizer_model
+                    summarizer_model=req.summarizer_model,
+                    provider=req.provider  # Para logging de Ollama
                 ),
                 media_type="text/event-stream",
                 headers={
@@ -1308,7 +1442,9 @@ async def stream_chat_response(
     max_tokens: Optional[int] = None,
     # Parámetros de auto-summarize (Sprint 2)
     auto_summarize: bool = True,
-    summarizer_model: Optional[str] = None
+    summarizer_model: Optional[str] = None,
+    # Provider para logging de tokens (Ollama)
+    provider: Optional[str] = None
 ):
     """
     Generador asíncrono para streaming con Server-Sent Events (SSE).
@@ -1318,10 +1454,15 @@ async def stream_chat_response(
     stream_id = f"{conversation_id}_{user_msg_id}_{int(stream_start)}"
     print(f"🌊 STREAM INICIADO [{stream_id}] - conv={conversation_id}, user_msg={user_msg_id}")
     
+    # DEBUG: Verificar provider para logging de Ollama
+    if provider == "ollama":
+        print(f"🔍 OLLAMA DEBUG: provider={provider}, logging_enabled={is_ollama_logging_enabled()}")
+    
     full_content = ""
     tool_calls_accumulator = []
     finish_reason = "stop"
     reasoning_content = ""  # DeepSeek reasoning mode
+    ollama_usage_data = None  # Para capturar tokens de Ollama
     
     # SANITIZACIÓN PRE-ENVÍO: Asegurar que ningún mensaje tenga content=null
     # DeepSeek y otros proveedores no aceptan null, solo string vacío
@@ -1346,9 +1487,21 @@ async def stream_chat_response(
         if max_tokens is not None:
             params["max_tokens"] = max_tokens
         
+        # OLLAMA: Incluir usage en streaming para logging de tokens
+        if provider == "ollama" and is_ollama_logging_enabled():
+            params["stream_options"] = {"include_usage": True}
+        
         stream = await client.chat.completions.create(**params)
         
         async for chunk in stream:
+            # OLLAMA TOKEN LOGGING: Capturar usage del chunk ANTES de verificar choices
+            # El chunk final de Ollama tiene usage pero choices=[] (array vacío)
+            if provider == "ollama" and is_ollama_logging_enabled():
+                chunk_usage = extract_usage_from_chunk(chunk)
+                if chunk_usage:
+                    ollama_usage_data = chunk_usage
+                    print(f"📊 OLLAMA: Usage real capturado - prompt={chunk_usage.get('prompt_tokens')}, completion={chunk_usage.get('completion_tokens')}")
+            
             if not chunk.choices:
                 continue
                 
@@ -1465,6 +1618,20 @@ async def stream_chat_response(
         # =======================================================================
         # GUARDAR MENSAJE COMPLETO AL FINALIZAR
         # =======================================================================
+        
+        # OLLAMA TOKEN LOGGING: Registrar tokens reales capturados del stream
+        if provider == "ollama" and is_ollama_logging_enabled():
+            if ollama_usage_data:
+                log_ollama_tokens(
+                    conversation_id=conversation_id,
+                    model=model_id,
+                    prompt_tokens=ollama_usage_data.get('prompt_tokens', 0),
+                    completion_tokens=ollama_usage_data.get('completion_tokens', 0),
+                    total_tokens=ollama_usage_data.get('total_tokens')
+                )
+            else:
+                # Fallback solo si no se recibió usage (no debería pasar con Ollama reciente)
+                print(f"⚠️ OLLAMA: No se recibió usage del stream - verificar versión de Ollama")
         
         # Incluir reasoning_content como metadata si existe (DeepSeek reasoning mode)
         # Lo guardamos en el JSON de tool_calls para no modificar la BD
@@ -1983,13 +2150,26 @@ async def stream_chat_response(
                 if max_tokens is not None:
                     loop_params["max_tokens"] = max_tokens
                 
+                # OLLAMA: Incluir usage en streaming para logging de tokens
+                if provider == "ollama" and is_ollama_logging_enabled():
+                    loop_params["stream_options"] = {"include_usage": True}
+                
                 # Streaming de esta iteración
                 loop_content = ""
                 loop_tool_calls = []  # Acumulador con fusión por índice
                 loop_reasoning_content = ""  # DeepSeek reasoning mode
+                loop_ollama_usage = None  # Para logging de tokens Ollama
                 
                 loop_stream = await client.chat.completions.create(**loop_params)
                 async for chunk in loop_stream:
+                    # OLLAMA TOKEN LOGGING: Capturar usage del chunk ANTES de verificar choices
+                    # El chunk final de Ollama tiene usage pero choices=[] (array vacío)
+                    if provider == "ollama" and is_ollama_logging_enabled():
+                        chunk_usage = extract_usage_from_chunk(chunk)
+                        if chunk_usage:
+                            loop_ollama_usage = chunk_usage
+                            print(f"📊 OLLAMA LOOP: Usage real capturado - prompt={chunk_usage.get('prompt_tokens')}, completion={chunk_usage.get('completion_tokens')}")
+                    
                     if not chunk.choices:
                         continue
                     delta = chunk.choices[0].delta
@@ -2059,6 +2239,20 @@ async def stream_chat_response(
                                 "done": False
                             })
                             yield f"event: tool_call\ndata: {tc_event}\n\n"
+                
+                # OLLAMA TOKEN LOGGING: Registrar tokens de esta iteración
+                if provider == "ollama" and is_ollama_logging_enabled():
+                    if loop_ollama_usage:
+                        log_ollama_tokens(
+                            conversation_id=conversation_id,
+                            model=model_id,
+                            prompt_tokens=loop_ollama_usage.get('prompt_tokens', 0),
+                            completion_tokens=loop_ollama_usage.get('completion_tokens', 0),
+                            total_tokens=loop_ollama_usage.get('total_tokens')
+                        )
+                    else:
+                        # No se recibió usage (no debería pasar con Ollama reciente)
+                        print(f"⚠️ OLLAMA LOOP: No se recibió usage - verificar versión de Ollama")
                 
                 # Guardar reasoning_content con tool_calls si existe
                 loop_tool_calls_data = loop_tool_calls.copy() if loop_tool_calls else []
