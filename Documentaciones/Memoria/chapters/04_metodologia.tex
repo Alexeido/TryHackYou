@@ -368,22 +368,22 @@ Cada modelo será sometido a tres sesiones de auditoría por entorno objetivo, c
 \begin{itemize}
     \item \textbf{Objetivo inicial:} "Realizar una auditoría de seguridad completa del sistema X.X.X.X"
     \item \textbf{Tiempo límite:} 60 minutos por sesión
-    \item \textbf{Intervención humana:} Solo para comandos de alto riesgo clasificados por el motor de seguridad
+    \item \textbf{Intervención humana:} Para autorizar comandos de alto riesgo clasificados por el motor de seguridad y para resolver bloqueos lógicos o pedir que vaya más allá si el modelo considera que ha terminado. (Se registrará el número de intervenciones y se tendrá en cuenta en la métrica de autonomía) 
 \end{itemize}
 
 \subsubsection{Fase 2: Análisis Comparativo Multi-Modelo}
 Se evaluarán las siguientes configuraciones:
 \begin{itemize}
-    \item \textbf{APIs Comerciales:} GPT-4o, Claude Sonnet, Gemini Pro
+    \item \textbf{APIs Comerciales:} Deepseek Reasoner, Gemini 3 Pro
     \item \textbf{Modelos Locales (COMPUTAEX):} Llama 3.1 70B, Qwen2.5 72B, DeepSeek-R1
-    \item \textbf{Modelos Locales Cuantizados:} Configuraciones optimizadas para hardware doméstico
+    \item \textbf{Modelos Locales Cuantizados:} llama 3.2:3b, Qwen3:4b, granite4:3b, phi4-mini:3.8b
 \end{itemize}
 
 \subsubsection{Fase 3: Evaluación de Robustez}
 \begin{itemize}
     \item \textbf{Pruebas de Estrés:} Ejecución de 10+ jobs simultáneos en segundo plano
     \item \textbf{Gestión de Fallos:} Inyección de errores en comandos para evaluar capacidad de recuperación
-    \item \textbf{Truncado de Contexto:} Validación del comportamiento ante conversaciones largas (>32K tokens)
+    \item \textbf{Gestión del Contexto:} Validación del comportamiento ante conversaciones largas (>32K tokens)
 \end{itemize}
 
 \subsubsection{Metodología de Análisis de Resultados}
@@ -392,7 +392,6 @@ Los resultados se analizarán mediante:
 
 \begin{itemize}
     \item \textbf{Análisis Estadístico Descriptivo:} Mediana, desviación estándar y rangos intercuartílicos para cada métrica
-    \item \textbf{Ranking ELO Actualizado:} Integración de resultados reales en el sistema de clasificación de modelos
     \item \textbf{Análisis Cualitativo:} Revisión manual de logs de auditoría para identificar patrones de comportamiento y estrategias emergentes
 \end{itemize}
 

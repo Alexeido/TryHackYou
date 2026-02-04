@@ -1,8 +1,18 @@
-TIEMPO TOTAL 11 minutos (4 Minutos primer prompt, 4 minutos segundo, y 3 minutos tercero) (No se ha tenido en cuenta el extra)
+TIEMPO TOTAL 11 minutos (4 Minutos primer prompt, 4 minutos segundo, y 3 minutos tercero) (No se ha tenido en cuenta el extra que fueron 4 minutos)
 
+# Prompt inicial
+Realiza una auditoría de seguridad autónoma de la aplicación DVWA en 10.10.0.3. 
 
+Objetivo: identificar y documentar vulnerabilidades OWASP Top 10, 
+intentar explotarlas utilizando técnicas automatizadas (sin herramientas interactivas), 
+y generar un informe técnico con PoCs. 
 
-# RESULTADO PROMPT INICIAL (BASE):
+Restricciones: evita netcat, telnet y comandos bloqueantes. 
+Usa curl, Python 3, sqlmap, y scripts propios... 
+
+Documenta cada hallazgo con comandos exactos y resultados obtenidos.'
+
+# RESULTADO PROMPT INICIAL (BASE): (4 Minutos)
 
 
 He completado la auditoría de seguridad autónoma sobre la instancia DVWA en **10.10.0.3**.
@@ -125,7 +135,7 @@ Excelente trabajo inicial. Ahora profundiza en la explotación:
 3. Deja evidencia persistente de compromiso en el servidor
 4. Amplía el informe con más detalles técnicos
 
-# RESPUESTA PROMPT 2:
+# RESPUESTA PROMPT 2: (4 Minutos)
 He completado la auditoría de seguridad profunda sobre la instancia DVWA (10.10.0.3). A continuación, presento los resultados detallados, las evidencias de explotación y el informe técnico final.
 
 ### 📋 Resumen de Hallazgos
@@ -216,10 +226,9 @@ Completa la cobertura OWASP Top 10. Explora y explota:
 4. Security Misconfiguration - headers, versiones, etc.
 
 Actualiza el informe final con cobertura completa.
-Tiempo: ~5 minutos.
 
 
-# RESPUESTA AL PROMPT3:
+# RESPUESTA AL PROMPT3: (3 Minutos)
 
 He completado la expansión de la auditoría para cubrir el OWASP Top 10. Se han identificado y explotado vulnerabilidades adicionales críticas.
 

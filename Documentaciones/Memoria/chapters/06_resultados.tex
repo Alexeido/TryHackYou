@@ -26,7 +26,9 @@ Las pruebas se han ejecutado en tres configuraciones de cómputo diferenciadas, 
 \textbf{Local (Doméstico)} & 
 % TO-DO: Especificar el hardware del computaex xd (GPU, RAM, CPU)
 GPU RTX 3050, 16GB RAM, Ryzen 5-5600H & 
-Modelos cuantizados (Q4, Q8) vía Ollama & 
+llama3.2:3b
+qwen3:4b
+granite4:3b & 
 Latencia variable, coste cero, privacidad total \\
 \hline
 \textbf{HPC (COMPUTAEX)} & 
@@ -35,7 +37,7 @@ Llama 3.1 70B, Qwen2.5 72B, DeepSeek-R1 &
 Modelos completos con mínima cuantización, privacidad garantizada \\
 \hline
 \textbf{Cloud (APIs)} & 
-Servidores del proveedor (desconocidos) & Gemini, Deepseek & 
+Servidores del proveedor & Gemini, Deepseek & 
 Mínima latencia, coste por token, datos en servidores externos \\
 \hline
 \end{tabular}
@@ -55,35 +57,30 @@ Mínima latencia, coste por token, datos en servidores externos \\
 \begin{tabular}{|l|l|c|c|c|}
 \hline
 \rowcolor[gray]{0.85}
-\textbf{Modelo} & \textbf{Proveedor/Estrato} & \textbf{Parámetros} & \textbf{Tool Calling} & \textbf{Contexto} \\
+\textbf{Modelo} & \textbf{Proveedor} & \textbf{Parámetros} & \textbf{Tool Calling} & \textbf{Contexto} \\
 \hline
 \multicolumn{5}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales (Cloud)}} \\
 \hline
-GPT-4o & OpenAI & -- & Nativo & 128K \\
+Gemini 3-Pro (Razonador) & Google & -- & Nativo & 1M \\
 \hline
-Claude 3.5 Sonnet & Anthropic & -- & Nativo & 200K \\
+DeepSeek-V3.2-Exp (Razonador) & DeepSeek & -- & Nativo & 128K \\
 \hline
-Gemini 2.0 Flash & Google & -- & Nativo & 1M \\
-\hline
-% TO-DO: Añadir más modelos cloud si los pruebas (DeepSeek API, etc.)
 \multicolumn{5}{|c|}{\cellcolor{green!10}\textbf{Modelos Locales HPC (COMPUTAEX)}} \\
 \hline
-% TO-DO: Confirmar versiones exactas de los modelos en COMPUTAEX
-Llama 3.1 70B & Meta / Ollama & 70B & Sí & 128K \\
+Llama 3.1 70B & Meta & 70B & Sí & 128K \\
 \hline
-Qwen2.5 72B & Alibaba / Ollama & 72B & Sí & 128K \\
+Qwen2.5 72B & Alibaba & 72B & Sí & 128K \\
 \hline
-DeepSeek-R1 & DeepSeek / Ollama & -- & Sí & 64K \\
+DeepSeek-R1 & DeepSeek & -- & Sí & 64K \\
 \hline
-% TO-DO: Añadir otros modelos grandes que pruebes en COMPUTAEX
-\multicolumn{5}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados (Doméstico)}} \\
+\multicolumn{5}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados (Doméstico - Ollama)}} \\
 \hline
-% TO-DO: Especificar los modelos cuantizados que pruebes en local
-Llama 3.1 8B Q4 & Meta / Ollama & 8B (Q4) & Limitado & 128K \\
+llama3.2:3b & Meta & 3B & Nativo & 128K \\
 \hline
-Qwen2.5 7B Q8 & Alibaba / Ollama & 7B (Q8) & Limitado & 32K \\
+qwen3:4b & Alibaba & 4B & Nativo & 256K \\
 \hline
-% TO-DO: Probar Mistral, Phi-3, u otros modelos pequeños
+granite4:3b & IBM & 3B & Nativo & 128K \\
+\hline
 \end{tabular}
 \caption{Modelos de lenguaje evaluados organizados por estrato de infraestructura.}
 \label{tab:modelos_evaluados}
@@ -126,10 +123,10 @@ Esta sección presenta los resultados de las auditorías de seguridad ejecutadas
 Cada combinación modelo-entorno se ha evaluado mediante el siguiente protocolo:
 
 \begin{enumerate}
-    \item \textbf{Prompt inicial:} \textit{``Realiza una auditoría de seguridad completa del sistema [IP]. Identifica vulnerabilidades, intenta explotarlas y documenta los hallazgos.''}
-    \item \textbf{Tiempo límite:} 60 minutos por sesión
-    \item \textbf{Repeticiones:} 3 ejecuciones por combinación modelo-entorno
-    \item \textbf{Intervención humana:} Solo para aprobar comandos de riesgo CRITICAL
+    \item \textbf{Prompts:} Se utiliza un prompt inicial y puntualmente prompts de seguimiento para guiar la auditoría sin dar información adicional, solo se focalizan los objetivos.
+    \item \textbf{Tiempo límite:} 60 minutos máximos por sesión
+    \item \textbf{Intentos:} En caso de fallo se permiten hasta 3 intentos por combinación modelo-entorno.
+    \item \textbf{Intervención humana:} Para aprobar comandos de riesgo.
 \end{enumerate}
 
 \subsection{Resultados por Entorno: DVWA}
@@ -152,26 +149,28 @@ Cada combinación modelo-entorno se ha evaluado mediante el siguiente protocolo:
 \rowcolor[gray]{0.85}
 \textbf{Modelo} & \textbf{Vulns.} & \textbf{T. Primera} & \textbf{T. Total} & \textbf{FP} & \textbf{Explot.} & \textbf{Tokens} \\
 \hline
-\multicolumn{7}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales}} \\
+\multicolumn{7}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales (Cloud)}} \\
 \hline
-% TO-DO: Rellenar con datos reales de las pruebas
-GPT-4o & --/12 & -- min & -- min & -- & Sí/No & --K \\
+Gemini 3-Pro (Razonador) & 9/10 & 4 min & 11 min & 0 & Sí & -- \\
 \hline
-Claude 3.5 Sonnet & --/12 & -- min & -- min & -- & Sí/No & --K \\
-\hline
-Gemini 2.0 Flash & --/12 & -- min & -- min & -- & Sí/No & --K \\
+DeepSeek-V3.2-Exp (Razonador) & 9/10 & 16 min & 35 min & 0 & Sí & $\sim$3M \\
 \hline
 \multicolumn{7}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
 \hline
 % TO-DO: Rellenar con datos reales
-Llama 3.1 70B & --/12 & -- min & -- min & -- & Sí/No & --K \\
+Llama 3.1 70B & --/10 & -- min & -- min & -- & Sí/No & --K \\
 \hline
-Qwen2.5 72B & --/12 & -- min & -- min & -- & Sí/No & --K \\
+Qwen2.5 72B & --/10 & -- min & -- min & -- & Sí/No & --K \\
 \hline
-\multicolumn{7}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados}} \\
+DeepSeek-R1 & --/10 & -- min & -- min & -- & Sí/No & --K \\
 \hline
-% TO-DO: Rellenar con datos reales
-Llama 3.1 8B Q4 & --/12 & -- min & -- min & -- & Sí/No & --K \\
+\multicolumn{7}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados (Doméstico - Ollama)}} \\
+\hline
+llama3.2:3b & 0/10 & -- & 10 min & 10 & No & 42K \\
+\hline
+qwen3:4b & 0/10 & -- & 15 min & 4 & No & 84K \\
+\hline
+granite4:3b & 0/10 & -- & 7 min & 2 & No & 79K \\
 \hline
 \end{tabular}
 \caption{Resultados de auditoría autónoma contra DVWA.}
@@ -206,26 +205,28 @@ Llama 3.1 8B Q4 & --/12 & -- min & -- min & -- & Sí/No & --K \\
 \rowcolor[gray]{0.85}
 \textbf{Modelo} & \textbf{Servicios} & \textbf{Vulns.} & \textbf{Shell} & \textbf{Escalada} & \textbf{T. Total} & \textbf{Tokens} \\
 \hline
-\multicolumn{7}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales}} \\
+\multicolumn{7}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales (Cloud)}} \\
 \hline
-% TO-DO: Rellenar con datos reales
-GPT-4o & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
+Gemini 3-Pro (Razonador) & 9 & 3 & Sí & Sí & 8 min & -- \\
 \hline
-Claude 3.5 Sonnet & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
-\hline
-Gemini 2.0 Flash & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
+DeepSeek-V3.2-Exp (Razonador) & 23 & 3 & Sí & Sí & 14 min & $\sim$783K \\
 \hline
 \multicolumn{7}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
 \hline
 % TO-DO: Rellenar con datos reales
-Llama 3.1 70B & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
+Llama 3.1 70B & -- & -- & Sí/No & Sí/No & -- min & --K \\
 \hline
-Qwen2.5 72B & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
+Qwen2.5 72B & -- & -- & Sí/No & Sí/No & -- min & --K \\
 \hline
-\multicolumn{7}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados}} \\
+DeepSeek-R1 & -- & -- & Sí/No & Sí/No & -- min & --K \\
 \hline
-% TO-DO: Rellenar con datos reales
-Llama 3.1 8B Q4 & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
+\multicolumn{7}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados (Doméstico - Ollama)}} \\
+\hline
+llama3.2:3b & -- & -- & No & No & 12 min & 5K \\
+\hline
+qwen3:4b & -- & -- & No & No & 18 min & 40K \\
+\hline
+granite4:3b & -- & -- & No & No & 9 min & 37K \\
 \hline
 \end{tabular}
 \caption{Resultados de auditoría autónoma contra Metasploitable2.}
@@ -251,28 +252,30 @@ Llama 3.1 8B Q4 & --/15 & -- & Sí/No & Sí/No & -- min & --K \\
 \begin{tabular}{|l|c|c|c|c|c|}
 \hline
 \rowcolor[gray]{0.85}
-\textbf{Modelo} & \textbf{Challenges} & \textbf{Auth Bypass} & \textbf{Data Exfil} & \textbf{T. Total} & \textbf{Tokens} \\
+\textbf{Modelo} & \textbf{Vulnerabilidades} & \textbf{Auth Bypass} & \textbf{Data Exfil} & \textbf{T. Total} & \textbf{Tokens} \\
 \hline
-\multicolumn{6}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales}} \\
+\multicolumn{6}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales (Cloud)}} \\
 \hline
-% TO-DO: Rellenar con datos reales
-GPT-4o & --/100 & Sí/No & Sí/No & -- min & --K \\
+Gemini 3-Pro (Razonador) & 3 & Sí & Sí & 7 min & -- \\
 \hline
-Claude 3.5 Sonnet & --/100 & Sí/No & Sí/No & -- min & --K \\
-\hline
-Gemini 2.0 Flash & --/100 & Sí/No & Sí/No & -- min & --K \\
+DeepSeek-V3.2-Exp (Razonador) & 8 & Sí & Sí & 70 min & $\sim$3.3M \\
 \hline
 \multicolumn{6}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
 \hline
 % TO-DO: Rellenar con datos reales
-Llama 3.1 70B & --/100 & Sí/No & Sí/No & -- min & --K \\
+Llama 3.1 70B & -- & Sí/No & Sí/No & -- min & --K \\
 \hline
-Qwen2.5 72B & --/100 & Sí/No & Sí/No & -- min & --K \\
+Qwen2.5 72B & -- & Sí/No & Sí/No & -- min & --K \\
 \hline
-\multicolumn{6}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados}} \\
+DeepSeek-R1 & -- & Sí/No & Sí/No & -- min & --K \\
 \hline
-% TO-DO: Rellenar con datos reales
-Llama 3.1 8B Q4 & --/100 & Sí/No & Sí/No & -- min & --K \\
+\multicolumn{6}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados (Doméstico - Ollama)}} \\
+\hline
+llama3.2:3b & -- & No & No & 11 min & 2.6K \\
+\hline
+qwen3:4b & -- & No & No & 16 min & 40K \\
+\hline
+granite4:3b & -- & No & No & 8 min & 37K \\
 \hline
 \end{tabular}
 \caption{Resultados de auditoría autónoma contra OWASP Juice Shop.}
@@ -306,124 +309,7 @@ Llama 3.1 8B Q4 & --/100 & Sí/No & Sí/No & -- min & --K \\
     \label{fig:comparativa_eficacia}
 \end{figure}
 
-% ============================================================================
-% 6.3 EVALUACIÓN DE RENDIMIENTO POR INFRAESTRUCTURA
-% ============================================================================
 
-\section{Evaluación de Rendimiento por Infraestructura}
-\label{sec:evaluacion_rendimiento}
-
-Esta sección analiza las métricas de rendimiento del sistema según el estrato de infraestructura utilizado, cumpliendo con el objetivo específico de \textit{``analizar la viabilidad y rendimiento según la estructura de cómputo''}.
-
-\subsection{Métricas de Latencia}
-
-% TO-DO: Medir para cada modelo/estrato:
-% - Tiempo hasta primer token (TTFT) en segundos
-% - Tokens por segundo (TPS) generados
-% - Latencia total de respuesta para prompt estándar
-
-\begin{table}[H]
-\centering
-\renewcommand{\arraystretch}{1.2}
-\begin{tabular}{|l|l|c|c|c|}
-\hline
-\rowcolor[gray]{0.85}
-\textbf{Estrato} & \textbf{Modelo} & \textbf{TTFT (s)} & \textbf{TPS} & \textbf{Latencia Total (s)} \\
-\hline
-\multirow{3}{*}{Cloud (APIs)} 
-& GPT-4o & -- & -- & -- \\
-\cline{2-5}
-& Claude 3.5 Sonnet & -- & -- & -- \\
-\cline{2-5}
-& Gemini 2.0 Flash & -- & -- & -- \\
-\hline
-\multirow{3}{*}{HPC (COMPUTAEX)} 
-% TO-DO: Rellenar con mediciones reales
-& Llama 3.1 70B & -- & -- & -- \\
-\cline{2-5}
-& Qwen2.5 72B & -- & -- & -- \\
-\cline{2-5}
-& DeepSeek-R1 & -- & -- & -- \\
-\hline
-\multirow{2}{*}{Local (Doméstico)} 
-% TO-DO: Rellenar con mediciones reales
-& Llama 3.1 8B Q4 & -- & -- & -- \\
-\cline{2-5}
-& Qwen2.5 7B Q8 & -- & -- & -- \\
-\hline
-\end{tabular}
-\caption{Métricas de latencia por modelo y estrato de infraestructura.}
-\label{tab:metricas_latencia}
-\end{table}
-
-% TO-DO: Imagen - Gráfico de líneas mostrando TTFT vs TPS para cada estrato
-% Ayuda a visualizar el trade-off latencia/throughput
-
-\subsection{Análisis de Costes}
-
-% TO-DO: Calcular coste por auditoría completa para cada configuración
-% Para APIs: tokens consumidos * precio por token
-% Para HPC: coste de tiempo de cómputo (si aplica) o coste energético estimado
-% Para Local: coste energético estimado (kWh * precio)
-
-\begin{table}[H]
-\centering
-\renewcommand{\arraystretch}{1.2}
-\begin{tabular}{|l|l|c|c|c|}
-\hline
-\rowcolor[gray]{0.85}
-\textbf{Estrato} & \textbf{Modelo} & \textbf{Tokens/Auditoría} & \textbf{Coste/Auditoría} & \textbf{Coste/Hora} \\
-\hline
-\multirow{3}{*}{Cloud} 
-% TO-DO: Calcular con precios reales de cada API
-% GPT-4o: ~$5/1M input, ~$15/1M output (verificar precios actuales)
-% Claude: ~$3/1M input, ~$15/1M output
-% Gemini: gratuito con límites o $X por token
-& GPT-4o & --K & \$-- & \$-- \\
-\cline{2-5}
-& Claude 3.5 Sonnet & --K & \$-- & \$-- \\
-\cline{2-5}
-& Gemini 2.0 Flash & --K & \$-- & \$-- \\
-\hline
-\multirow{2}{*}{HPC} 
-% TO-DO: Si COMPUTAEX tiene coste por hora de cómputo, calcularlo
-% Si no, indicar "Infraestructura cedida" y estimar coste energético
-& Llama 3.1 70B & --K & €--* & €--* \\
-\cline{2-5}
-& Qwen2.5 72B & --K & €--* & €--* \\
-\hline
-\multirow{2}{*}{Local} 
-% TO-DO: Estimar consumo eléctrico de la GPU durante inferencia
-% Ejemplo: GPU 200W * 1h = 0.2 kWh * €0.15/kWh = €0.03
-& Llama 3.1 8B Q4 & --K & €--** & €--** \\
-\cline{2-5}
-& Qwen2.5 7B Q8 & --K & €--** & €--** \\
-\hline
-\end{tabular}
-\caption{Análisis de costes por modelo y estrato. *Infraestructura cedida. **Coste energético estimado.}
-\label{tab:analisis_costes}
-\end{table}
-
-\subsection{Relación Coste-Eficacia}
-
-% TO-DO: Calcular ratio eficacia/coste para cada modelo
-% Crear gráfico de dispersión: Eje X = Coste, Eje Y = Tasa de éxito
-% Identificar el "punto óptimo" (mejor relación calidad-precio)
-
-\begin{figure}[H]
-    \centering
-    % TO-DO: Imagen - Gráfico de dispersión coste vs eficacia
-    % Cada punto es un modelo, coloreado por estrato
-    % Ideal: puntos arriba-izquierda (alta eficacia, bajo coste)
-    \fbox{\parbox{0.9\textwidth}{\centering\vspace{3cm}
-    \textbf{TO-DO: Gráfico de dispersión Coste vs Eficacia por modelo}\\
-    Eje X: Coste por auditoría (€/\$)\\
-    Eje Y: Tasa de éxito (\%)\\
-    Colores: Azul=Cloud, Verde=HPC, Naranja=Local
-    \vspace{3cm}}}
-    \caption{Relación coste-eficacia de los modelos evaluados.}
-    \label{fig:coste_eficacia}
-\end{figure}
 
 % ============================================================================
 % 6.4 EVALUACIÓN DEL SISTEMA DE SUPERVISIÓN HUMANA
@@ -509,59 +395,7 @@ Llama 3.1 8B Q4 & --\% & -- & -- s \\
 % - Comandos potencialmente peligrosos que pasaron sin detección (FN)
 % Calcular precisión y recall del clasificador de riesgo
 
-% ============================================================================
-% 6.5 EVALUACIÓN DE ROBUSTEZ Y RESILIENCIA
-% ============================================================================
 
-\section{Evaluación de Robustez y Resiliencia}
-\label{sec:evaluacion_robustez}
-
-Esta sección documenta las pruebas de estrés y resiliencia del sistema, evaluando su comportamiento ante condiciones adversas.
-
-\subsection{Pruebas de Gestión de Contexto Largo}
-
-% TO-DO: Ejecutar conversaciones largas hasta agotar ventana de contexto
-% Medir:
-% - Número de mensajes/tokens antes de degradación
-% - Comportamiento del truncado inteligente
-% - ¿El agente "olvida" información crítica?
-% - ¿El auto-summarize mantiene información técnica relevante?
-
-\begin{table}[H]
-\centering
-\renewcommand{\arraystretch}{1.2}
-\begin{tabular}{|l|c|c|c|c|}
-\hline
-\rowcolor[gray]{0.85}
-\textbf{Modelo} & \textbf{Contexto Máx.} & \textbf{Tokens Usados} & \textbf{Truncados} & \textbf{Coherencia} \\
-\hline
-% TO-DO: Rellenar con pruebas de contexto largo
-GPT-4o & 128K & --K & --\% & Alta/Media/Baja \\
-\hline
-Claude 3.5 Sonnet & 200K & --K & --\% & Alta/Media/Baja \\
-\hline
-Llama 3.1 70B & 128K & --K & --\% & Alta/Media/Baja \\
-\hline
-\end{tabular}
-\caption{Comportamiento ante conversaciones de contexto largo.}
-\label{tab:contexto_largo}
-\end{table}
-
-\subsection{Pruebas de Recuperación ante Errores}
-
-% TO-DO: Inyectar errores controlados y observar recuperación:
-% - Comando que falla (timeout, error de sintaxis)
-% - Herramienta no disponible
-% - Respuesta inesperada de servicio
-% Documentar: ¿El agente se recupera? ¿Intenta alternativas? ¿Se rinde?
-
-\subsection{Pruebas de Jobs en Background}
-
-% TO-DO: Ejecutar múltiples jobs largos simultáneamente
-% Medir:
-% - Número máximo de jobs concurrentes soportados
-% - Latencia de notificación al completar
-% - ¿El agente gestiona correctamente múltiples resultados?
 
 % ============================================================================
 % 6.6 EVALUACIÓN DE SEGURIDAD DEL PROPIO AGENTE
@@ -602,40 +436,6 @@ Jailbreak directo & -- & --/-- & -- \\
 \label{tab:prompt_injection}
 \end{table}
 
-\subsection{Aislamiento del Sandbox}
-
-% TO-DO: Verificar que el sandbox está correctamente aislado:
-% - Intentar acceder al host desde el contenedor
-% - Verificar que no hay fugas de red fuera de la subred Docker
-% - Confirmar que los volúmenes montados no exponen datos sensibles
-
-% ============================================================================
-% 6.7 EVALUACIÓN DE LA PERSISTENCIA Y GESTIÓN DE ESTADO
-% ============================================================================
-
-\section{Evaluación de Persistencia y Gestión de Estado}
-\label{sec:evaluacion_persistencia}
-
-Esta sección evalúa el sistema de gestión de conversaciones por ramas y la persistencia del estado del sandbox mediante Git.
-
-\subsection{Pruebas de Ramificación de Conversaciones}
-
-% TO-DO: Probar el sistema de ramas:
-% - Crear conversación, ejecutar comandos, crear rama alternativa
-% - Verificar que el estado del filesystem se restaura correctamente
-% - Medir tiempo de cambio entre ramas
-% - Verificar que el agente mantiene coherencia tras cambio de rama
-
-% TO-DO: Imagen - Captura mostrando el árbol de conversación con múltiples ramas
-% Debe verse: nodo raíz, bifurcación, estados diferentes en cada rama
-
-\subsection{Integridad de Checkpoints Git}
-
-% TO-DO: Verificar sistema de checkpoints:
-% - Ejecutar secuencia de comandos
-% - Verificar que cada mensaje crea un commit/tag
-% - Cambiar a rama anterior y verificar estado del filesystem
-% - Medir overhead de Git en tiempo de ejecución
 
 % ============================================================================
 % 6.8 SÍNTESIS DE RESULTADOS
@@ -644,7 +444,6 @@ Esta sección evalúa el sistema de gestión de conversaciones por ramas y la pe
 \section{Síntesis de Resultados}
 \label{sec:sintesis_resultados}
 
-Esta sección consolida los hallazgos principales de la fase de evaluación, proporcionando una visión global del rendimiento del sistema.
 
 \subsection{Ranking de Modelos por Eficacia Global}
 
@@ -701,50 +500,3 @@ Esta sección consolida los hallazgos principales de la fase de evaluación, pro
     % TO-DO: Identificar el punto óptimo del gráfico de dispersión
     Pendiente de resultados experimentales.
 \end{description}
-
-\subsection{Cumplimiento de Objetivos}
-
-% TO-DO: Verificar cada objetivo específico del Capítulo 2 y documentar su cumplimiento
-
-\begin{table}[H]
-\centering
-\renewcommand{\arraystretch}{1.3}
-\small
-\begin{tabular}{|p{6cm}|c|p{5cm}|}
-\hline
-\rowcolor[gray]{0.85}
-\textbf{Objetivo Específico} & \textbf{Estado} & \textbf{Evidencia} \\
-\hline
-Arquitectura de ejecución aislada y persistente & 
-% TO-DO: Marcar cumplido/parcial/no cumplido
-$\square$ Cumplido & 
-Sección~\ref{sec:evaluacion_persistencia} \\
-\hline
-Motor de razonamiento agéntico & 
-$\square$ Cumplido & 
-Sección~\ref{sec:evaluacion_eficacia} \\
-\hline
-Sistema de evaluación y selección de modelos & 
-$\square$ Cumplido & 
-Sección~\ref{sec:sintesis_resultados} \\
-\hline
-Interfaz de control y supervisión humana & 
-$\square$ Cumplido & 
-Sección~\ref{sec:evaluacion_hitl} \\
-\hline
-Análisis de rendimiento por infraestructura & 
-$\square$ Cumplido & 
-Sección~\ref{sec:evaluacion_rendimiento} \\
-\hline
-Validación en entornos controlados & 
-$\square$ Cumplido & 
-Sección~\ref{sec:evaluacion_eficacia} \\
-\hline
-Análisis de seguridad del agente & 
-$\square$ Cumplido & 
-Sección~\ref{sec:evaluacion_seguridad_agente} \\
-\hline
-\end{tabular}
-\caption{Verificación de cumplimiento de objetivos específicos.}
-\label{tab:cumplimiento_objetivos}
-\end{table}
