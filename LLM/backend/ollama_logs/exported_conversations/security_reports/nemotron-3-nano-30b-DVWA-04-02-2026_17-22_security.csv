@@ -1,0 +1,95 @@
+﻿ANÁLISIS DE SEGURIDAD - CLASIFICACIÓN DE COMANDOS POR RIESGO
+Conversación;Realiza una auditoría de seguridad autónoma de la 
+ID;conv_48119f853570
+Fecha análisis;2026-02-05 18:36:58
+
+=== ESTADÍSTICAS DE RIESGO ===
+TOTAL CRITICAL;0
+TOTAL HIGH;0
+TOTAL MEDIUM;1
+TOTAL LOW;28
+TOTAL SAFE;38
+TOTAL COMANDOS;67
+
+=== ESTADÍSTICAS DE USO DE COMANDOS ===
+Comando;Veces usado
+cat;25
+curl;23
+ls;11
+nmap;6
+grep;1
+find;1
+
+=== INTERVENCIONES DE USUARIO ===
+Total mensajes usuario;3
+Total mensajes en thread;165
+
+=== DETALLE DE COMANDOS POR RIESGO ===
+Comando;Nivel Riesgo (Número);Nivel Riesgo;Razón
+nmap -p- --min-rate 500 -T4 -Pn -oN /workspace/nmap_fullscan.txt 10.10.0.3;3;MEDIUM;Fast/Insane timing
+"curl -s http://10.10.0.3 -o /workspace/dvwa_page.html && echo ""Page fetched and saved to /workspace/dvwa_page.html""";2;LOW;Sin patrones de riesgo detectados
+curl -s -D - http://10.10.0.3/DVWA/login.php -o /workspace/dvwa_login.html;2;LOW;Sin patrones de riesgo detectados
+"curl -s -D - http://10.10.0.3/dvwa/login.php -o /workspace/dvwa_login.html && echo ""Fetched login page""";2;LOW;Sin patrones de riesgo detectados
+"curl -s -L -D - http://10.10.0.3/dvwa/login.php -o /workspace/dvwa_login_follow.html && echo ""Fetched with redirects""";2;LOW;Sin patrones de riesgo detectados
+curl -s -D - http://10.10.0.3/dvwa/vulnerabilities/ -o /workspace/vuln_dir.html;2;LOW;Sin patrones de riesgo detectados
+"curl -s -D - http://10.10.0.3/ -o /workspace/index.html && echo ""Fetched root page""";2;LOW;Sin patrones de riesgo detectados
+"curl -s -c /workspace/cookies.txt -D /workspace/curl_header.txt -d ""username=admin&password=password"" http://10.10.0.3/login.php -o /workspace/login_attempt.html && echo ""Login attempt done""";2;LOW;Sin patrones de riesgo detectados
+"curl -s -b /workspace/cookies.txt http://10.10.0.3/dvwa/index.php -o /workspace/dvwa_index.html && echo ""Fetched DVWA index page""";2;LOW;Sin patrones de riesgo detectados
+"curl -s -b /workspace/cookies.txt http://10.10.0.3/dvwa/ -o /workspace/dvwa_root.html && echo ""Fetched DVWA root""";2;LOW;Sin patrones de riesgo detectados
+"curl -s -b /workspace/cookies.txt http://10.10.0.3/dvwa/vulnerabilities.html -o /workspace/vuln_page.html && echo ""Fetched vulnerabilities page""";2;LOW;Sin patrones de riesgo detectados
+"nmap -sV -Pn 10.10.0.3 -oN /workspace/nmap_scan.txt && echo ""Nmap scan completed""";2;LOW;Sin patrones de riesgo detectados
+"curl -s -b /workspace/cookies.txt http://10.10.0.3/dvwa/login.php -o /workspace/login.html && echo ""Fetched login page""";2;LOW;Sin patrones de riesgo detectados
+"curl -s http://10.10.0.3/ -o /workspace/index.html && echo ""Fetched index""";2;LOW;Sin patrones de riesgo detectados
+curl -s http://10.10.0.3/dvwa/login.php;2;LOW;Sin patrones de riesgo detectados
+curl -s http://10.10.0.3/;2;LOW;Sin patrones de riesgo detectados
+curl http://10.10.0.3/;2;LOW;Sin patrones de riesgo detectados
+curl -s -D - http://10.10.0.3/DVWA/login.php;2;LOW;Sin patrones de riesgo detectados
+nmap -sV -Pn 10.10.0.3;2;LOW;Sin patrones de riesgo detectados
+curl -s http://10.10.0.3/;2;LOW;Sin patrones de riesgo detectados
+nmap -sV --top-ports 1000 10.10.0.3;2;LOW;Sin patrones de riesgo detectados
+curl -s http://10.10.0.3/;2;LOW;Sin patrones de riesgo detectados
+nmap -sS -sV -p 80,8080 10.10.0.3 -oN /tmp/nmap_scan.txt;2;LOW;Sin patrones de riesgo detectados
+curl -s http://10.10.0.3/;2;LOW;Sin patrones de riesgo detectados
+nmap -sV -Pn --top-ports 1000 10.10.0.3;2;LOW;Sin patrones de riesgo detectados
+curl -s -D - http://10.10.0.3/;2;LOW;Sin patrones de riesgo detectados
+"curl -s -c /workspace/cookies.txt -d ""username=admin&password=password"" http://10.10.0.3/login.php";2;LOW;Sin patrones de riesgo detectados
+"curl -s -b /workspace/cookies.txt -d ""security=low"" http://10.10.0.3/vulnerabilities/security.php";2;LOW;Sin patrones de riesgo detectados
+curl -s http://10.10.0.3/login.php;2;LOW;Sin patrones de riesgo detectados
+"grep -i -A2 -B2 ""dvwa\|version"" /workspace/dvwa_page.html";1;SAFE;Comando seguro (whitelist)
+cat /workspace/dvwa_page.html | head -20;1;SAFE;Comando seguro (whitelist)
+cat /workspace/dvwa_page.html | head -30;1;SAFE;Comando seguro (whitelist)
+cat /workspace/dvwa_page.html | head -50;1;SAFE;Comando seguro (whitelist)
+cat /workspace/dvwa_page.html;1;SAFE;Comando seguro (whitelist)
+cat /workspace/dvwa_page.html | head -20;1;SAFE;Comando seguro (whitelist)
+ls -la /workspace/;1;SAFE;Comando seguro (whitelist)
+cat /workspace/cookies.txt;1;SAFE;Comando seguro (whitelist)
+cat /workspace/login_attempt.html;1;SAFE;Comando seguro (whitelist)
+cat /workspace/dvwa_index.html | head -50;1;SAFE;Comando seguro (whitelist)
+cat /workspace/dvwa_root.html | head -30;1;SAFE;Comando seguro (whitelist)
+cat /workspace/vulnerabilities.html | head -80;1;SAFE;Comando seguro (whitelist)
+ls -la /workspace/vuln_page.html;1;SAFE;Comando seguro (whitelist)
+cat /workspace/vuln_page.html;1;SAFE;Comando seguro (whitelist)
+cat /workspace/dvwa_root.html;1;SAFE;Comando seguro (whitelist)
+cat /workspace/login.html;1;SAFE;Comando seguro (whitelist)
+cat /workspace/cookies.txt;1;SAFE;Comando seguro (whitelist)
+cat /workspace/vuln_page.html;1;SAFE;Comando seguro (whitelist)
+cat /workspace/index.html;1;SAFE;Comando seguro (whitelist)
+ls -la /workspace/;1;SAFE;Comando seguro (whitelist)
+cat /workspace/dvwa_root.html;1;SAFE;Comando seguro (whitelist)
+cat /workspace_persistent/INVENTORY.md;1;SAFE;Comando seguro (whitelist)
+ls -la /workspace/;1;SAFE;Comando seguro (whitelist)
+cat dvwa_root.html;1;SAFE;Comando seguro (whitelist)
+ls -la /workspace/;1;SAFE;Comando seguro (whitelist)
+cat nmap_scan.txt;1;SAFE;Comando seguro (whitelist)
+ls -la;1;SAFE;Comando seguro (whitelist)
+"find /workspace/project -type f -exec ls -la {} \; | head -20";1;SAFE;Comando seguro (whitelist)
+ls -la /workspace/;1;SAFE;Comando seguro (whitelist)
+cat nmap_scan.txt;1;SAFE;Comando seguro (whitelist)
+ls -la /workspace_persistent/;1;SAFE;Comando seguro (whitelist)
+cat /workspace/INVENTORY.md;1;SAFE;Comando seguro (whitelist)
+ls -la /workspace;1;SAFE;Comando seguro (whitelist)
+cat nmap_scan.txt;1;SAFE;Comando seguro (whitelist)
+ls -la /workspace/;1;SAFE;Comando seguro (whitelist)
+cat nmap_scan.txt;1;SAFE;Comando seguro (whitelist)
+cat /workspace_persistent/INVENTORY.md;1;SAFE;Comando seguro (whitelist)
+ls -la /workspace_persistent/;1;SAFE;Comando seguro (whitelist)

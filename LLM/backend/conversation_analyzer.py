@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 conversation_analyzer.py - Analizador de conversaciones para documentación de seguridad.
 
@@ -24,6 +25,18 @@ from datetime import datetime
 from typing import List, Dict, Any, Optional, Tuple
 from collections import Counter
 from enum import Enum
+
+# Configurar output a UTF-8
+if sys.stdout.encoding != 'utf-8':
+    try:
+        sys.stdout.reconfigure(encoding='utf-8')
+    except:
+        pass
+if sys.stderr.encoding != 'utf-8':
+    try:
+        sys.stderr.reconfigure(encoding='utf-8')
+    except:
+        pass
 
 # Ruta de la base de datos (misma que usa el server)
 DB_PATH = Path(__file__).parent / "chat_history.db"
@@ -471,7 +484,7 @@ def generate_csv(conv_id: str, output_path: str = None) -> str:
                 cmd["reason"]
             ])
     
-    print(f"✅ CSV generado: {output_path}")
+    print(f"[OK] CSV generado: {output_path}")
     return output_path
 
 
@@ -681,7 +694,7 @@ def generate_autonomy_csv(conv_id: str, output_path: str = None) -> str:
             for i, wait_time in enumerate(metrics["wait_times"], 1):
                 writer.writerow([i, f"{wait_time:.2f}"])
     
-    print(f"✅ CSV de autonomía generado: {output_path}")
+    print(f"[OK] CSV de autonomía generado: {output_path}")
     return output_path
 
 

@@ -1,0 +1,39 @@
+﻿MÉTRICAS DE AUTONOMÍA OPERATIVA
+Conversación;"Misión: Auditoría de Seguridad (10.10.0.5)
+
+Objeti"
+ID;conv_9917cb71e0a1
+Fecha análisis;2026-02-05 18:36:56
+
+=== MODELO ===
+Modelo principal;glm-4.7-flash:q4_K_M
+Modelos usados;glm-4.7-flash:q4_K_M
+
+=== CONTEO DE MENSAJES ===
+Mensajes del usuario;5
+Mensajes del asistente;18
+Mensajes de tools;14
+Total mensajes;38
+
+=== AUTONOMÍA ===
+Autonomía (%);78.26%
+Ratio asistente/usuario;3.60
+Aprobaciones solicitadas;0
+
+=== TIEMPOS DE ESPERA ===
+Tiempo medio de espera (s);9.44 s
+Tiempo mínimo (s);5.62 s
+Tiempo máximo (s);18.07 s
+Número de mediciones;5
+
+=== DATOS PARA TABLA 6.8 (Métricas de Autonomía Operativa) ===
+Modelo;Autonomía (%);Aprobaciones;T. Espera Medio (s)
+glm-4.7-flash:q4_K_M;78.26%;0;9.44 s
+
+=== DETALLE DE TIEMPOS DE ESPERA ===
+#;Tiempo (s)
+1;18.07
+2;7.07
+3;6.36
+4;5.62
+5;10.06

@@ -1,0 +1,48 @@
+﻿MÉTRICAS DE AUTONOMÍA OPERATIVA
+Conversación;JUICESHOP DEEPSEEK REASONER
+ID;conv_66f98cd8303b
+Fecha análisis;2026-02-05 18:00:46
+
+=== MODELO ===
+Modelo principal;deepseek-reasoner
+Modelos usados;deepseek-reasoner
+
+=== CONTEO DE MENSAJES ===
+Mensajes del usuario;16
+Mensajes del asistente;176
+Mensajes de tools;170
+Total mensajes;363
+
+=== AUTONOMÍA ===
+Autonomía (%);91.67%
+Ratio asistente/usuario;11.00
+Aprobaciones solicitadas;0
+
+=== TIEMPOS DE ESPERA ===
+Tiempo medio de espera (s);15.6 s
+Tiempo mínimo (s);7.34 s
+Tiempo máximo (s);31.2 s
+Número de mediciones;16
+
+=== DATOS PARA TABLA 6.8 (Métricas de Autonomía Operativa) ===
+Modelo;Autonomía (%);Aprobaciones;T. Espera Medio (s)
+deepseek-reasoner;91.67%;0;15.6 s
+
+=== DETALLE DE TIEMPOS DE ESPERA ===
+#;Tiempo (s)
+1;10.44
+2;21.48
+3;26.90
+4;16.26
+5;23.44
+6;10.81
+7;18.84
+8;10.58
+9;7.34
+10;15.99
+11;13.18
+12;7.66
+13;10.99
+14;13.42
+15;11.13
+16;31.20

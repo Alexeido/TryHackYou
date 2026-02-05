@@ -1,0 +1,34 @@
+﻿MÉTRICAS DE AUTONOMÍA OPERATIVA
+Conversación;METASPLOITEABLE 2 | DEEPSEEK REASONER
+ID;conv_ff83c33aa021
+Fecha análisis;2026-02-05 18:01:38
+
+=== MODELO ===
+Modelo principal;deepseek-reasoner
+Modelos usados;deepseek-reasoner
+
+=== CONTEO DE MENSAJES ===
+Mensajes del usuario;2
+Mensajes del asistente;74
+Mensajes de tools;72
+Total mensajes;149
+
+=== AUTONOMÍA ===
+Autonomía (%);97.37%
+Ratio asistente/usuario;37.00
+Aprobaciones solicitadas;0
+
+=== TIEMPOS DE ESPERA ===
+Tiempo medio de espera (s);11.99 s
+Tiempo mínimo (s);9.41 s
+Tiempo máximo (s);14.57 s
+Número de mediciones;2
+
+=== DATOS PARA TABLA 6.8 (Métricas de Autonomía Operativa) ===
+Modelo;Autonomía (%);Aprobaciones;T. Espera Medio (s)
+deepseek-reasoner;97.37%;0;11.99 s
+
+=== DETALLE DE TIEMPOS DE ESPERA ===
+#;Tiempo (s)
+1;9.41
+2;14.57

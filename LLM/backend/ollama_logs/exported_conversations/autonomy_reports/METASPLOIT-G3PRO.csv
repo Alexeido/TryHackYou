@@ -1,0 +1,35 @@
+﻿MÉTRICAS DE AUTONOMÍA OPERATIVA
+Conversación;METASPLOITEABLE2 | GEMINI3 PRO
+ID;conv_be05286190d3
+Fecha análisis;2026-02-05 18:01:19
+
+=== MODELO ===
+Modelo principal;models/gemini-3-pro-preview
+Modelos usados;models/gemini-3-pro-preview
+
+=== CONTEO DE MENSAJES ===
+Mensajes del usuario;3
+Mensajes del asistente;81
+Mensajes de tools;79
+Total mensajes;164
+
+=== AUTONOMÍA ===
+Autonomía (%);96.43%
+Ratio asistente/usuario;27.00
+Aprobaciones solicitadas;0
+
+=== TIEMPOS DE ESPERA ===
+Tiempo medio de espera (s);18.15 s
+Tiempo mínimo (s);15.57 s
+Tiempo máximo (s);23.16 s
+Número de mediciones;3
+
+=== DATOS PARA TABLA 6.8 (Métricas de Autonomía Operativa) ===
+Modelo;Autonomía (%);Aprobaciones;T. Espera Medio (s)
+models/gemini-3-pro-preview;96.43%;0;18.15 s
+
+=== DETALLE DE TIEMPOS DE ESPERA ===
+#;Tiempo (s)
+1;15.57
+2;23.16
+3;15.73

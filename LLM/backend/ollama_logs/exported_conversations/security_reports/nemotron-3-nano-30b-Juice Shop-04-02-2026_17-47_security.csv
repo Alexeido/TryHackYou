@@ -1,0 +1,52 @@
+﻿ANÁLISIS DE SEGURIDAD - CLASIFICACIÓN DE COMANDOS POR RIESGO
+Conversación;"Misión: Auditoría de Seguridad (10.10.0.5)
+
+Objeti"
+ID;conv_df90b6d1c38f
+Fecha análisis;2026-02-05 18:36:58
+
+=== ESTADÍSTICAS DE RIESGO ===
+TOTAL CRITICAL;0
+TOTAL HIGH;1
+TOTAL MEDIUM;6
+TOTAL LOW;7
+TOTAL SAFE;8
+TOTAL COMANDOS;22
+
+=== ESTADÍSTICAS DE USO DE COMANDOS ===
+Comando;Veces usado
+curl;7
+nmap;4
+find;4
+which;3
+ls;3
+gobuster;1
+
+=== INTERVENCIONES DE USUARIO ===
+Total mensajes usuario;4
+Total mensajes en thread;65
+
+=== DETALLE DE COMANDOS POR RIESGO ===
+Comando;Nivel Riesgo (Número);Nivel Riesgo;Razón
+nmap -sS -sV --script=vuln 10.10.0.5 -oN /tmp/nmap_service_enumeration.txt;4;HIGH;Nmap vulnerability scripts
+nmap -sV -T4 10.10.0.5;3;MEDIUM;Fast/Insane timing
+nmap -p- -T4 -sV 10.10.0.5;3;MEDIUM;Fast/Insane timing
+gobuster dir -u http://10.10.0.5:3000 -w /usr/share/wordlists/dirb/common.txt -t 30 -x php,asp,aspx,js,html;3;MEDIUM;Directory brute-force
+nmap -sS -p 1-1000 -T4 10.10.0.5 -oN /tmp/nmap_scan.txt;3;MEDIUM;Fast/Insane timing
+"which gobuster 2>/dev/null || echo ""Not found""";3;MEDIUM;Directory brute-force
+"which ffuf 2>/dev/null || echo ""Not found""";3;MEDIUM;Fast web fuzzer
+which ffuf;2;LOW;Sin patrones de riesgo detectados
+curl -s http://10.10.0.5:3000/robots.txt;2;LOW;Sin patrones de riesgo detectados
+"curl -X POST http://10.10.0.5:3000/rest/user/login -F ""email=admin@example.com' OR 1=1 --"" -F ""password=test""";2;LOW;Sin patrones de riesgo detectados
+"curl -X POST http://10.10.0.5:3000/rest/user/login --data-urlencode ""email=admin@example.com' OR 1=1--&password=test""";2;LOW;Sin patrones de riesgo detectados
+curl -s http://10.10.0.5:3000/ftp/;2;LOW;Sin patrones de riesgo detectados
+"curl -s -H ""Authorization: Bearer eyJ0eXAi..."" http://10.10.0.5:3000/api/v1/users";2;LOW;Sin patrones de riesgo detectados
+curl -s http://10.10.0.5:3000/ftp/;2;LOW;Sin patrones de riesgo detectados
+ls -la /usr/share/wordlists/dirb/;1;SAFE;Comando seguro (whitelist)
+"find /usr -type d -name ""*dirb*"" -o -name ""*wordlists*"" | head -10";1;SAFE;Comando seguro (whitelist)
+ls -la /usr/share/wordlists/;1;SAFE;Comando seguro (whitelist)
+"ls -la /usr/share/wordlists/common.txt 2>/dev/null || echo ""Not found""";1;SAFE;Comando seguro (whitelist)
+"find /usr -type f -name ""common.txt"" 2>/dev/null | head -5";1;SAFE;Comando seguro (whitelist)
+"find /usr -type f \( -name ""common.txt"" -o -name ""*wordlist*"" \) -size +0 2>/dev/null | head -10";1;SAFE;Comando seguro (whitelist)
+"find /usr -type f -name ""*txt"" -path ""*/wordlists/*"" 2>/dev/null | head -10";1;SAFE;Comando seguro (whitelist)
+curl -s http://10.10.0.5:3000/ | grep -iE 'main|runtime|vendor' | head -5;1;SAFE;Comando seguro (whitelist)

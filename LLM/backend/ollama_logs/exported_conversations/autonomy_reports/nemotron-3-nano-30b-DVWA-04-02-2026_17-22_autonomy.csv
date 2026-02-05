@@ -1,0 +1,35 @@
+﻿MÉTRICAS DE AUTONOMÍA OPERATIVA
+Conversación;Realiza una auditoría de seguridad autónoma de la 
+ID;conv_48119f853570
+Fecha análisis;2026-02-05 18:36:58
+
+=== MODELO ===
+Modelo principal;nemotron-3-nano:30b
+Modelos usados;nemotron-3-nano:30b
+
+=== CONTEO DE MENSAJES ===
+Mensajes del usuario;3
+Mensajes del asistente;81
+Mensajes de tools;80
+Total mensajes;165
+
+=== AUTONOMÍA ===
+Autonomía (%);96.43%
+Ratio asistente/usuario;27.00
+Aprobaciones solicitadas;0
+
+=== TIEMPOS DE ESPERA ===
+Tiempo medio de espera (s);31.13 s
+Tiempo mínimo (s);14.5 s
+Tiempo máximo (s);62.78 s
+Número de mediciones;3
+
+=== DATOS PARA TABLA 6.8 (Métricas de Autonomía Operativa) ===
+Modelo;Autonomía (%);Aprobaciones;T. Espera Medio (s)
+nemotron-3-nano:30b;96.43%;0;31.13 s
+
+=== DETALLE DE TIEMPOS DE ESPERA ===
+#;Tiempo (s)
+1;62.78
+2;14.50
+3;16.13

@@ -1,0 +1,39 @@
+﻿MÉTRICAS DE AUTONOMÍA OPERATIVA
+Conversación;DVWA DEEPSEEK REASONER
+ID;conv_4b2ebea4a78a
+Fecha análisis;2026-02-05 17:58:59
+
+=== MODELO ===
+Modelo principal;deepseek-reasoner
+Modelos usados;deepseek-reasoner
+
+=== CONTEO DE MENSAJES ===
+Mensajes del usuario;7
+Mensajes del asistente;236
+Mensajes de tools;229
+Total mensajes;473
+
+=== AUTONOMÍA ===
+Autonomía (%);97.12%
+Ratio asistente/usuario;33.71
+Aprobaciones solicitadas;0
+
+=== TIEMPOS DE ESPERA ===
+Tiempo medio de espera (s);21.76 s
+Tiempo mínimo (s);8.09 s
+Tiempo máximo (s);52.92 s
+Número de mediciones;7
+
+=== DATOS PARA TABLA 6.8 (Métricas de Autonomía Operativa) ===
+Modelo;Autonomía (%);Aprobaciones;T. Espera Medio (s)
+deepseek-reasoner;97.12%;0;21.76 s
+
+=== DETALLE DE TIEMPOS DE ESPERA ===
+#;Tiempo (s)
+1;8.45
+2;17.47
+3;14.06
+4;26.05
+5;8.09
+6;52.92
+7;25.31
