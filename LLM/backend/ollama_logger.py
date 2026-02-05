@@ -24,7 +24,7 @@ from threading import Lock
 # =============================================================================
 
 # Flag para activar/desactivar el logging (cambiar a True para activar)
-OLLAMA_TOKEN_LOGGING_ENABLED = False
+OLLAMA_TOKEN_LOGGING_ENABLED = True
 
 # Directorio donde se guardan los logs
 LOGS_DIR = Path(__file__).parent / "ollama_logs"
