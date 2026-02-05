@@ -9,9 +9,9 @@ Este capítulo presenta los resultados obtenidos durante la fase de validación 
 \section{Configuración Experimental}
 \label{sec:configuracion_experimental}
 
-Antes de presentar los resultados, es necesario describir las configuraciones de hardware y software utilizadas durante las pruebas, así como los modelos evaluados en cada estrato de infraestructura.
+Antes de presentar los resultados, es necesario describir las configuraciones de hardware y software utilizadas durante las pruebas, así como los modelos evaluados en cada nivel de infraestructura.
 
-\subsection{Estratos de Infraestructura}
+\subsection{Niveles de Infraestructura}
 
 Las pruebas se han ejecutado en tres configuraciones de cómputo diferenciadas, permitiendo un análisis comparativo del rendimiento según la potencia disponible:
 
@@ -21,7 +21,7 @@ Las pruebas se han ejecutado en tres configuraciones de cómputo diferenciadas, 
 \begin{tabular}{|l|p{4cm}|p{4cm}|p{3.5cm}|}
 \hline
 \rowcolor[gray]{0.85}
-\textbf{Estrato} & \textbf{Hardware} & \textbf{Modelos Evaluados} & \textbf{Características} \\
+\textbf{Nivel} & \textbf{Hardware} & \textbf{Modelos Evaluados} & \textbf{Características} \\
 \hline
 \textbf{Local (Doméstico)} & 
 % TO-DO: Especificar el hardware del computaex xd (GPU, RAM, CPU)
@@ -33,7 +33,7 @@ Latencia variable, coste cero, privacidad total \\
 \hline
 \textbf{HPC (COMPUTAEX)} & 
 2x NVIDIA RTX A4500 (20GB VRAM c/u), 128GB RAM & 
-Llama 3.1 70B, Qwen2.5 72B, DeepSeek-R1 & 
+Qwen 3 32B, gpt-oss 20b, nemotron 3 nano 30b & 
 Modelos completos con mínima cuantización, privacidad garantizada \\
 \hline
 \textbf{Cloud (APIs)} & 
@@ -41,8 +41,8 @@ Servidores del proveedor & Gemini, Deepseek &
 Mínima latencia, coste por token, datos en servidores externos \\
 \hline
 \end{tabular}
-\caption{Estratos de infraestructura utilizados en la evaluación.}
-\label{tab:estratos_infraestructura}
+\caption{Niveles de infraestructura utilizados en la evaluación.}
+\label{tab:niveles_infraestructura}
 \end{table}
 
 \subsection{Modelos Evaluados}
@@ -67,22 +67,22 @@ DeepSeek-V3.2-Exp (Razonador) & DeepSeek & -- & Nativo & 128K \\
 \hline
 \multicolumn{5}{|c|}{\cellcolor{green!10}\textbf{Modelos Locales HPC (COMPUTAEX)}} \\
 \hline
-Llama 3.1 70B & Meta & 70B & Sí & 128K \\
+Qwen 3 32B (Q8\_K) & Alibaba & 32B & Nativo & 16K \\
 \hline
-Qwen2.5 72B & Alibaba & 72B & Sí & 128K \\
+gpt-oss 20b (Razonador) & OpenAI & 20B & Nativo & 16K \\
 \hline
-DeepSeek-R1 & DeepSeek & -- & Sí & 64K \\
+nemotron 3 nano 30b (Q4\_K\_M) & NVIDIA & 30B & Nativo & 16K \\
 \hline
 \multicolumn{5}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados (Doméstico - Ollama)}} \\
 \hline
-llama3.2:3b & Meta & 3B & Nativo & 128K \\
+llama3.2:3b & Meta & 3B & Nativo & 4K \\
 \hline
-qwen3:4b & Alibaba & 4B & Nativo & 256K \\
+qwen3:4b & Alibaba & 4B & Nativo & 4K \\
 \hline
-granite4:3b & IBM & 3B & Nativo & 128K \\
+granite4:3b & IBM & 3B & Nativo & 4K \\
 \hline
 \end{tabular}
-\caption{Modelos de lenguaje evaluados organizados por estrato de infraestructura.}
+\caption{Modelos de lenguaje evaluados organizados por nivel de infraestructura.}
 \label{tab:modelos_evaluados}
 \end{table}
 
@@ -147,30 +147,30 @@ Cada combinación modelo-entorno se ha evaluado mediante el siguiente protocolo:
 \begin{tabular}{|l|c|c|c|c|c|c|}
 \hline
 \rowcolor[gray]{0.85}
-\textbf{Modelo} & \textbf{Vulns.} & \textbf{T. Primera} & \textbf{T. Total} & \textbf{FP} & \textbf{Explot.} & \textbf{Tokens} \\
+\textbf{Modelo} & \textbf{Vulns.} & \textbf{\% Alucinaciones} & \textbf{T. Total} & \textbf{FP} & \textbf{Explot.} & \textbf{Tokens} \\
 \hline
 \multicolumn{7}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales (Cloud)}} \\
 \hline
-Gemini 3-Pro (Razonador) & 9/10 & 4 min & 11 min & 0 & Sí & -- \\
+Gemini 3-Pro (Razonador) & 9 & 2\% & 11 min & 0 & Sí & -- \\
 \hline
-DeepSeek-V3.2-Exp (Razonador) & 9/10 & 16 min & 35 min & 0 & Sí & $\sim$3M \\
+DeepSeek-V3.2 (Razonador) & 9 & 8~\% & 35 min & 0 & Sí & $\sim$3M \\
 \hline
 \multicolumn{7}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
 \hline
 % TO-DO: Rellenar con datos reales
-gpt-oss:20B & --/10 & -- min & -- min & -- & Sí/No & --K \\
+Qwen 3 32B (Q8\_K) & 0 & 32\% & 14 min & 0 & No & 69K \\
 \hline
-Qwen2.5 72B & --/10 & -- min & -- min & -- & Sí/No & --K \\
+gpt-oss 20b (Razonador) & 0 & 15\% & 20 min & 0 & No & 223K \\
 \hline
-DeepSeek-R1 & --/10 & -- min & -- min & -- & Sí/No & --K \\
+nemotron 3 nano 30b (Q4\_K\_M) & 0 & 43\% & 15 min & 0 & No & 381K \\
 \hline
 \multicolumn{7}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados (Doméstico - Ollama)}} \\
 \hline
-llama3.2:3b & 0/10 & -- & 10 min & 10 & No & 42K \\
+llama3.2:3b & 0 & 92\% & 10 min & 10 & No & 42K \\
 \hline
-qwen3:4b & 0/10 & -- & 15 min & 4 & No & 84K \\
+qwen3:4b & 0 & 74\% & 15 min & 4 & No & 84K \\
 \hline
-granite4:3b & 0/10 & -- & 7 min & 2 & No & 79K \\
+granite4:3b & 0 & 88\% & 7 min & 2 & No & 79K \\
 \hline
 \end{tabular}
 \caption{Resultados de auditoría autónoma contra DVWA.}
@@ -181,15 +181,14 @@ granite4:3b & 0/10 & -- & 7 min & 2 & No & 79K \\
 % Debe mostrar: el chat con el agente identificando una vulnerabilidad SQLi,
 % el terminal ejecutando sqlmap, y el panel de misión con objetivos completados
 
-% TO-DO: Análisis cualitativo de los resultados de DVWA
-% - ¿Qué vulnerabilidades encontraron todos los modelos?
-% - ¿Cuáles solo encontraron los modelos más potentes?
-% - ¿Hubo diferencias en las estrategias de auditoría?
+\subsubsection{Análisis Cualitativo}
+
+Cada modelo fue sometido a tres pruebas independientes, seleccionando la mejor ejecución para el análisis comparativo. Los resultados evidencian una correlación inversamente proporcional entre tiempo de ejecución y tasa de alucinaciones en los niveles local y HPC. Los modelos locales cuantizados (3-4B parámetros) lograron establecer la misión y ejecutar reconocimiento inicial con \texttt{nmap}, pero colapsaron al procesar salidas extensas de comandos, perdiendo el contexto operativo y generando falsos positivos. Los modelos HPC, aunque con mayor capacidad contextual, mostraron degradación progresiva: tras analizar outputs largos perdían temporalmente el foco, recuperándose parcialmente al resumirse el contexto, pero derivando eventualmente hacia comportamientos no agénticos (solicitar confirmación manual de comandos, ofrecer explicaciones didácticas en lugar de actuar). En contraste, los modelos cloud mantuvieron coherencia y autonomía operativa durante toda la auditoría, actuando conforme a las capacidades esperadas de un profesional de pentesting.
 
 \subsection{Resultados por Entorno: Metasploitable2}
 
 % TO-DO: Ejecutar las pruebas contra Metasploitable2
-% Este entorno es más complejo (servicios de red, no solo web)
+% Este entorno es sencillo pero permite evaluar distintas capas del nivel de red
 % Métricas adicionales a considerar:
 % - Servicios enumerados correctamente
 % - Intentos de explotación de servicios (FTP, Samba, SSH)
@@ -209,16 +208,16 @@ granite4:3b & 0/10 & -- & 7 min & 2 & No & 79K \\
 \hline
 Gemini 3-Pro (Razonador) & 9 & 3 & Sí & Sí & 8 min & -- \\
 \hline
-DeepSeek-V3.2-Exp (Razonador) & 23 & 3 & Sí & Sí & 14 min & $\sim$783K \\
+DeepSeek-V3.2 (Razonador) & 23 & 3 & Sí & Sí & 14 min & $\sim$783K \\
 \hline
 \multicolumn{7}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
 \hline
 % TO-DO: Rellenar con datos reales
-gpt-oss:20B & -- & -- & Sí/No & Sí/No & -- min & --K \\
+Qwen 3 32B (Q8\_K) & 19 & 0 & No & No & 60 min & 280K \\
 \hline
-Qwen2.5 72B & -- & -- & Sí/No & Sí/No & -- min & --K \\
+gpt-oss 20b (Razonador) & 25 & 5 & Sí & Sí & 56 min & 344K \\
 \hline
-DeepSeek-R1 & -- & -- & Sí/No & Sí/No & -- min & --K \\
+nemotron 3 nano 30b (Q4\_K\_M) & 11 & 5 & No & No & 26 min & 209K \\
 \hline
 \multicolumn{7}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados (Doméstico - Ollama)}} \\
 \hline
@@ -236,6 +235,10 @@ granite4:3b & -- & -- & No & No & 9 min & 37K \\
 % TO-DO: Imagen - Captura mostrando enumeración de servicios con nmap
 % y posterior explotación de un servicio vulnerable
 
+\subsubsection{Análisis Cualitativo}
+
+Metasploitable2 marcó un hito al presentar el primer modelo HPC capaz de completar los objetivos con éxito, logrado por \texttt{gpt-oss 20b} en su tercer y último intento. No obstante, el mayor número de servicios y vulnerabilidades detectadas por los modelos HPC respecto a Gemini y DeepSeek constituye una métrica engañosa: mientras que los modelos comerciales ejecutaron ataques dirigidos y precisos, los modelos HPC operaron mediante prueba y error hasta identificar una vulnerabilidad explotable. La diferencia en consumo de tokens entre modelos razonadores y no razonadores en el entorno HPC resulta especialmente reveladora (344K vs 280K para Qwen). Se ha omitido el porcentaje de alucinaciones al mantener valores similares al entorno DVWA, priorizando en su lugar la métrica de servicios detectados como indicador de si los modelos alcanzan la fase de reconocimiento del proceso de pentesting. La eficiencia de Gemini destaca particularmente: ejecutó un escaneo \texttt{nmap} reducido inicial para valoración rápida, y al identificar versiones específicas de servicios, procedió directamente a la explotación sin necesidad de enumeración exhaustiva. La diferencia de eficacia con los modelos cloud sigue siendo considerable.
+
 \subsection{Resultados por Entorno: OWASP Juice Shop}
 
 % TO-DO: Ejecutar las pruebas contra Juice Shop
@@ -252,22 +255,22 @@ granite4:3b & -- & -- & No & No & 9 min & 37K \\
 \begin{tabular}{|l|c|c|c|c|c|}
 \hline
 \rowcolor[gray]{0.85}
-\textbf{Modelo} & \textbf{Vulnerabilidades} & \textbf{Auth Bypass} & \textbf{Data Exfil} & \textbf{T. Total} & \textbf{Tokens} \\
+\textbf{Modelo} & \textbf{Vulns.} & \textbf{Auth Bypass} & \textbf{Data Exfil} & \textbf{T. Total} & \textbf{Tokens} \\
 \hline
 \multicolumn{6}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales (Cloud)}} \\
 \hline
 Gemini 3-Pro (Razonador) & 3 & Sí & Sí & 7 min & -- \\
 \hline
-DeepSeek-V3.2-Exp (Razonador) & 8 & Sí & Sí & 70 min & $\sim$3.3M \\
+DeepSeek-V3.2 (Razonador) & 8 & Sí & Sí & 50 min & $\sim$3M \\
 \hline
 \multicolumn{6}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
 \hline
 % TO-DO: Rellenar con datos reales
-gpt-oss:20B & -- & Sí/No & Sí/No & -- min & --K \\
+Qwen 3 32B (Q8\_K) & 3 & No & No & 16 min & 108K \\
 \hline
-Qwen2.5 72B & -- & Sí/No & Sí/No & -- min & --K \\
+gpt-oss 20b (Razonador) & 1 & No & No & 27 min & 192K \\
 \hline
-DeepSeek-R1 & -- & Sí/No & Sí/No & -- min & --K \\
+nemotron 3 nano 30b (Q4) & 0 & No & No & 16 min & 170K \\
 \hline
 \multicolumn{6}{|c|}{\cellcolor{orange!10}\textbf{Modelos Locales Cuantizados (Doméstico - Ollama)}} \\
 \hline
@@ -285,13 +288,17 @@ granite4:3b & -- & No & No & 8 min & 37K \\
 % TO-DO: Imagen - Captura mostrando el agente resolviendo un challenge de Juice Shop
 % Idealmente mostrando bypass de autenticación o extracción de datos
 
+\subsubsection{Análisis Cualitativo}
+
+OWASP Juice Shop, al tratarse de una aplicación SPA (Single Page Application) basada en JavaScript, representó el desafío técnico más complejo. La superioridad de Gemini 3-Pro resulta manifiesta: completó la auditoría en 7 minutos frente a los 50 minutos de DeepSeek, identificando 3 vulnerabilidades críticas con bypass de autenticación y exfiltración de datos. Los modelos HPC no superaron la fase de reconocimiento inicial, limitándose a ejecutar \texttt{nmap} y peticiones \texttt{curl} exploratorias sin capacidad para analizar la arquitectura cliente-servidor moderna. El carácter dinámico de la aplicación JavaScript, combinado con APIs RESTful, excedió las capacidades de modelos no especializados, que intentaron delegar la explotación a herramientas automatizadas (sqlmap, hydra, fuzzing) sin comprender que el vector de ataque requería análisis de lógica de negocio y manipulación de tokens JWT. Los modelos locales ocasionalmente fallaron incluso en la enumeración básica de endpoints. Únicamente los modelos comerciales avanzados demostraron capacidad para interpretar respuestas JSON, identificar vulnerabilidades de autorización y ejecutar ataques contextualizados contra APIs modernas, evidenciando una brecha tecnológica significativa en el manejo de arquitecturas web contemporáneas.
+
 \subsection{Análisis Comparativo de Eficacia}
 
 % TO-DO: Una vez tengas todos los datos, calcular:
 % - Tasa de éxito media por modelo (vulnerabilidades encontradas / total)
 % - Modelo más eficaz por entorno
 % - Modelo más eficaz globalmente
-% - Diferencias significativas entre estratos
+% - Diferencias significativas entre niveles
 
 % TO-DO: Gráfico de barras comparando tasa de éxito por modelo y entorno
 % Usar pgfplots o incluir imagen generada externamente
@@ -299,7 +306,7 @@ granite4:3b & -- & No & No & 8 min & 37K \\
 \begin{figure}[H]
     \centering
     % TO-DO: Imagen - Gráfico de barras comparativo
-    % Eje X: Modelos (agrupados por estrato)
+    % Eje X: Modelos (agrupados por nivel)
     % Eje Y: Tasa de éxito (%)
     % Barras agrupadas por entorno (DVWA, Meta, Juice)
     \fbox{\parbox{0.9\textwidth}{\centering\vspace{3cm}
