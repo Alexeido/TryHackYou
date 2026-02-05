@@ -99,6 +99,92 @@ def split_concatenated_json(json_str: str) -> list:
         # No pudimos parsear, retornar original
         return [json_str]
 
+
+# =============================================================================
+# HELPER: Limpiar thinking/reasoning de Ollama de argumentos de tool calls
+# =============================================================================
+def clean_ollama_thinking_from_args(args_str: str) -> str:
+    """
+    Ollama con think=True a veces envía el razonamiento MEZCLADO con los argumentos:
+    "We need to wait for the job...{"job_id":"abc123"}"
+    
+    Esta función detecta y extrae solo el JSON válido, descartando el texto de thinking.
+    """
+    if not args_str or not args_str.strip():
+        return '{}'
+    
+    args_str = args_str.strip()
+    
+    # Intento rápido: si ya es JSON válido, retornar
+    try:
+        json.loads(args_str)
+        return args_str
+    except json.JSONDecodeError:
+        pass
+    
+    # Buscar el primer '{' que inicia un JSON válido
+    # El thinking suele estar ANTES del JSON
+    first_brace = args_str.find('{')
+    if first_brace == -1:
+        print(f"⚠️ OLLAMA THINKING: No se encontró JSON en argumentos: {args_str[:100]}...")
+        return '{}'  # No hay JSON
+    
+    # Intentar parsear desde el primer '{'
+    potential_json = args_str[first_brace:]
+    try:
+        json.loads(potential_json)
+        if first_brace > 0:
+            thinking_part = args_str[:first_brace].strip()
+            print(f"🧠 OLLAMA THINKING LIMPIADO: '{thinking_part[:80]}...' removido de argumentos")
+        return potential_json
+    except json.JSONDecodeError:
+        pass
+    
+    # Approach más robusto: encontrar el JSON completo usando balance de llaves
+    depth = 0
+    json_start = -1
+    in_string = False
+    escape_next = False
+    
+    for i, char in enumerate(args_str):
+        if escape_next:
+            escape_next = False
+            continue
+        
+        if char == '\\' and in_string:
+            escape_next = True
+            continue
+        
+        if char == '"' and not escape_next:
+            in_string = not in_string
+            continue
+        
+        if in_string:
+            continue
+        
+        if char == '{':
+            if depth == 0:
+                json_start = i
+            depth += 1
+        elif char == '}':
+            depth -= 1
+            if depth == 0 and json_start >= 0:
+                # Encontramos un JSON completo
+                json_obj = args_str[json_start:i+1]
+                try:
+                    json.loads(json_obj)
+                    if json_start > 0:
+                        thinking_part = args_str[:json_start].strip()
+                        print(f"🧠 OLLAMA THINKING LIMPIADO: '{thinking_part[:80]}...' removido")
+                    return json_obj
+                except json.JSONDecodeError:
+                    # Seguir buscando
+                    json_start = -1
+    
+    # No pudimos extraer JSON válido
+    print(f"⚠️ OLLAMA THINKING: No se pudo extraer JSON válido de: {args_str[:150]}...")
+    return args_str  # Retornar original, el validador lo rechazará
+
 # URL del sandbox para ejecutar comandos
 SANDBOX_URL = "http://localhost:5000"
 
@@ -1837,6 +1923,13 @@ async def stream_chat_response(
                 func_name = func_name.replace('\n', '').replace('\r', '').strip()
                 tc['function']['name'] = func_name
                 
+                # ================================================================
+                # OLLAMA THINKING FIX: Limpiar reasoning/thinking de argumentos
+                # Ollama con think=True puede enviar texto antes del JSON
+                # ================================================================
+                func_args_str = clean_ollama_thinking_from_args(func_args_str)
+                tc['function']['arguments'] = func_args_str  # Actualizar con versión limpia
+                
                 # Validar que el nombre de función sea válido
                 if not func_name or func_name not in valid_tools:
                     print(f"⚠️ Tool call ignorado: nombre de función inválido '{func_name}'")
@@ -2159,7 +2252,7 @@ async def stream_chat_response(
             # Reconstruir mensajes para el siguiente llamado
             # OPTIMIZACIÓN: Limitar el contexto pero con margen suficiente para loops agénticos
             # 50 mensajes permite ~15-20 iteraciones de tool calls antes de truncar
-            MAX_MESSAGES_IN_LOOP = 20
+            MAX_MESSAGES_IN_LOOP = 30
             current_messages = messages.copy()
             
             # Debug: mostrar los tool_calls que vamos a enviar
@@ -2184,9 +2277,15 @@ async def stream_chat_response(
                 current_messages.append(tr)
             
             # Usar truncado inteligente que preserva pares tool_call/tool_response
+            # Si LLM_HIERARCHICAL_MEMORY_ENABLED está activo, usa resúmenes con LLM
             if len(current_messages) > MAX_MESSAGES_IN_LOOP:
                 original_len = len(current_messages)
-                current_messages = db.smart_truncate_messages(current_messages, MAX_MESSAGES_IN_LOOP)
+                if db.LLM_HIERARCHICAL_MEMORY_ENABLED:
+                    current_messages = await db.smart_truncate_with_hierarchical_memory(
+                        current_messages, MAX_MESSAGES_IN_LOOP, conversation_id, client, model_id
+                    )
+                else:
+                    current_messages = db.smart_truncate_messages(current_messages, MAX_MESSAGES_IN_LOOP)
                 print(f"⚠️ Contexto del loop truncado inteligente: {original_len} -> {len(current_messages)} mensajes")
             
             # Variables para el loop
@@ -2480,6 +2579,13 @@ async def stream_chat_response(
                     func_args_str = tc.get('function', {}).get('arguments', '{}')
                     tc['function']['name'] = func_name  # Guardar nombre limpio
                     
+                    # ================================================================
+                    # OLLAMA THINKING FIX: Limpiar reasoning/thinking de argumentos
+                    # Ollama con think=True puede enviar texto antes del JSON
+                    # ================================================================
+                    func_args_str = clean_ollama_thinking_from_args(func_args_str)
+                    tc['function']['arguments'] = func_args_str  # Actualizar con versión limpia
+                    
                     if not func_name or func_name not in valid_tool_names:
                         print(f"⚠️ Loop: tool call ignorado - nombre inválido '{func_name}'")
                         continue
@@ -2704,9 +2810,15 @@ async def stream_chat_response(
                     current_messages.append(tr)
                 
                 # Usar truncado inteligente para evitar romper pares tool_call/tool_response
+                # Si LLM_HIERARCHICAL_MEMORY_ENABLED está activo, usa resúmenes con LLM
                 if len(current_messages) > MAX_MESSAGES_IN_LOOP:
                     original_len = len(current_messages)
-                    current_messages = db.smart_truncate_messages(current_messages, MAX_MESSAGES_IN_LOOP)
+                    if db.LLM_HIERARCHICAL_MEMORY_ENABLED:
+                        current_messages = await db.smart_truncate_with_hierarchical_memory(
+                            current_messages, MAX_MESSAGES_IN_LOOP, conversation_id, client, model_id
+                        )
+                    else:
+                        current_messages = db.smart_truncate_messages(current_messages, MAX_MESSAGES_IN_LOOP)
                     print(f"⚠️ Contexto truncado inteligente (iter {iteration}): {original_len} -> {len(current_messages)} msgs")
                 
                 current_parent_id = loop_tool_msg_id

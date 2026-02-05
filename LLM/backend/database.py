@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import List, Dict, Optional, Any
 from contextlib import contextmanager
 
+
 # Ruta de la base de datos
 DB_PATH = Path(__file__).parent / "chat_history.db"
 
@@ -180,6 +181,26 @@ def init_db():
         )
     """)
     
+    # =========================================================================
+    # TABLA: conversation_summaries - Sistema de Memoria Jerárquica (Cascading Context)
+    # Permite almacenar resúmenes de bloques de mensajes en niveles de abstracción
+    # L0 = Resumen de mensajes RAW, L1 = Resumen de resúmenes, etc.
+    # =========================================================================
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS conversation_summaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_id TEXT NOT NULL,
+            start_message_id INTEGER NOT NULL,
+            end_message_id INTEGER NOT NULL,
+            summary_text TEXT NOT NULL,
+            recursive_level INTEGER DEFAULT 0,
+            token_count INTEGER,
+            anchor_user_message_id INTEGER,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE
+        )
+    """)
+    
     # Índices para tablas agénticas
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_missions_conversation ON missions(conversation_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_missions_status ON missions(status)")
@@ -189,6 +210,11 @@ def init_db():
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_mission_jobs_mission ON mission_jobs(mission_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_command_audit_conversation ON command_audit(conversation_id)")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_command_audit_status ON command_audit(status)")
+    
+    # Índices para memoria jerárquica
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_summaries_conversation ON conversation_summaries(conversation_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_summaries_range ON conversation_summaries(start_message_id, end_message_id)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_summaries_level ON conversation_summaries(recursive_level)")
     
     # =========================================================================
     # MIGRACIÓN: Añadir columna scratchpad a missions (si no existe)
@@ -320,9 +346,12 @@ def get_conversation(conv_id: str) -> Optional[Dict[str, Any]]:
 
 
 def delete_conversation(conv_id: str) -> bool:
-    """Elimina una conversación y todos sus mensajes (CASCADE)."""
+    """Elimina una conversación, todos sus mensajes (CASCADE) y resúmenes asociados."""
     with get_db() as conn:
         cursor = conn.cursor()
+        # Eliminar resúmenes del sistema de memoria jerárquica
+        cursor.execute("DELETE FROM conversation_summaries WHERE conversation_id = ?", (conv_id,))
+        # Eliminar la conversación (mensajes se eliminan por CASCADE)
         cursor.execute("DELETE FROM conversations WHERE id = ?", (conv_id,))
         conn.commit()
         return cursor.rowcount > 0
@@ -632,6 +661,22 @@ MAX_TOOL_RESPONSE_LENGTH = 2000  # Máximo de caracteres para respuestas de tool
 RECENT_MESSAGES_TO_KEEP = 35  # Mensajes recientes que se mantienen intactos (referencia)
 SUMMARY_SLOT_COUNT = 0  # El resumen se inyecta en el system prompt, no usa slots extra
 
+# =============================================================================
+# SISTEMA DE MEMORIA JERÁRQUICA (Cascading Context)
+# =============================================================================
+# Cuando está habilitado, usa el LLM para generar resúmenes inteligentes de bloques
+# de mensajes antiguos, almacenándolos en la BD para reutilización.
+# Cuando está deshabilitado, usa el resumen basado en reglas (más rápido pero menos inteligente).
+LLM_HIERARCHICAL_MEMORY_ENABLED = True  # Toggle principal del sistema
+
+# Configuración de ventanas de memoria (% del contexto máximo)
+MEMORY_WINDOW_ANCHOR_CRITICAL = 0.15   # 15% - System prompt + Scratchpad
+MEMORY_WINDOW_RECENT = 0.35            # 35% - Últimos mensajes RAW
+MEMORY_WINDOW_HISTORICAL = 0.50        # 50% - Resúmenes L2/L3 de la BD
+
+# Threshold para activar resumen de un bloque (en caracteres)
+BLOCK_SUMMARIZE_THRESHOLD = 1500  # Solo resumir bloques mayores a esto
+
 
 def _generate_truncated_summary(truncated_messages: List[Dict]) -> str:
     """
@@ -698,6 +743,265 @@ def _generate_truncated_summary(truncated_messages: List[Dict]) -> str:
         summary_parts.append(f"Key findings: {'; '.join(key_findings[:3])}")
     
     return "\n".join(summary_parts)
+
+# =============================================================================
+# FUNCIONES CRUD PARA CONVERSATION_SUMMARIES
+# =============================================================================
+
+def add_conversation_summary(
+    conversation_id: str,
+    start_message_id: int,
+    end_message_id: int,
+    summary_text: str,
+    recursive_level: int = 0,
+    token_count: int = None,
+    anchor_user_message_id: int = None
+) -> int:
+    """
+    Añade un resumen de bloque de conversación a la BD.
+    
+    Args:
+        conversation_id: ID de la conversación
+        start_message_id: ID del primer mensaje del bloque (mensaje USER ancla)
+        end_message_id: ID del último mensaje del bloque
+        summary_text: Texto del resumen generado por LLM
+        recursive_level: 0=L2 (resumen de bloque), 1+=L3 (meta-resumen)
+        token_count: Estimación de tokens del resumen
+        anchor_user_message_id: ID del mensaje USER que ancla este bloque
+        
+    Returns:
+        ID del resumen insertado
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            INSERT INTO conversation_summaries 
+            (conversation_id, start_message_id, end_message_id, summary_text, 
+             recursive_level, token_count, anchor_user_message_id, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))
+        """, (conversation_id, start_message_id, end_message_id, summary_text,
+              recursive_level, token_count, anchor_user_message_id))
+        conn.commit()
+        return cursor.lastrowid
+    finally:
+        conn.close()
+
+
+def get_summaries_for_conversation(conversation_id: str, max_level: int = None) -> List[Dict]:
+    """
+    Obtiene todos los resúmenes de una conversación, ordenados por nivel y posición.
+    
+    Args:
+        conversation_id: ID de la conversación
+        max_level: Si se especifica, solo devuelve resúmenes hasta ese nivel
+        
+    Returns:
+        Lista de resúmenes [{id, start_message_id, end_message_id, summary_text, ...}]
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        if max_level is not None:
+            cursor.execute("""
+                SELECT * FROM conversation_summaries 
+                WHERE conversation_id = ? AND recursive_level <= ?
+                ORDER BY recursive_level ASC, start_message_id ASC
+            """, (conversation_id, max_level))
+        else:
+            cursor.execute("""
+                SELECT * FROM conversation_summaries 
+                WHERE conversation_id = ?
+                ORDER BY recursive_level ASC, start_message_id ASC
+            """, (conversation_id,))
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def get_best_summary_covering_range(conversation_id: str, from_msg_id: int, to_msg_id: int) -> Optional[Dict]:
+    """
+    Algoritmo Greedy: Encuentra el resumen MÁS GRANDE que cubra el rango especificado.
+    Prioriza resúmenes de nivel más alto (L3 > L2) porque cubren más contexto.
+    
+    Args:
+        conversation_id: ID de la conversación
+        from_msg_id: ID del mensaje desde donde buscar
+        to_msg_id: ID del mensaje hasta donde buscar
+        
+    Returns:
+        El resumen de mayor cobertura o None si no hay
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        # Buscar resumen que cubra el rango, priorizando mayor cobertura
+        cursor.execute("""
+            SELECT *, (end_message_id - start_message_id) as coverage
+            FROM conversation_summaries 
+            WHERE conversation_id = ?
+              AND start_message_id <= ?
+              AND end_message_id >= ?
+            ORDER BY coverage DESC, recursive_level DESC
+            LIMIT 1
+        """, (conversation_id, from_msg_id, to_msg_id))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def get_summaries_in_range(conversation_id: str, from_msg_id: int, to_msg_id: int) -> List[Dict]:
+    """
+    Obtiene todos los resúmenes L2 que intersectan con un rango de mensajes.
+    Útil para reconstrucción de contexto histórico.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            SELECT * FROM conversation_summaries 
+            WHERE conversation_id = ?
+              AND recursive_level = 0
+              AND NOT (end_message_id < ? OR start_message_id > ?)
+            ORDER BY start_message_id ASC
+        """, (conversation_id, from_msg_id, to_msg_id))
+        return [dict(row) for row in cursor.fetchall()]
+    finally:
+        conn.close()
+
+
+def delete_summaries_for_conversation(conversation_id: str):
+    """Elimina todos los resúmenes de una conversación (para cleanup)."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("DELETE FROM conversation_summaries WHERE conversation_id = ?", (conversation_id,))
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        conn.close()
+
+
+def invalidate_summaries_after(conversation_id: str, message_id: int):
+    """
+    Invalida resúmenes que incluyan mensajes posteriores a message_id.
+    Útil si se borran o modifican mensajes del historial.
+    """
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    try:
+        cursor.execute("""
+            DELETE FROM conversation_summaries 
+            WHERE conversation_id = ? AND end_message_id >= ?
+        """, (conversation_id, message_id))
+        conn.commit()
+        return cursor.rowcount
+    finally:
+        conn.close()
+
+
+# =============================================================================
+# PROMPT DEL CONSOLIDADOR LLM (Specializado Cybersecurity)
+# =============================================================================
+
+LLM_SUMMARIZER_SYSTEM_PROMPT = """You are a **Cybersecurity Engagement Chronicler**. Your task is to produce a concise, high-density summary of a conversation block from a penetration testing or security assessment session.
+
+## CRITICAL OUTPUT REQUIREMENTS
+- Maximum 300 words
+- NO markdown headers, NO bullet lists - use flowing prose with semicolons
+- Focus ONLY on operationally relevant information
+- Write in past tense as a historical record
+
+## MUST EXTRACT (if present):
+1. **IPs/Hosts discovered**: Target addresses, network ranges, hostnames
+2. **Credentials found**: Usernames, passwords, hashes, tokens, keys
+3. **CVEs/Vulnerabilities**: Specific CVE IDs, vulnerability names, affected services
+4. **Commands executed**: Key commands that produced results (especially successful ones)
+5. **What worked vs failed**: Attack paths that succeeded, dead ends encountered
+6. **Services/Ports**: Open ports, running services, versions detected
+7. **Files of interest**: Config files read, loot obtained, artifacts found
+
+## OUTPUT FORMAT
+Write a single dense paragraph summarizing the engagement block. Example:
+"Scanned 192.168.1.0/24 finding hosts .10, .15, .20 active; port scan on .15 revealed SSH:22 OpenSSH 7.9, HTTP:80 Apache 2.4.38; nikto found /admin exposed; attempted default creds admin:admin on /admin - success; discovered LFI via page parameter reading /etc/passwd showing users root, www-data, backup; privesc path identified through backup user cron job..."
+
+## WHAT TO OMIT
+- Greetings, pleasantries, filler
+- Error messages without context
+- Repeated failed attempts (summarize as "multiple failed attempts at X")
+- Tool output formatting/ANSI codes"""
+
+
+async def llm_summarize_block(
+    messages_block: List[Dict], 
+    client,  # AsyncOpenAI client
+    model: str = None
+) -> str:
+    """
+    Usa el LLM para generar un resumen inteligente de un bloque de mensajes.
+    
+    Args:
+        messages_block: Lista de mensajes a resumir (USER + ASSISTANT + TOOL secuencia)
+        client: Cliente AsyncOpenAI configurado
+        model: Modelo a usar (si None, usa el modelo actual del cliente)
+        
+    Returns:
+        Texto del resumen generado
+    """
+    import re
+    
+    # Construir el contenido a resumir
+    content_parts = []
+    for msg in messages_block:
+        role = msg.get('role', 'unknown')
+        content = msg.get('content', '') or ''
+        
+        # Limpiar ANSI codes
+        content = re.sub(r'\x1b\[[0-9;]*m', '', content)
+        
+        if role == 'user':
+            content_parts.append(f"[USER]: {content[:500]}")
+        elif role == 'assistant':
+            if msg.get('tool_calls'):
+                tool_names = []
+                for tc in msg.get('tool_calls', []):
+                    if isinstance(tc, dict):
+                        func = tc.get('function', {})
+                        tool_names.append(func.get('name', 'unknown'))
+                content_parts.append(f"[ASSISTANT called: {', '.join(tool_names)}]")
+            elif content:
+                content_parts.append(f"[ASSISTANT]: {content[:300]}")
+        elif role == 'tool':
+            # Truncar outputs muy largos
+            tool_content = content[:1000] if len(content) > 1000 else content
+            content_parts.append(f"[TOOL OUTPUT]: {tool_content}")
+    
+    block_text = "\n".join(content_parts)
+    
+    if len(block_text) < 100:
+        # Bloque muy pequeño, no vale la pena resumir
+        return _generate_truncated_summary(messages_block)
+    
+    # Llamar al LLM
+    try:
+        response = await client.chat.completions.create(
+            model=model or "gpt-4o-mini",  # Modelo ligero para resumir
+            messages=[
+                {"role": "system", "content": LLM_SUMMARIZER_SYSTEM_PROMPT},
+                {"role": "user", "content": f"Summarize this engagement block:\n\n{block_text}"}
+            ],
+            max_tokens=400,
+            temperature=0.3  # Baja temperatura para resúmenes consistentes
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"⚠️ LLM summarization failed: {e}, falling back to rule-based")
+        return _generate_truncated_summary(messages_block)
+
 
 
 def smart_truncate_messages(messages: List[Dict], max_messages: int, preserve_user: bool = True) -> List[Dict]:
@@ -917,6 +1221,327 @@ def smart_truncate_messages(messages: List[Dict], max_messages: int, preserve_us
     print(f"   - Resumen incluido: {'Sí' if summary_text else 'No'}")
     
     return result
+
+
+# =============================================================================
+# SMART TRUNCATE CON MEMORIA JERÁRQUICA (Cascading Context)
+# =============================================================================
+# 
+# ARQUITECTURA DE MEMORIA POR CAPAS:
+# 
+# L1 (Working Memory):  Mensajes RAW recientes, sin modificar
+# L2 (Consolidated):    Resúmenes de bloques [USER + ASSISTANT/TOOL sequence]
+# L3 (Chronicle):       Resúmenes de resúmenes (meta-consolidación)
+#
+# ESTRUCTURA DE REEMPLAZO (NO inyección en system):
+#
+# ANTES:  [SYSTEM, USER1, ASST, TOOL, ASST, TOOL, USER2, ASST, TOOL, USER3...]
+# DESPUÉS:[SYSTEM, USER1, {SUMMARY_MSG}, USER2, ASST, TOOL, USER3...]
+#
+# El {SUMMARY_MSG} REEMPLAZA los mensajes ASST/TOOL, manteniendo USER como ancla.
+# =============================================================================
+
+async def smart_truncate_with_hierarchical_memory(
+    messages: List[Dict], 
+    max_messages: int,
+    conversation_id: str,
+    client = None,  # AsyncOpenAI client
+    model: str = None,
+    preserve_user: bool = True
+) -> List[Dict]:
+    """
+    Sistema de Memoria Jerárquica con Reemplazo de Bloques.
+    
+    A diferencia del truncado simple, este sistema:
+    1. Segmenta la conversación por mensajes USER (anclas)
+    2. REEMPLAZA secuencias ASSISTANT/TOOL antiguas por mensajes de resumen
+    3. Mantiene los mensajes USER originales para preservar la intención
+    4. Usa caché en BD para no re-resumir bloques ya procesados
+    
+    Ventanas de memoria (% del max_messages):
+    - ANCHOR (15%): System prompt (intocable)
+    - RECENT (35%): Últimos mensajes RAW sin modificar
+    - HISTORICAL (50%): Bloques resumidos que REEMPLAZAN los originales
+    """
+    # Si el sistema jerárquico está deshabilitado, usar versión normal
+    if not LLM_HIERARCHICAL_MEMORY_ENABLED:
+        return smart_truncate_messages(messages, max_messages, preserve_user)
+    
+    if len(messages) <= max_messages:
+        return messages
+    
+    print(f"🧠 [CASCADING CONTEXT] Procesando {len(messages)} mensajes -> max {max_messages}")
+    
+    # Sin cliente LLM, fallback a versión normal
+    if client is None:
+        print("⚠️ No hay cliente LLM, usando truncado basado en reglas")
+        return smart_truncate_messages(messages, max_messages, preserve_user)
+    
+    original_messages = messages.copy()
+    
+    # =========================================================================
+    # PASO 1: Calcular ventanas de memoria dinámicas
+    # =========================================================================
+    anchor_slots = max(1, int(max_messages * MEMORY_WINDOW_ANCHOR_CRITICAL))  # 15%
+    recent_slots = int(max_messages * MEMORY_WINDOW_RECENT)                    # 35%
+    historical_slots = max_messages - anchor_slots - recent_slots              # 50%
+    
+    print(f"   📊 Ventanas: Anchor={anchor_slots}, Recent={recent_slots}, Historical={historical_slots}")
+    
+    # =========================================================================
+    # PASO 2: Extraer system prompt (zona ANCHOR)
+    # =========================================================================
+    system_msg = None
+    start_idx = 0
+    if original_messages and original_messages[0].get('role') == 'system':
+        system_msg = original_messages[0]
+        start_idx = 1
+    
+    # =========================================================================
+    # PASO 3: Segmentar por HITOS DE USUARIO (User-Anchored Blocks)
+    # =========================================================================
+    # Cada bloque = [USER] + [secuencia de ASSISTANT/TOOL hasta el siguiente USER]
+    # El USER actúa como "pegamento semántico" - siempre se preserva
+    
+    user_indices = []
+    for i in range(start_idx, len(original_messages)):
+        if original_messages[i].get('role') == 'user':
+            user_indices.append(i)
+    
+    if not user_indices:
+        print("⚠️ No hay mensajes de usuario, usando truncado simple")
+        return smart_truncate_messages(messages, max_messages, preserve_user)
+    
+    # Construir bloques: cada uno empieza en USER y termina antes del siguiente USER
+    blocks = []
+    for i, user_idx in enumerate(user_indices):
+        # El bloque termina justo antes del siguiente USER, o al final
+        if i + 1 < len(user_indices):
+            block_end = user_indices[i + 1] - 1
+        else:
+            block_end = len(original_messages) - 1
+        
+        # Separar el mensaje USER del contenido ASSISTANT/TOOL
+        user_msg = original_messages[user_idx]
+        assistant_tool_msgs = original_messages[user_idx + 1:block_end + 1] if user_idx + 1 <= block_end else []
+        
+        blocks.append({
+            'user_idx': user_idx,
+            'user_msg': user_msg,
+            'content_start': user_idx + 1,
+            'content_end': block_end,
+            'content_msgs': assistant_tool_msgs,
+            'content_size': len(assistant_tool_msgs),
+            'total_size': 1 + len(assistant_tool_msgs)  # USER + contenido
+        })
+    
+    print(f"   📦 {len(blocks)} bloques USER-anchored identificados")
+    
+    # =========================================================================
+    # PASO 4: Separar RECENT vs HISTORICAL (desde el final hacia atrás)
+    # =========================================================================
+    recent_blocks = []
+    historical_blocks = []
+    accumulated_size = 0
+    
+    # Iterar desde el bloque más reciente hacia el más antiguo
+    for block in reversed(blocks):
+        if accumulated_size + block['total_size'] <= recent_slots:
+            recent_blocks.insert(0, block)
+            accumulated_size += block['total_size']
+        else:
+            historical_blocks.insert(0, block)
+    
+    print(f"   📊 Bloques: {len(historical_blocks)} históricos, {len(recent_blocks)} recientes")
+    
+    if not historical_blocks:
+        # Todo cabe en RECENT, no necesitamos resumir
+        return smart_truncate_messages(messages, max_messages, preserve_user)
+    
+    # =========================================================================
+    # PASO 5: Procesar bloques HISTÓRICOS (resumir o recuperar de caché)
+    # =========================================================================
+    # Para cada bloque histórico:
+    # - Si ya existe resumen en BD -> usarlo
+    # - Si no existe y es grande -> generar con LLM y cachear
+    # - Si no existe y es pequeño -> usar resumen basado en reglas
+    
+    processed_historical = []  # Lista de (user_msg, summary_msg o None)
+    
+    for block in historical_blocks:
+        user_msg = block['user_msg']
+        content_msgs = block['content_msgs']
+        
+        if not content_msgs:
+            # Bloque sin contenido ASSISTANT/TOOL, solo preservar USER
+            processed_historical.append({
+                'user_msg': user_msg,
+                'summary_msg': None
+            })
+            continue
+        
+        # Buscar resumen cacheado en BD
+        cached = get_best_summary_covering_range(
+            conversation_id,
+            block['content_start'],
+            block['content_end']
+        )
+        
+        if cached:
+            print(f"   ♻️ Cache hit: bloque [{block['content_start']}-{block['content_end']}]")
+            summary_text = cached['summary_text']
+        else:
+            # Calcular tamaño del contenido
+            content_size = sum(len(str(m.get('content', ''))) for m in content_msgs)
+            
+            if content_size > BLOCK_SUMMARIZE_THRESHOLD:
+                print(f"   🤖 LLM summarizing: bloque [{block['content_start']}-{block['content_end']}] ({content_size} chars)")
+                summary_text = await llm_summarize_block(content_msgs, client, model)
+                
+                # Cachear en BD para futuras reconstrucciones
+                add_conversation_summary(
+                    conversation_id=conversation_id,
+                    start_message_id=block['content_start'],
+                    end_message_id=block['content_end'],
+                    summary_text=summary_text,
+                    recursive_level=0,
+                    token_count=len(summary_text.split()),
+                    anchor_user_message_id=block['user_idx']
+                )
+            else:
+                # Bloque pequeño, resumen basado en reglas (sin LLM)
+                summary_text = _generate_truncated_summary(content_msgs)
+        
+        # Crear mensaje de resumen que REEMPLAZA la secuencia ASSISTANT/TOOL
+        summary_msg = {
+            "role": "assistant",
+            "content": f"[📜 CONTEXTO RESUMIDO]\n{summary_text}"
+        }
+        
+        processed_historical.append({
+            'user_msg': user_msg,
+            'summary_msg': summary_msg
+        })
+    
+    # =========================================================================
+    # PASO 6: RECONSTRUIR el hilo con REEMPLAZOS (no inyección en system)
+    # =========================================================================
+    result = []
+    
+    # 1. System prompt (sin modificar)
+    if system_msg:
+        result.append(system_msg)
+    
+    # 2. Bloques HISTÓRICOS: USER original + mensaje de resumen que REEMPLAZA
+    for processed in processed_historical:
+        result.append(processed['user_msg'])
+        if processed['summary_msg']:
+            result.append(processed['summary_msg'])
+    
+    # 3. Bloques RECIENTES: todos los mensajes RAW sin modificar
+    for block in recent_blocks:
+        result.append(block['user_msg'])
+        result.extend(block['content_msgs'])
+    
+    # =========================================================================
+    # PASO 7: Validación de secuencia y límites
+    # =========================================================================
+    result = ensure_valid_message_sequence(result)
+    
+    # Verificar que no excedemos el límite (por seguridad)
+    if len(result) > max_messages:
+        print(f"   ⚠️ Resultado ({len(result)}) excede límite ({max_messages}), aplicando truncado adicional")
+        # Truncar bloques históricos más antiguos
+        excess = len(result) - max_messages
+        # Remover mensajes del principio (después del system) hasta cumplir límite
+        while len(result) > max_messages and len(result) > 2:
+            if result[1].get('role') == 'user':
+                # Buscar si el siguiente es un resumen, remover ambos
+                if len(result) > 2 and result[2].get('content', '').startswith('[📜 CONTEXTO'):
+                    result.pop(2)  # Remover resumen
+                result.pop(1)  # Remover USER
+            else:
+                result.pop(1)
+    
+    print(f"✅ [CASCADING] Resultado: {len(original_messages)} -> {len(result)} mensajes")
+    print(f"   - Bloques resumidos: {len(historical_blocks)}")
+    print(f"   - Bloques RAW: {len(recent_blocks)}")
+    
+    return result
+
+
+async def consolidate_summaries_to_chronicle(
+    conversation_id: str,
+    summaries: List[Dict],
+    client,
+    model: str = None
+) -> str:
+    """
+    Nivel L3: Consolida múltiples resúmenes L2 en una "Crónica de Misión".
+    
+    Usado cuando la zona HISTORICAL tiene demasiados resúmenes y necesitamos
+    meta-consolidar para seguir reduciendo el contexto.
+    
+    Args:
+        conversation_id: ID de la conversación
+        summaries: Lista de resúmenes L2 a consolidar
+        client: Cliente AsyncOpenAI
+        model: Modelo a usar
+        
+    Returns:
+        Texto del resumen L3 (crónica)
+    """
+    if len(summaries) < 2:
+        return summaries[0]['summary_text'] if summaries else ""
+    
+    # Construir texto combinado de todos los resúmenes
+    combined_text = "\n\n".join([
+        f"[Phase {i+1}]: {s['summary_text']}" 
+        for i, s in enumerate(summaries)
+    ])
+    
+    # Prompt especializado para meta-consolidación
+    chronicle_prompt = """You are consolidating multiple engagement phase summaries into a single Mission Chronicle.
+
+CRITICAL REQUIREMENTS:
+- Maintain chronological order of discoveries
+- Preserve ALL: IPs, credentials, CVEs, successful commands
+- Note what worked vs what failed
+- Maximum 400 words
+
+SUMMARIES TO CONSOLIDATE:
+""" + combined_text
+    
+    try:
+        response = await client.chat.completions.create(
+            model=model or "gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": LLM_SUMMARIZER_SYSTEM_PROMPT},
+                {"role": "user", "content": chronicle_prompt}
+            ],
+            max_tokens=500,
+            temperature=0.3
+        )
+        
+        chronicle = response.choices[0].message.content.strip()
+        
+        # Guardar en BD como L3
+        if summaries:
+            add_conversation_summary(
+                conversation_id=conversation_id,
+                start_message_id=summaries[0].get('start_message_id', 0),
+                end_message_id=summaries[-1].get('end_message_id', 0),
+                summary_text=chronicle,
+                recursive_level=1,  # L3 = nivel 1
+                token_count=len(chronicle.split())
+            )
+        
+        return chronicle
+        
+    except Exception as e:
+        print(f"⚠️ Chronicle consolidation failed: {e}")
+        # Fallback: concatenar resúmenes
+        return " | ".join([s['summary_text'][:200] for s in summaries])
 
 
 def ensure_valid_message_sequence(messages: List[Dict]) -> List[Dict]:
