@@ -317,11 +317,13 @@ For each action:
 Remember: The user is watching your mission progress in a panel. Keep it updated!"""
 
 
+from datetime import datetime
+from typing import Optional
+
 def build_mission_context(conversation_id: str) -> Optional[str]:
     """
-    Construye el contexto de la misión activa para inyectar en el prompt.
-    Incluye: estado de la misión, objetivos, progreso y SCRATCHPAD.
-    Retorna None si no hay misión activa.
+    Construye el contexto de misión optimizado para LLMs.
+    Mejoras: Jerarquía visual, expansión inteligente de resultados recientes y gestión de jobs.
     """
     active_mission = db.get_active_mission(conversation_id)
     if not active_mission:
@@ -331,55 +333,93 @@ def build_mission_context(conversation_id: str) -> Optional[str]:
     objectives = db.get_objectives(mission_id)
     progress = db.get_mission_progress(mission_id)
     scratchpad = db.get_mission_scratchpad(mission_id)
+    pending_jobs = db.get_pending_jobs(conversation_id)
     
+    # 1. ESTADO GLOBAL
     mission_context = f"""
-## 🎯 ACTIVE MISSION STATE (CURRENT - DO NOT CREATE NEW MISSION)
-- **Mission ID**: {mission_id}
-- **Goal**: {active_mission['goal']}
-- **Phase**: {active_mission.get('current_phase', 'Not set')}
-- **Progress**: {progress['completed']}/{progress['total']} objectives
+    ## 🛡️ OPS CENTER: ACTIVE MISSION ({mission_id})
+    **GOAL:** {active_mission['goal']}
+    **PHASE:** {active_mission.get('current_phase', 'Recon/Enumeration')}
+    **PROGRESS:** {progress['completed']}/{progress['total']} ({int(progress['completed']/progress['total']*100 if progress['total'] > 0 else 0)}%)
+    """
 
-### Objectives:"""
+    # 2. OBJETIVOS (Lógica inteligente de visualización)
+    mission_context += "\n### 📋 OBJECTIVES CHAIN\n"
     
-    for obj in objectives:
+    current_obj_index = -1
+    for i, obj in enumerate(objectives):
+        # Detectar el objetivo activo (el primero que no esté completado/skippeado)
+        if current_obj_index == -1 and obj['status'] in ['PENDING', 'IN_PROGRESS', 'FAILED', 'AWAITING_AUTHORIZATION']:
+            current_obj_index = i
+
+    for i, obj in enumerate(objectives):
         status_emoji = {
-            'PENDING': '⏸️',
+            'PENDING': '⚪',
             'IN_PROGRESS': '🔄',
             'COMPLETED': '✅',
             'FAILED': '❌',
             'SKIPPED': '⏭️',
             'AWAITING_AUTHORIZATION': '🛑'
         }.get(obj['status'], '❓')
-        mission_context += f"\n{status_emoji} [{obj['id']}] {obj['task']} - {obj['status']}"
+
+        # Destacar visualmente el objetivo actual
+        prefix = "👉 **CURRENT:**" if i == current_obj_index else f"{i+1}."
+        style = "**" if i == current_obj_index else "" # Negrita para el actual
+        
+        mission_context += f"{prefix} {status_emoji} {style}[ID:{obj['id']}] {obj['task']}{style}\n"
+        
+        # LOGICA DE RESUMEN INTELIGENTE:
+        # - Si es el objetivo inmediatamente anterior (el último completado), mostramos MÁS contexto (400 chars)
+        #   porque suele contener datos necesarios para el paso actual.
+        # - Si son objetivos viejos, truncamos a 100 chars para ahorrar tokens.
         if obj.get('result_summary'):
-            mission_context += f"\n   Result: {obj['result_summary'][:150]}..."
-    mission_context += "\n\n ### IMPORTANT:Follow the actual objective and if you have completed, YOU MUST CHECK as COMPLETED with justification, and after this move to the next one without asking.\n"
-    
-    # INCLUIR SCRATCHPAD - CRÍTICO para persistencia de hallazgos
-    if scratchpad:
-        mission_context += f"\n\n### 📝 Your Scratchpad (saved findings):\n```\n{scratchpad}\n```"
-    else:
-        mission_context += "\n\n### 📝 Your Scratchpad: (empty - use write_scratchpad to save important findings)"
-    pendingJobs= db.get_pending_jobs(conversation_id)
-    # Preparamos la lista de jobs donde unicamente tenemos el comando ejecutado y el id de el job para consultarlo y el tiempo que lleva corriendo
-    listJobs=""
-    for job in pendingJobs:
+            is_recent = (i == current_obj_index - 1)
+            limit = 500 if is_recent else 100
+            summary = obj['result_summary']
+            if len(summary) > limit:
+                summary = summary[:limit] + " ... [check DB for full output]"
+            
+            # Formato de cita para diferenciar resultado de tarea
+            mission_context += f"   └─ 🔎 Result: *{summary}*\n"
+
+    # 3. BACKGROUND JOBS (Con análisis de tiempo)
+    if pending_jobs:
+        mission_context += "\n### ⚙️ BACKGROUND JOBS (Running)\n"
         now = datetime.utcnow()
-        start_time = datetime.fromisoformat(job['created_at'])
-        # La resta ahora devuelve un objeto timedelta
-        duration = now - start_time
-        # Sacamos los segundos totales
-        running_seconds = int(duration.total_seconds())
-        listJobs+=f"- JOB_ID: {job['job_id']} | COMMAND: {job['command'][:50]} | RUNNING_TIME: {running_seconds}s\n"
-    if listJobs=="":
-        listJobs="No hay jobs corriendo en background."
+        for job in pending_jobs:
+            start_time = datetime.fromisoformat(job['created_at'])
+            duration = (now - start_time).total_seconds()
+            
+            # Semáforo de tiempo
+            time_alert = ""
+            if duration > 300: time_alert = "⚠️ (LONG RUNNING)"
+            elif duration < 10: time_alert = "🆕 (JUST STARTED)"
+            
+            mission_context += f"- 🆔 `{job['job_id']}` | ⏱️ {int(duration)}s {time_alert}\n"
+            mission_context += f"  💻 `{job['command'][:60]}...`\n"
+        
+        mission_context += "\n> **TIP:** Use `check_job_status` periodically. If a job is taking too long (>10m), consider checking logs or creating a new parallel task.\n"
     else:
-        mission_context += f"\n\n### ACTUAL JOBS running in background: \n{listJobs}\n"
-        mission_context += "\n\n ### IMPORTANT:Dont check the status every time, only when necessary to get results of long running commands, if you had one long time job take advantage of the time doing other tasks meanwhile, but dont stop agentic flow.\n" 
+        mission_context += "\n> No background jobs running.\n"
 
-    mission_context += "\n\n**⚠️ CRITICAL: A mission already exists! DO NOT call manage_mission(action='create'). CONTINUE from where you left off. Check the objectives above and proceed with the next PENDING or IN_PROGRESS item.**"
+    # 4. SCRATCHPAD (La Memoria a Corto Plazo)
+    # Es crucial que el LLM sepa que esto es editable y vital.
+    mission_context += "\n### 📝 TACTICAL SCRATCHPAD (Findings & Credentials)\n"
+    if scratchpad and scratchpad.strip():
+        mission_context += f"```text\n{scratchpad}\n```"
+        mission_context += "\n> *Update this with IPs, Creds, or Vulns found using `write_scratchpad`.*"
+    else:
+        mission_context += "*(Empty)*\n> ⚠️ **URGENT:** The scratchpad is empty. Use `write_scratchpad` to save critical findings (IPs, Ports, Creds) immediately."
 
-
+    # 5. INSTRUCCIONES DE CONTROL (Meta-Prompting)
+    mission_context += """
+    \n---
+    **⚡ OPERATIONAL PROTOCOL:**
+    1. **FOCUS:** Execute the objective marked with 👉 **CURRENT**.
+    2. **PERSISTENCE:** If you find credentials or new hosts, SAVE THEM to the Scratchpad.
+    3. **COMPLETION:** Once done, MARK it as COMPLETED. Do not ask for permission to proceed to the next step unless 'AWAITING_AUTHORIZATION'.
+    4. **NO DUPLICATES:** A mission exists. DO NOT create a new one.
+    """
     
     return mission_context
 

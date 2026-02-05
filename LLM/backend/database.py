@@ -1852,6 +1852,12 @@ def complete_pending_job(job_id: str, result: str) -> bool:
     Marca un job como completado y guarda su resultado.
     """
     now = datetime.utcnow().isoformat()
+    MAX_PENDING_JOB_RESULT_LENGTH = 2000  # Limitar el tamaño del resultado para evitar problemas de almacenamiento
+    # Recortamos el resultado si es demasiado largo para evitar problemas de almacenamiento
+    if len(result) > MAX_PENDING_JOB_RESULT_LENGTH:
+        print(f"⚠️ Resultado del job {job_id} excede límite, truncando")
+        result = result[:MAX_PENDING_JOB_RESULT_LENGTH] + f"\n\n[... truncado, {len(result)} chars total]"
+    
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
