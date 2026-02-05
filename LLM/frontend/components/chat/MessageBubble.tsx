@@ -214,16 +214,29 @@ function parseMissionResponse(content: string | undefined): MissionResponse {
 // Helper para parsear tool_calls que pueden venir como string JSON o array
 function parseToolCalls(toolCalls: ToolCall[] | string | null | undefined): ToolCall[] {
   if (!toolCalls) return [];
-  if (Array.isArray(toolCalls)) return toolCalls;
-  if (typeof toolCalls === 'string') {
+  let parsed: unknown[] = [];
+  
+  if (Array.isArray(toolCalls)) {
+    parsed = toolCalls;
+  } else if (typeof toolCalls === 'string') {
     try {
-      const parsed = JSON.parse(toolCalls);
-      return Array.isArray(parsed) ? parsed : [];
+      const result = JSON.parse(toolCalls);
+      parsed = Array.isArray(result) ? result : [];
     } catch {
       return [];
     }
   }
-  return [];
+  
+  // Filtrar elementos de metadata (reasoning_content) que no son tool calls reales
+  // Estos tienen estructura { _metadata: { ... } } en lugar de { id, function, ... }
+  return parsed.filter((tc): tc is ToolCall => {
+    if (!tc || typeof tc !== 'object') return false;
+    // Si tiene _metadata, es un elemento de metadata, no un tool call
+    if ('_metadata' in tc) return false;
+    // Un tool call real tiene 'function' con 'name'
+    const toolCall = tc as ToolCall;
+    return !!toolCall.function?.name;
+  });
 }
 
 export function MessageBubble({ message, isStreaming, streamContent, toolResponseContent, onEdit, onRegenerate }: MessageBubbleProps) {

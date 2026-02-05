@@ -8,3 +8,4 @@ Documentaciones/EJEMPLOS/*
 Documentaciones/Citas/*
 texput.log
 .vscode/settings.json
+LLM/backend/conv_*.txt

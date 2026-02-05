@@ -11,6 +11,7 @@ from fastapi.responses import StreamingResponse
 from openai import AsyncOpenAI
 from typing import Optional, List, Dict, Any
 
+from datetime import datetime
 from models import ChatRequest, ChatResponse, ERROR_CODES
 import database as db
 
@@ -266,14 +267,33 @@ def build_mission_context(conversation_id: str) -> Optional[str]:
         mission_context += f"\n{status_emoji} [{obj['id']}] {obj['task']} - {obj['status']}"
         if obj.get('result_summary'):
             mission_context += f"\n   Result: {obj['result_summary'][:150]}..."
+    mission_context += "\n\n ### IMPORTANT:Follow the actual objective and if you have completed, YOU MUST CHECK as COMPLETED with justification, and after this move to the next one without asking.\n"
     
     # INCLUIR SCRATCHPAD - CRÍTICO para persistencia de hallazgos
     if scratchpad:
         mission_context += f"\n\n### 📝 Your Scratchpad (saved findings):\n```\n{scratchpad}\n```"
     else:
         mission_context += "\n\n### 📝 Your Scratchpad: (empty - use write_scratchpad to save important findings)"
-    
+    pendingJobs= db.get_pending_jobs(conversation_id)
+    # Preparamos la lista de jobs donde unicamente tenemos el comando ejecutado y el id de el job para consultarlo y el tiempo que lleva corriendo
+    listJobs=""
+    for job in pendingJobs:
+        now = datetime.utcnow()
+        start_time = datetime.fromisoformat(job['created_at'])
+        # La resta ahora devuelve un objeto timedelta
+        duration = now - start_time
+        # Sacamos los segundos totales
+        running_seconds = int(duration.total_seconds())
+        listJobs+=f"- JOB_ID: {job['job_id']} | COMMAND: {job['command'][:50]} | RUNNING_TIME: {running_seconds}s\n"
+    if listJobs=="":
+        listJobs="No hay jobs corriendo en background."
+    else:
+        mission_context += f"\n\n### ACTUAL JOBS running in background: \n{listJobs}\n"
+        mission_context += "\n\n ### IMPORTANT:Dont check the status every time, only when necessary to get results of long running commands, if you had one long time job take advantage of the time doing other tasks meanwhile, but dont stop agentic flow.\n" 
+
     mission_context += "\n\n**⚠️ CRITICAL: A mission already exists! DO NOT call manage_mission(action='create'). CONTINUE from where you left off. Check the objectives above and proceed with the next PENDING or IN_PROGRESS item.**"
+
+
     
     return mission_context
 
@@ -644,10 +664,13 @@ async def execute_tool_call(tool_call: Dict[str, Any], conversation_id: str, lea
             if not objective_id or not status:
                 return json.dumps({"error": "Se requiere 'objective_id' y 'status'"})
             
-            # Validar status
+            # Validar status (aceptar DONE como alias de COMPLETED)
+            if status == "DONE":
+                status = "COMPLETED"
+            
             valid_statuses = ['PENDING', 'IN_PROGRESS', 'COMPLETED', 'FAILED', 'SKIPPED', 'AWAITING_AUTHORIZATION']
             if status not in valid_statuses:
-                return json.dumps({"error": f"Status inválido. Válidos: {valid_statuses}"})
+                return json.dumps({"error": f"Status inválido '{status}'. Válidos: PENDING, IN_PROGRESS, COMPLETED, FAILED, SKIPPED"})
             
             # Actualizar
             success = db.update_objective_status(objective_id, status, result, reflection)
@@ -1277,7 +1300,7 @@ async def chat_completion(req: ChatRequest):
         
         # Inyectar contexto de misión activa EN EL SYSTEM PROMPT (no como mensaje separado)
         # Esto asegura que NO se pierda cuando el historial se trunca
-        messages_for_llm = update_system_with_mission_context(messages_for_llm, conversation_id)
+    messages_for_llm = update_system_with_mission_context(messages_for_llm, conversation_id)
     
     # ==========================================================================
     # 5. LLAMAR AL LLM
@@ -1314,7 +1337,8 @@ async def chat_completion(req: ChatRequest):
                     max_tokens=req.max_tokens,
                     auto_summarize=req.auto_summarize,
                     summarizer_model=req.summarizer_model,
-                    provider=req.provider  # Para logging de Ollama
+                    provider=req.provider,  # Para logging de Ollama
+                    loggingFile=True # Para logging
                 ),
                 media_type="text/event-stream",
                 headers={
@@ -1444,8 +1468,26 @@ async def stream_chat_response(
     auto_summarize: bool = True,
     summarizer_model: Optional[str] = None,
     # Provider para logging de tokens (Ollama)
-    provider: Optional[str] = None
+    provider: Optional[str] = None,
+    loggingFile: bool = False  # Para activar logging detallado en Ollama
 ):
+    
+    if loggingFile:
+        print(f"Raw log en el archivo {conversation_id}_{user_msg_id}.txt activado para esta conversación.")
+        raw_log_file = f"{conversation_id}_{user_msg_id}.txt"
+        raw_log = {
+            "model": model_id,
+            "messages": messages,
+            "tools": tools,
+            "temperature": temperature,
+            "top_p": top_p,
+            "max_tokens": max_tokens
+        }
+        with open(raw_log_file, "w") as f:
+            json.dump(raw_log, f, indent=2)
+        
+
+    
     """
     Generador asíncrono para streaming con Server-Sent Events (SSE).
     """
@@ -1487,13 +1529,24 @@ async def stream_chat_response(
         if max_tokens is not None:
             params["max_tokens"] = max_tokens
         
-        # OLLAMA: Incluir usage en streaming para logging de tokens
-        if provider == "ollama" and is_ollama_logging_enabled():
-            params["stream_options"] = {"include_usage": True}
+        # OLLAMA: Configuración especial para modelos con thinking
+        if provider == "ollama":
+            # Incluir usage en streaming para logging de tokens
+            if is_ollama_logging_enabled():
+                params["stream_options"] = {"include_usage": True}
+            
+            # IMPORTANTE: Desactivar thinking mode para modelos que lo soporten
+            # cuando usamos tools, porque el thinking interfiere con la respuesta
+            # El thinking se envía en un campo separado que no capturamos correctamente
+            # Añadir extra_body con think=false para Ollama
+            params["extra_body"] = {"options": {"think": True}}
         
         stream = await client.chat.completions.create(**params)
         
+        chunk_count = 0  # DEBUG: contador de chunks
         async for chunk in stream:
+            chunk_count += 1
+            
             # OLLAMA TOKEN LOGGING: Capturar usage del chunk ANTES de verificar choices
             # El chunk final de Ollama tiene usage pero choices=[] (array vacío)
             if provider == "ollama" and is_ollama_logging_enabled():
@@ -1503,10 +1556,25 @@ async def stream_chat_response(
                     print(f"📊 OLLAMA: Usage real capturado - prompt={chunk_usage.get('prompt_tokens')}, completion={chunk_usage.get('completion_tokens')}")
             
             if not chunk.choices:
+                # DEBUG: Si no hay choices, mostrar qué hay en el chunk
+                if provider == "ollama":
+                    try:
+                        chunk_dump = chunk.model_dump() if hasattr(chunk, 'model_dump') else str(chunk)
+                        print(f"🔍 CHUNK #{chunk_count} sin choices: {json.dumps(chunk_dump, default=str)[:500]}")
+                    except:
+                        pass
                 continue
                 
             delta = chunk.choices[0].delta
             chunk_finish = chunk.choices[0].finish_reason
+            
+            # DEBUG: Log primeros chunks para ver qué llega - INCLUYENDO ESTRUCTURA COMPLETA
+            if  (delta.content and delta.content.strip()):
+                try:
+                    delta_dump = delta.model_dump() if hasattr(delta, 'model_dump') else str(delta)
+                    print(f"🔍 CHUNK #{chunk_count}: delta={json.dumps(delta_dump, default=str)[:300]}, finish={chunk_finish}")
+                except Exception as e:
+                    print(f"🔍 CHUNK #{chunk_count}: delta.content={repr(delta.content)[:100] if delta.content else None}, error={e}")
             
             # DEBUG: Ver estructura completa del chunk para Gemini 3
             if delta.tool_calls and len(tool_calls_accumulator) == 0:
@@ -1529,8 +1597,26 @@ async def stream_chat_response(
                 })
                 yield f"event: reasoning\ndata: {reasoning_event}\n\n"
             
+            # OLLAMA THINKING MODE: Algunos modelos envían reasoning en lugar de content
+            # Capturar el campo 'reasoning' que Ollama usa para el thinking
+            delta_dict = delta.model_dump() if hasattr(delta, 'model_dump') else {}
+            ollama_reasoning = delta_dict.get('reasoning')
+            if ollama_reasoning:
+                # Acumular como reasoning_content para no perderlo
+                reasoning_content += ollama_reasoning
+                # Enviar al frontend como evento de reasoning
+                reasoning_event = json.dumps({
+                    "type": "reasoning",
+                    "chunk": ollama_reasoning,
+                    "done": False
+                })
+                yield f"event: reasoning\ndata: {reasoning_event}\n\n"
+            
             # Procesar contenido de texto
+            # IMPORTANTE: delta.content puede ser "" (string vacío) que es falsy en Python
+            # Solo procesamos si hay contenido real (no vacío)
             if delta.content:
+                print(f"📝 CHUNK #{chunk_count} CONTENT REAL: '{delta.content[:50]}...'")
                 full_content += delta.content
                 event_data = json.dumps({
                     "type": "content",
@@ -1644,11 +1730,27 @@ async def stream_chat_response(
                 }
             })
             print(f"🧠 DeepSeek reasoning capturado: {len(reasoning_content)} chars")
+            print(f"🔍 DEBUG ANTES fallback: full_content={len(full_content)} chars, tool_calls={len(tool_calls_accumulator)}")
+            
+            # OLLAMA THINKING FALLBACK: Si solo hay reasoning sin contenido ni tools,
+            # usar el reasoning como contenido para que el usuario vea algo
+            if not full_content and not tool_calls_accumulator:
+                # Extraer una respuesta del reasoning si es posible
+                # O mostrar un mensaje indicando que el modelo está pensando
+                print(f"⚠️ Modelo generó solo reasoning sin respuesta - usando reasoning como fallback")
+                # Enviar el reasoning como contenido al frontend
+                event_data = json.dumps({
+                    "type": "content",
+                    "chunk": f"*[Pensando...]*\n\n{reasoning_content}",
+                    "done": True
+                })
+                yield f"event: message\ndata: {event_data}\n\n"
+                full_content = f"*[Pensando...]*\n\n{reasoning_content}"
         
         tool_calls_json = json.dumps(tool_calls_data) if tool_calls_data else None
         
         # Log para debug
-        print(f"📊 Stream finalizado: finish_reason={finish_reason}, tool_calls={len(tool_calls_accumulator)}, content_len={len(full_content)}")
+        print(f"📊 Stream finalizado: finish_reason={finish_reason}, tool_calls={len(tool_calls_accumulator)}, content_len={len(full_content)}, total_chunks={chunk_count}")
         
         assistant_msg_id = db.add_message(
             conversation_id=conversation_id,
@@ -1922,9 +2024,9 @@ async def stream_chat_response(
                     result = f"Error ejecutando herramienta: {type(e).__name__}: {str(e)}"
                 
                 # Detectar si el comando requiere aprobación
-                if "AWAITING_AUTHORIZATION" in result:
-                    has_awaiting_authorization_first = True
-                    print(f"🛑 Detectado AWAITING_AUTHORIZATION - pausando después del primer bloque")
+                    if '"status": "AWAITING_AUTHORIZATION"' in result or '"status":"AWAITING_AUTHORIZATION"' in result:
+                        has_awaiting_authorization_first = True
+                        print(f"🛑 Detectado AWAITING_AUTHORIZATION - pausando después del primer bloque")
                 
                 # Detectar si fue una operación de manage_mission
                 # PERO NO forzar continuación si la misión se completó
@@ -2057,7 +2159,7 @@ async def stream_chat_response(
             # Reconstruir mensajes para el siguiente llamado
             # OPTIMIZACIÓN: Limitar el contexto pero con margen suficiente para loops agénticos
             # 50 mensajes permite ~15-20 iteraciones de tool calls antes de truncar
-            MAX_MESSAGES_IN_LOOP = 50
+            MAX_MESSAGES_IN_LOOP = 20
             current_messages = messages.copy()
             
             # Debug: mostrar los tool_calls que vamos a enviar
@@ -2150,9 +2252,13 @@ async def stream_chat_response(
                 if max_tokens is not None:
                     loop_params["max_tokens"] = max_tokens
                 
-                # OLLAMA: Incluir usage en streaming para logging de tokens
-                if provider == "ollama" and is_ollama_logging_enabled():
-                    loop_params["stream_options"] = {"include_usage": True}
+                # OLLAMA: Configuración especial
+                if provider == "ollama":
+                    # Incluir usage en streaming para logging de tokens
+                    if is_ollama_logging_enabled():
+                        loop_params["stream_options"] = {"include_usage": True}
+                    # Desactivar thinking mode
+                    loop_params["extra_body"] = {"options": {"think": True}}
                 
                 # Streaming de esta iteración
                 loop_content = ""
@@ -2510,7 +2616,7 @@ async def stream_chat_response(
                         result = f"Error ejecutando herramienta: {type(e).__name__}: {str(e)}"
                     
                     # Detectar si el comando requiere aprobación
-                    if "AWAITING_AUTHORIZATION" in result:
+                    if '"status": "AWAITING_AUTHORIZATION"' in result or '"status":"AWAITING_AUTHORIZATION"' in result:
                         has_awaiting_authorization = True
                         print(f"🛑 Detectado AWAITING_AUTHORIZATION - pausando loop")
                     
