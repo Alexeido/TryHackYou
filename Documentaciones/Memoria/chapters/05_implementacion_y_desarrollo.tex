@@ -9,7 +9,7 @@ Este capítulo documenta el proceso de diseño e implementación del sistema ag�
 \section{Arquitectura del Sistema}
 \label{sec:arquitectura_sistema}
 
-El sistema se ha diseñado siguiendo un patrón de \textbf{arquitectura de microservicios}, distribuyendo la funcionalidad en tres componentes independientes que colaboran mediante interfaces REST y eventos en tiempo real. Esta decisión arquitectónica responde tanto a requisitos técnicos (aislamiento de seguridad, escalabilidad) como a objetivos académicos (demostración de competencias en múltiples tecnologías).
+El sistema se ha diseñado siguiendo un patrón de \textbf{arquitectura de microservicios}, distribuyendo la funcionalidad en tres componentes independientes que colaboran mediante interfaces REST y eventos en tiempo real. Esta decisión arquitectónica responde a requisitos de aislamiento de seguridad y escalabilidad, permitiendo la integración de diversas tecnologías de forma modular y eficiente.
 
 \subsection{Componentes del Sistema}
 
@@ -144,7 +144,7 @@ El backend implementa un cliente unificado compatible con la especificación Ope
 
 \subsection{Justificación de la Arquitectura de Microservicios}
 
-La elección de una arquitectura distribuida frente a un monolito se fundamenta en los siguientes criterios:
+La elección de una arquitectura distribuida frente a una monolítica se fundamenta en los siguientes criterios:
 
 \begin{enumerate}
     \item \textbf{Aislamiento de Seguridad:} El sandbox debe ejecutar comandos potencialmente destructivos en un entorno completamente aislado. Separarlo como un contenedor Docker independiente garantiza que ninguna operación del agente pueda comprometer el sistema anfitrión o los datos del backend.
@@ -153,7 +153,8 @@ La elección de una arquitectura distribuida frente a un monolito se fundamenta 
     
     \item \textbf{Escalabilidad Selectiva:} En un escenario de producción, el sandbox podría replicarse para soportar múltiples sesiones concurrentes sin modificar el backend ni el frontend.
     
-    \item \textbf{Objetivos Académicos:} Como Trabajo de Fin de Grado en Ingeniería del Software, la implementación de tres servicios con tecnologías distintas demuestra competencias en diseño de sistemas distribuidos, integración de APIs heterogéneas y gestión de estado en arquitecturas desacopladas.
+    \item \textbf{Mantenibilidad y Desacoplamiento:} La separación de responsabilidades permite que cada servicio evolucione de forma independiente. Esto facilita la depuración de errores específicos en el entorno de ejecución (sandbox) sin afectar la lógica de negocio del orquestador ni la experiencia de usuario en la interfaz.
+    \item 
 \end{enumerate}
 
 % ============================================================================
@@ -268,7 +269,7 @@ El orquestador central tiene requisitos más exigentes que el sandbox. Las neces
     Framework moderno diseñado específicamente para APIs de alto rendimiento. Soporte nativo para \texttt{async/await}, validación automática con Pydantic, generación de documentación OpenAPI, y compatibilidad directa con \texttt{StreamingResponse} para SSE.
     
     \item[Express.js (Node.js)]
-    Excelente para \textit{streaming} y WebSockets, pero habría requerido implementar el cliente de los LLMs en JavaScript, perdiendo la riqueza del ecosistema Python para machine learning y las librerías oficiales de OpenAI/Anthropic.
+    Excelente para \textit{streaming} y \textit{WebSockets}, pero habría requerido implementar el cliente de los LLMs en JavaScript, perdiendo la riqueza del ecosistema Python para machine learning y las librerías oficiales de OpenAI/Anthropic.
 \end{description}
 
 \subsubsection{Decisión: FastAPI}
@@ -378,7 +379,7 @@ La infraestructura del laboratorio se define mediante un archivo \texttt{docker-
 
 Se ha configurado una red Docker de tipo \textit{bridge} con el rango \texttt{10.10.0.0/24}, completamente aislada del sistema anfitrión y sin acceso a Internet. Esta configuración replica un escenario de laboratorio de pentesting donde el agente puede ejecutar escaneos y ataques sin riesgo de afectar infraestructura real.
 
-\begin{figure}[ht]
+\begin{figure}[H]
     \centering
     \begin{tikzpicture}[
         % Estilos generales
@@ -484,10 +485,10 @@ Se ha configurado una red Docker de tipo \textit{bridge} con el rango \texttt{10
     \caption{Topología de Red del Entorno de Hacking (Docker)}
 \end{figure}
 
-\begin{table}[h]
+\begin{table}[H]
 \centering
 \renewcommand{\arraystretch}{1.3}
-\begin{tabular}{|l|l|c|c|p{4cm}|}
+\begin{tabular}{|l|l|c|c|p{3cm}|}
 \hline
 \rowcolor[gray]{0.85}
 \textbf{Servicio} & \textbf{Imagen Docker} & \textbf{IP} & \textbf{Puerto externo} & \textbf{Descripción} \\
@@ -646,65 +647,16 @@ El endpoint \texttt{POST /execute} es el punto de entrada principal para la ejec
 \label{tab:execute_params}
 \end{table}
 
-% TO-DO: ARREGLAR EL DIAGRAMA DE DEBAJO PARA QUE QUEPA O REHACERLO EN SVG
-% Descripción del diagrama (flowchart):
-% 1. Inicio: Recibir POST /execute
-% 2. Decisión: ¿conversation_id tiene repo Git?
-%    - Sí: CWD = /workspace_sessions/{conv_id}
-%    - No: CWD = /workspace
-% 3. Decisión: ¿Comando empieza con "cd"?
-%    - Sí: Actualizar SESSION_CWD y continuar
-%    - No: Continuar
-% 4. Crear job_id (UUID)
-% 5. Ejecutar comando con subprocess.Popen
-% 6. Decisión: ¿exit_time > 0?
-%    - Sí: Esperar exit_time, matar si sigue vivo
-%    - No: Decisión: ¿wait_time > 0?
-%        - Sí: Esperar wait_time, proceso sigue en background
-%        - No: Esperar 0.1s (comandos instantáneos)
-% 7. Leer stdout/stderr
-% 8. Aplicar compress_output()
-% 9. Devolver respuesta JSON
 
 \begin{figure}[H]
     \centering
-    \begin{adjustbox}{max width=\textwidth, max height=0.9\textheight, keepaspectratio}
+    \begin{adjustbox}{max width=\textwidth, max height=0.85\textheight, keepaspectratio}
     \begin{tikzpicture}[
-        % --- ESTILOS ---
-        node distance=1.5cm and 2cm, % Distancia vertical y horizontal
-        font=\small\sffamily,
-        % Estilo para el Inicio/Fin
-        startstop/.style={
-            rectangle, 
-            rounded corners, 
-            minimum width=3cm, 
-            minimum height=1cm,
-            text centered, 
-            draw=black, 
-            fill=red!10
-        },
-        % Estilo para Procesos (Rectángulos)
-        process/.style={
-            rectangle, 
-            minimum width=3.5cm, 
-            minimum height=1cm, 
-            text centered, 
-            text width=3.5cm, % Fuerza salto de línea si es largo
-            draw=black, 
-            fill=orange!10
-        },
-        % Estilo para Decisiones (Rombos)
-        decision/.style={
-            diamond, 
-            minimum width=3cm, 
-            minimum height=1cm, 
-            text centered, 
-            text width=2.5cm,
-            draw=black, 
-            fill=blue!10,
-            inner sep=0pt
-        },
-        % Estilo para las flechas
+        node distance=1.1cm and 1.8cm,
+        font=\footnotesize\sffamily,
+        startstop/.style={rectangle, rounded corners, minimum width=2.5cm, minimum height=0.7cm, text centered, draw=black, fill=red!10},
+        process/.style={rectangle, minimum width=2.8cm, minimum height=0.7cm, text centered, text width=2.8cm, draw=black, fill=orange!10},
+        decision/.style={diamond, minimum width=2cm, minimum height=0.7cm, text centered, text width=2cm, draw=black, fill=blue!10, inner sep=0pt, aspect=2},
         arrow/.style={thick, ->, >=Stealth}
     ]
 
@@ -719,7 +671,7 @@ El endpoint \texttt{POST /execute} es el punto de entrada principal para la ejec
     \node (proc_cwd_sess) [process, below=of dec_repo] {CWD = /sessions/\{id\}};
 
     % Decisión 2: Comando CD
-    \node (dec_cd) [decision, below=of proc_cwd_sess] {¿Comando "cd"?};
+    \node (dec_cd) [decision, below=of proc_cwd_sess] {¿Comando ``cd''?};
 
     % Proceso: Generar Job ID
     \node (proc_job) [process, below=of dec_cd] {Crear job\_id (UUID)};
@@ -752,13 +704,13 @@ El endpoint \texttt{POST /execute} es el punto de entrada principal para la ejec
     \node (proc_cwd_work) [process, right=of dec_repo] {CWD = /workspace};
 
     % Rama SI de Comando CD
-    \node (proc_update_cwd) [process, right=of dec_cd] {Actualizar SESSION\_CWD};
+    \node (proc_update_cwd) [process, left=of dec_cd] {Actualizar SESSION\_CWD};
 
     % Rama SI de exit_time
     \node (proc_kill) [process, right=of dec_exit] {Esperar tiempo y Matar proceso};
 
     % Rama SI de wait_time
-    \node (proc_bg) [process, right=of dec_wait] {Esperar tiempo (Background)};
+    \node (proc_bg) [process, left=of dec_wait] {Esperar tiempo (Background)};
 
 
     % --- 3. CONEXIONES (Flechas) ---
@@ -882,22 +834,54 @@ Una de las innovaciones clave del proyecto es la integración de \textbf{Git com
 
 Cada conversación del usuario genera un repositorio Git independiente en \texttt{/workspace\_sessions/\{conversation\_id\}/}. Cuando el agente ejecuta comandos que modifican archivos (descarga de herramientas, generación de reportes, etc.), estos cambios quedan registrados en el historial de Git.
 
-% TO-DO: Insertar diagrama que muestre la correspondencia entre árbol de mensajes y commits Git
-% Descripción del diagrama (dos árboles paralelos conectados):
-% Lado izquierdo - "Árbol de Conversación (SQLite)":
-%   - Nodo raíz: "System Prompt" (id=1)
-%   - Hijo: "Usuario: Escanea la red" (id=2)
-%   - Hijo: "Asistente: Ejecutando nmap..." (id=3)
-%   - Dos ramas desde id=3:
-%     * Rama A: "Usuario: Analiza DVWA" (id=4) → "Asistente: SQLi encontrado" (id=5)
-%     * Rama B: "Usuario: Analiza Juice Shop" (id=6)
-% Lado derecho - "Repositorio Git":
-%   - Commit inicial (tag: leaf_1)
-%   - Commit "Checkpoint: 3" (tag: leaf_3) - contiene resultados de nmap
-%   - Dos branches:
-%     * Branch con commit "Checkpoint: 5" (tag: leaf_5) - contiene archivos de análisis DVWA
-%     * Branch con commit "Checkpoint: 6" (tag: leaf_6) - contiene archivos de Juice Shop
-% Flechas punteadas conectando cada nodo del árbol con su commit correspondiente
+
+\begin{figure}[H]
+    
+    \begin{adjustbox}{max width=\textwidth, max height=0.85\textheight, keepaspectratio}
+    \centering
+    \begin{tikzpicture}[
+        node distance=1.2cm,
+        font=\small\sffamily,
+        msg/.style={rectangle, rounded corners, draw=black, fill=blue!10, minimum width=3.2cm, minimum height=0.7cm, text centered, text width=3cm},
+        commit/.style={rectangle, rounded corners, draw=black, fill=green!10, minimum width=3.2cm, minimum height=0.7cm, text centered, text width=3cm},
+        lbl/.style={font=\footnotesize\bfseries\sffamily, fill=white, inner sep=2pt},
+        arrow/.style={thick, ->, >=Stealth},
+        dasharrow/.style={dashed, thick, ->, >=Stealth, gray}
+    ]
+    % --- Árbol de Conversación (izquierda) ---
+    \node[font=\bfseries] (title1) {Árbol de Conversación};
+    \node[msg, below=0.5cm of title1] (m1) {System Prompt (id=1)};
+    \node[msg, below=of m1] (m2) {User: Escanea la red (id=2)};
+    \node[msg, below=of m2] (m3) {Asistente: nmap... (id=3)};
+    \node[msg, below left=1cm and 0.3cm of m3] (m4) {User: Analiza DVWA (id=4)};
+    \node[msg, below=of m4] (m5) {Asist: SQLi (id=5)};
+    \node[msg, below right=1cm and 0.3cm of m3] (m6) {User: Juice Shop (id=6)};
+    \draw[arrow] (m1) -- (m2);
+    \draw[arrow] (m2) -- (m3);
+    \draw[arrow] (m3) -- (m4);
+    \draw[arrow] (m4) -- (m5);
+    \draw[arrow] (m3) -- (m6);
+
+    % --- Repositorio Git (derecha) ---
+    \node[font=\bfseries, right=5.5cm of title1] (title2) {Repositorio Git};
+    \node[commit, below=0.5cm of title2] (c1) {Commit inicial (leaf\_1)};
+    \node[commit, below=of c1] (c2) {Checkpoint (leaf\_3)};
+    \node[commit, below left=1cm and 0.3cm of c2] (c3) {Checkpoint (leaf\_5)};
+    \node[commit, below right=1cm and 0.3cm of c2] (c4) {Checkpoint (leaf\_6)};
+    \draw[arrow] (c1) -- (c2);
+    \draw[arrow] (c2) -- (c3);
+    \draw[arrow] (c2) -- (c4);
+
+    % --- Flechas de correspondencia ---
+    \draw[dasharrow] (m1.east) -- (c1.west);
+    \draw[dasharrow] (m3.east) -- (c2.west);
+    \draw[dasharrow] (m5.east) -- (c3.west);
+    \draw[dasharrow] (m6.east) -- (c4.west);
+    \end{tikzpicture}
+    \end{adjustbox}
+    \caption{Correspondencia entre el árbol de conversación y los commits Git del sandbox.}
+    \label{fig:arbol_git}
+\end{figure}
 
 \subsubsection{Ciclo de Vida de una Sesión}
 
@@ -968,13 +952,14 @@ Esta compresión reduce significativamente el número de tokens sin perder infor
 
 El sandbox incluye una interfaz web de administración accesible en \texttt{http://localhost:5000/admin} que facilita la supervisión y depuración del sistema.
 
-% TO-DO: Insertar captura de pantalla del panel de administración
-% Descripción de la captura:
-% - Header con título "KaliSandbox Admin"
-% - Tarjetas con métricas: Total Jobs, Active Sessions, Conversations
-% - Tabla de jobs activos con columnas: Job ID, Command, Status, Conversation, Duration
-% - Lista de conversaciones con repos Git
-% - Botones para detener jobs y limpiar sesiones
+
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=0.88\textwidth]{pictures/Examples/adminpanel.jpeg}}
+    \caption{Panel de administración del sandbox KaliSandbox.}
+    \label{fig:admin_panel}
+\end{figure}
+
 
 El panel muestra en tiempo real:
 \begin{itemize}
@@ -999,22 +984,51 @@ El backend se ha estructurado siguiendo un patrón de \textbf{routers modulares}
 
 \subsubsection{Estructura de Módulos}
 
-% TO-DO: Insertar diagrama de módulos/routers del backend
-% Descripción del diagrama:
-% - Caja central: "main.py (FastAPI App)"
-% - Conectado a cajas de routers:
-%   * routes/health.py → /health, /health/keys
-%   * routes/conversations.py → /conversations/*
-%   * routes/chat.py → /chat (SSE streaming)
-%   * routes/messages.py → /messages/*
-%   * routes/jobs.py → /jobs/*
-%   * routes/missions.py → /missions/*
-%   * routes_legacy.py → /models/discover
-% - Conectado a módulos de soporte:
-%   * database.py (SQLite)
-%   * security.py (análisis de riesgo)
-%   * scoring.py (ranking ELO)
-%   * job_monitor.py (polling background)
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        node distance=0.4cm and 2.5cm, % Ajustado el espacio horizontal
+        font=\small\sffamily,
+        core/.style={rectangle, rounded corners, draw=black, fill=orange!20, minimum width=3.5cm, minimum height=1cm, text centered, font=\small\bfseries},
+        router/.style={rectangle, rounded corners, draw=black, fill=blue!10, minimum width=3.2cm, minimum height=0.8cm, text centered, text width=3cm, font=\footnotesize},
+        support/.style={rectangle, rounded corners, draw=black, fill=green!10, minimum width=3.2cm, minimum height=0.8cm, text centered, font=\footnotesize},
+        arrow/.style={thick, ->, >=Stealth}
+    ]
+    
+    % --- NODO CENTRAL ---
+    \node[core] (main) {main.py (FastAPI)};
+
+    % --- COLUMNA IZQUIERDA (Routers) ---
+    % Posicionamos los dos del centro (chat y msgs) respecto al main para equilibrar
+    \node[router, left=of main, yshift=0.6cm] (chat) {chat.py\\\texttt{/chat} (SSE)};
+    \node[router, above=of chat] (conv) {conversations.py\\\texttt{/conversations}};
+    \node[router, above=of conv] (health) {health.py\\\texttt{/health}};
+    
+    \node[router, left=of main, yshift=-0.6cm] (msgs) {messages.py\\\texttt{/messages}};
+    \node[router, below=of msgs] (jobs) {jobs.py\\\texttt{/jobs}};
+    \node[router, below=of jobs] (missions) {missions.py\\\texttt{/missions}};
+
+    % --- COLUMNA DERECHA (Soporte) ---
+    % El del centro (score) alineado perfectamente con main
+    \node[support, right=of main] (score) {scoring.py (ELO)};
+    \node[support, above=of score] (sec) {security.py (Riesgo)};
+    \node[support, above=of sec] (db) {database.py (SQLite)};
+    
+    \node[support, below=of score] (monitor) {job\_monitor.py};
+    \node[support, below=of monitor] (prompts) {prompts.py};
+
+    % --- FLECHAS CON ANCLAJES ---
+    % Usamos .west y .east para que las flechas salgan de los laterales del main
+    \foreach \r in {health, conv, chat, msgs, jobs, missions}
+        \draw[arrow] (main.west) -- (\r.east);
+
+    \foreach \s in {db, sec, score, monitor, prompts}
+        \draw[arrow] (main.east) -- (\s.west);
+
+    \end{tikzpicture}
+    \caption{Arquitectura modular del backend: routers y módulos de soporte.}
+    \label{fig:modulos_backend}
+\end{figure}
 
 \begin{table}[H]
 \centering
@@ -1077,17 +1091,6 @@ La persistencia se gestiona mediante \textbf{SQLite}, una base de datos embebida
 
 \subsubsection{Esquema de Base de Datos}
 
-% TO-DO: Insertar diagrama ER de la base de datos
-% Descripción del diagrama (entidad-relación):
-% - conversations (1) --- (N) messages
-% - conversations (1) --- (N) missions
-% - missions (1) --- (N) objectives
-% - missions (1) --- (N) mission_jobs
-% - conversations (1) --- (N) pending_jobs
-% - conversations (1) --- (N) command_audit
-% - messages (1) --- (N) tool_summaries
-% Mostrar campos principales de cada tabla
-
 \begin{table}[H]
 \centering
 \renewcommand{\arraystretch}{1.1}
@@ -1120,20 +1123,44 @@ La persistencia se gestiona mediante \textbf{SQLite}, una base de datos embebida
 
 Una de las innovaciones del sistema es el almacenamiento de mensajes como un \textbf{árbol} en lugar de una lista lineal. Cada mensaje tiene un campo \texttt{parent\_id} que apunta a su mensaje padre, permitiendo crear ramificaciones cuando el usuario edita un mensaje anterior.
 
-% TO-DO: Insertar diagrama de árbol de mensajes
-% Descripción del diagrama:
-%                 [system] (id=1, parent=NULL)
-%                     │
-%                 [user] (id=2, parent=1)
-%                     │
-%               [assistant] (id=3, parent=2)
-%                   /   \
-%          [user]      [user]
-%         (id=4)       (id=6)    ← Ramificación por edición
-%            │
-%      [assistant]
-%         (id=5)
-% Indicar con flecha que active_leaf_id puede apuntar a id=5 o id=6
+\begin{figure}[H]
+    \begin{adjustbox}{max width=\textwidth, max height=0.85\textheight, keepaspectratio}
+    \centering
+    \begin{tikzpicture}[
+        node distance=1cm,
+        font=\small\sffamily,
+        sys/.style={rectangle, rounded corners, draw=black, fill=gray!20, minimum width=3.5cm, minimum height=0.7cm, text centered},
+        usr/.style={rectangle, rounded corners, draw=black, fill=blue!15, minimum width=3.5cm, minimum height=0.7cm, text centered},
+        ast/.style={rectangle, rounded corners, draw=black, fill=green!15, minimum width=3.5cm, minimum height=0.7cm, text centered},
+        leaf/.style={rectangle, rounded corners, draw=red!70, fill=red!10, minimum width=2.5cm, minimum height=0.5cm, text centered, font=\footnotesize\sffamily},
+        arrow/.style={thick, ->, >=Stealth}
+    ]
+    \node[sys] (s1) {system (id=1, parent=NULL)};
+    \node[usr, below=of s1] (u2) {user (id=2, parent=1)};
+    \node[ast, below=of u2] (a3) {assistant (id=3, parent=2)};
+    \node[usr, below left=1.2cm and 0.8cm of a3] (u4) {user (id=4, parent=3)};
+    \node[ast, below=of u4] (a5) {assistant (id=5, parent=4)};
+    \node[usr, below right=1.2cm and 0.8cm of a3] (u6) {user (id=6, parent=3)};
+
+    \draw[arrow] (s1) -- (u2);
+    \draw[arrow] (u2) -- (a3);
+    \draw[arrow] (a3) -- (u4);
+    \draw[arrow] (u4) -- (a5);
+    \draw[arrow] (a3) -- (u6);
+
+    % Indicador de ramificación
+    \node[font=\footnotesize\itshape, text=red!70, right=0.3cm of u6] {Ramificación por edición};
+
+    % active_leaf_id
+    \node[leaf, below=0.5cm of a5] (leaf1) {active\_leaf\_id = 5};
+    \node[leaf, below=0.5cm of u6] (leaf2) {active\_leaf\_id = 6};
+    \draw[dashed, ->, >=Stealth, red!70] (leaf1) -- (a5);
+    \draw[dashed, ->, >=Stealth, red!70] (leaf2) -- (u6);
+    \end{tikzpicture}
+    \end{adjustbox}
+    \caption{Estructura de árbol de mensajes con ramificación por edición.}
+    \label{fig:arbol_mensajes}
+\end{figure}
 
 Esta estructura permite:
 \begin{itemize}
@@ -1206,17 +1233,47 @@ Ollama & \texttt{localhost:11434} & Modelos locales \\
 \label{tab:proveedores_ia}
 \end{table}
 
-% TO-DO: Insertar diagrama de flujo de selección de cliente
-% Descripción:
-% 1. Recibir (provider, api_key, model_id)
-% 2. Switch por provider:
-%    - openai → AsyncOpenAI(api_key)
-%    - anthropic → AsyncOpenAI(base_url=anthropic, api_key)
-%    - gemini → AsyncOpenAI(base_url=google, api_key)
-%    - deepseek → AsyncOpenAI(base_url=deepseek, api_key)
-%    - openrouter → AsyncOpenAI(base_url=openrouter, api_key)
-%    - ollama → AsyncOpenAI(base_url=localhost, api_key="ollama")
-% 3. Retornar cliente configurado
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        node distance=1.2cm and 0.4cm,
+        font=\small\sffamily,
+        input/.style={rectangle, rounded corners, draw=black, fill=gray!15, minimum width=4cm, minimum height=0.8cm, text centered, font=\bfseries},
+        prov/.style={rectangle, draw=black, fill=blue!10, minimum width=2.2cm, minimum height=0.7cm, text centered, font=\footnotesize\bfseries},
+        client/.style={rectangle, rounded corners, draw=black, fill=green!15, minimum width=2.4cm, minimum height=0.8cm, align=center, font=\tiny}, % Añadido align=center
+        output/.style={rectangle, rounded corners, draw=black, fill=orange!15, minimum width=5cm, minimum height=0.8cm, text centered, font=\small\bfseries},
+        decision/.style={diamond, draw=black, fill=yellow!15, minimum width=2cm, minimum height=1.2cm, text centered, font=\footnotesize, aspect=2},
+        arrow/.style={thick, ->, >=Stealth}
+    ]
+    % --- ENTRADA ---
+    \node[input] (input) {get\_client(provider, api\_key)};
+    \node[decision, below=of input] (sw) {provider?};
+    \draw[arrow] (input) -- (sw);
+    % --- PROVEEDORES ---
+    \node[prov, below=of sw] (p3) {gemini};
+    \node[prov, left=0.6cm of p3] (p2) {anthropic};
+    \node[prov, left=0.6cm of p2] (p1) {openai};
+    \node[prov, right=0.6cm of p3] (p4) {deepseek};
+    \node[prov, right=0.6cm of p4] (p5) {openrouter};
+    \node[prov, right=0.6cm of p5] (p6) {ollama};
+    % Flechas desde el rombo (sin líneas en blanco dentro del foreach)
+    \foreach \p in {p1,p2,p3,p4,p5,p6} {\draw[arrow] (sw.south) -- +(0,-0.3) -| (\p.north);}
+    % --- CLIENTES ---
+    \node[client, below=of p1] (c1) {AsyncOpenAI\\(api\_key)};
+    \node[client, below=of p2] (c2) {base\_url:\\anthropic};
+    \node[client, below=of p3] (c3) {base\_url:\\google};
+    \node[client, below=of p4] (c4) {base\_url:\\deepseek};
+    \node[client, below=of p5] (c5) {base\_url:\\openrouter};
+    \node[client, below=of p6] (c6) {base\_url:\\localhost};
+    \foreach \i in {1,2,3,4,5,6} {\draw[arrow] (p\i) -- (c\i);}
+    % --- SALIDA ---
+    \node[output, below=2.8cm of p3] (out) {AsyncOpenAI client configurado};
+    % Flechas de convergencia
+    \foreach \i in {1,2,3,4,5,6} {\draw[thick, dashed, gray, ->, >=Stealth] (c\i.south) -- +(0,-0.4) -| (out.north);}
+    \end{tikzpicture}
+    \caption{Factory de clientes: selección de proveedor y configuración mediante arquitectura unificada.}
+    \label{fig:client_factory}
+\end{figure}
 
 \subsubsection{Sistema de Ranking ELO}
 
@@ -1253,22 +1310,44 @@ El endpoint \texttt{POST /chat} implementa \textbf{streaming en tiempo real} med
 \label{tab:eventos_sse}
 \end{table}
 
-% TO-DO: Insertar diagrama de secuencia del streaming
-% Descripción (diagrama de secuencia UML):
-% Actores: Frontend, Backend, LLM Provider, Sandbox
-% 1. Frontend → Backend: POST /chat (SSE connection)
-% 2. Backend: Reconstruir thread desde SQLite
-% 3. Backend → LLM: stream=True
-% 4. LLM → Backend: token1, token2, ...
-% 5. Backend → Frontend: event:message (por cada token)
-% 6. LLM → Backend: tool_call (execute_command)
-% 7. Backend → Frontend: event:tool_call
-% 8. Backend → Sandbox: POST /execute
-% 9. Sandbox → Backend: resultado
-% 10. Backend → Frontend: event:tool_result
-% 11. Backend → LLM: tool_response
-% 12. Repetir 4-11 hasta finish_reason="stop"
-% 13. Backend → Frontend: event:done
+\begin{figure}[H]
+    \centering
+    \resizebox{\textwidth}{!}{
+    \begin{sequencediagram}
+        \newthread{fe}{Frontend}
+        \newinst[2]{be}{Backend /chat}
+        \newinst[2.2]{llm}{LLM Provider}
+        \newinst[2]{sb}{KaliSandbox}
+
+        \begin{call}{fe}{POST /chat (SSE)}{be}{}
+            \begin{call}{be}{create\_completion(stream)}{llm}{}
+                \begin{messcall}{llm}{chunk (token)}{be}
+                \end{messcall}
+            \end{call}
+            \begin{messcall}{be}{event:message \{token\}}{fe}
+            \end{messcall}
+
+            \begin{sdblock}{Loop}{Hasta finish\_reason=stop}
+                \begin{call}{be}{create\_completion}{llm}{tool\_call}
+                \end{call}
+                \begin{messcall}{be}{event:tool\_call}{fe}
+                \end{messcall}
+                \begin{call}{be}{POST /execute}{sb}{resultado}
+                \end{call}
+                \begin{messcall}{be}{event:tool\_result}{fe}
+                \end{messcall}
+                \begin{call}{be}{tool\_response}{llm}{}
+                \end{call}
+            \end{sdblock}
+
+            \begin{messcall}{be}{event:done}{fe}
+            \end{messcall}
+        \end{call}
+    \end{sequencediagram}
+    }
+    \caption{Secuencia de streaming SSE con tool calls.}
+    \label{fig:streaming_sse}
+\end{figure}
 
 \subsubsection{Justificación de SSE sobre WebSockets}
 
@@ -1320,21 +1399,42 @@ Cuando el modelo responde con un \texttt{tool\_call}, el backend:
 
 El sistema implementa un \textbf{límite de 15 iteraciones} desactivable para evitar bucles infinitos en caso de que el modelo entre en un ciclo de tool calls.
 
-% TO-DO: Insertar diagrama de flujo del loop de tools
-% Descripción (flowchart):
-% 1. Recibir mensaje del usuario
-% 2. Enviar a LLM
-% 3. Decisión: ¿finish_reason == "tool_calls"?
-%    - No → Ir a paso 8
-%    - Sí → Continuar
-% 4. Decisión: ¿iteraciones > 15?
-%    - Sí → Error: máximo de iteraciones
-%    - No → Continuar
-% 5. Ejecutar cada tool_call
-% 6. Añadir tool_responses al contexto
-% 7. Volver a paso 2
-% 8. Guardar respuesta en BD
-% 9. Enviar event:done
+\begin{figure}[H]
+    \begin{adjustbox}{max width=\textwidth, max height=0.85\textheight, keepaspectratio}
+    \centering
+    \begin{tikzpicture}[
+        node distance=1cm,
+        font=\small\sffamily,
+        startstop/.style={rectangle, rounded corners, draw=black, fill=gray!20, minimum width=3.5cm, minimum height=0.7cm, text centered},
+        process/.style={rectangle, draw=black, fill=blue!10, minimum width=3.5cm, minimum height=0.7cm, text centered},
+        decision/.style={diamond, draw=black, fill=yellow!15, minimum width=1cm, minimum height=0.7cm, text centered, font=\footnotesize\sffamily, inner sep=1pt, aspect=2.5},
+        error/.style={rectangle, rounded corners, draw=red, fill=red!10, minimum width=3cm, minimum height=0.7cm, text centered},
+        arrow/.style={thick, ->, >=Stealth}
+    ]
+    \node[startstop] (start) {Recibir mensaje del usuario};
+    \node[process, below=of start] (send) {Enviar contexto al LLM};
+    \node[decision, below=1.2cm of send] (toolq) {tool\_calls?};
+    \node[process, right=3cm of toolq] (save) {Guardar respuesta en BD};
+    \node[startstop, right=3cm of save] (done) {event:done};
+    \node[decision, below=1.2cm of toolq] (iterq) {iteraciones > 15?};
+    \node[error, right=3cm of iterq] (err) {Error: m\'{a}x iteraciones};
+    \node[process, below=1.2cm of iterq] (exec) {Ejecutar tool\_calls};
+    \node[process, below=of exec] (add) {A\~{n}adir tool\_responses};
+
+    \draw[arrow] (start) -- (send);
+    \draw[arrow] (send) -- (toolq);
+    \draw[arrow] (toolq) -- node[above] {No} (save);
+    \draw[arrow] (save) -- (done);
+    \draw[arrow] (toolq) -- node[right] {S\'{i}} (iterq);
+    \draw[arrow] (iterq) -- node[above] {S\'{i}} (err);
+    \draw[arrow] (iterq) -- node[right] {No} (exec);
+    \draw[arrow] (exec) -- (add);
+    \draw[arrow] (add.west) -- ++(-2,0) |- (send.west);
+    \end{tikzpicture}
+    \end{adjustbox}
+    \caption{Flujo del loop de ejecución de tools.}
+    \label{fig:tool_loop}
+\end{figure}
 
 \subsubsection{Auto-Summarize de Outputs Largos}
 
@@ -1395,21 +1495,44 @@ SAFE_PATTERNS = [
 
 \subsubsection{Flujo de Aprobación}
 
-% TO-DO: Insertar diagrama de flujo del sistema de aprobación
-% Descripción:
-% 1. LLM solicita execute_command
-% 2. analyze_command() determina risk_level
-% 3. Decisión: ¿En whitelist (SAFE)?
-%    - Sí → Ejecutar directamente
-%    - No → Continuar
-% 4. Decisión: ¿risk_level >= HIGH?
-%    - No → Ejecutar con log
-%    - Sí → Continuar
-% 5. Registrar en command_audit con status=PENDING
-% 6. Marcar objetivo como AWAITING_AUTHORIZATION
-% 7. Retornar al LLM: "Comando requiere aprobación"
-% 8. Usuario aprueba/rechaza en UI
-% 9. Si aprobado → Ejecutar y actualizar auditoría
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        node distance=0.9cm,
+        font=\small\sffamily,
+        startstop/.style={rectangle, rounded corners, draw=black, fill=gray!20, minimum width=3.2cm, minimum height=0.7cm, text centered},
+        process/.style={rectangle, draw=black, fill=blue!10, minimum width=3.2cm, minimum height=0.7cm, text centered, text width=3cm},
+        decision/.style={diamond, draw=black, fill=yellow!15, minimum width=1cm, minimum height=0.5cm, text centered, font=\footnotesize\sffamily, inner sep=1pt, aspect=2.5},
+        exec/.style={rectangle, rounded corners, draw=black!60!green, fill=green!15, minimum width=3cm, minimum height=0.7cm, text centered},
+        wait/.style={rectangle, rounded corners, draw=orange, fill=orange!10, minimum width=3.2cm, minimum height=0.7cm, text centered, text width=3cm},
+        arrow/.style={thick, ->, >=Stealth}
+    ]
+    \node[startstop] (start) {LLM: execute\_command};
+    \node[process, below=of start] (analyze) {analyze\_command()};
+    \node[decision, below=1cm of analyze] (safe) {SAFE?};
+    \node[exec, right=3.5cm of safe] (execdir) {Ejecutar directamente};
+    \node[decision, below=1cm of safe] (high) {riesgo $\geq$ HIGH?};
+    \node[exec, right=3.5cm of high] (execlog) {Ejecutar con log};
+    \node[process, below=1cm of high] (audit) {Registrar en\\command\_audit};
+    \node[wait, below=of audit] (await) {AWAITING\_\\AUTHORIZATION};
+    \node[decision, below=1cm of await] (user) {Usuario?};
+    \node[exec, right=3.5cm of user] (approve) {Ejecutar comando};
+    \node[startstop, left=3.5cm of user] (reject) {Rechazar, notificar LLM};
+
+    \draw[arrow] (start) -- (analyze);
+    \draw[arrow] (analyze) -- (safe);
+    \draw[arrow] (safe) -- node[above] {S\'{i}} (execdir);
+    \draw[arrow] (safe) -- node[right] {No} (high);
+    \draw[arrow] (high) -- node[above] {No} (execlog);
+    \draw[arrow] (high) -- node[right] {S\'{i}} (audit);
+    \draw[arrow] (audit) -- (await);
+    \draw[arrow] (await) -- (user);
+    \draw[arrow] (user) -- node[above] {Aprueba} (approve);
+    \draw[arrow] (user) -- node[above] {Rechaza} (reject);
+    \end{tikzpicture}
+    \caption{Flujo de aprobación del sistema de seguridad.}
+    \label{fig:approval_flow}
+\end{figure}
 
 Cuando un comando requiere aprobación:
 \begin{enumerate}
@@ -1441,15 +1564,46 @@ Cuando se detecta intención agéntica, el backend inyecta un \textbf{system pro
 
 \subsubsection{Ciclo de Vida de una Misión}
 
-% TO-DO: Insertar diagrama de estados de misión
-% Descripción (máquina de estados):
-% PLANNING → EXECUTING → COMPLETED
-%              ↓
-%           FAILED
-% Estados de objetivo:
-% PENDING → IN_PROGRESS → COMPLETED/FAILED
-%              ↓
-%     AWAITING_AUTHORIZATION
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        node distance=2cm and 3cm,
+        font=\small\sffamily,
+        state/.style={rectangle, rounded corners, draw=black, fill=blue!10, minimum width=2.5cm, minimum height=0.8cm, text centered, font=\small\bfseries\sffamily},
+        final/.style={rectangle, rounded corners, draw=black, fill=green!20, minimum width=2.5cm, minimum height=0.8cm, text centered, font=\small\bfseries\sffamily},
+        fail/.style={rectangle, rounded corners, draw=black, fill=red!15, minimum width=2.5cm, minimum height=0.8cm, text centered, font=\small\bfseries\sffamily},
+        objstate/.style={rectangle, rounded corners, draw=black!60, fill=orange!10, minimum width=2.2cm, minimum height=0.6cm, text centered, font=\footnotesize\sffamily},
+        arrow/.style={thick, ->, >=Stealth},
+        lbl/.style={font=\footnotesize\sffamily, fill=white, inner sep=1pt}
+    ]
+    % --- Estados de Misión ---
+    \node[font=\bfseries] (t1) {Estados de Misi\'{o}n};
+    \node[state, below=0.5cm of t1] (planning) {PLANNING};
+    \node[state, right=of planning] (executing) {EXECUTING};
+    \node[final, above right=0cm and 2.5cm of executing] (completed) {COMPLETED};
+    \node[fail, below right=0cm and 2.5cm of executing] (failed) {FAILED};
+
+    \draw[arrow] (planning) -- (executing);
+    \draw[arrow] (executing) -- (completed);
+    \draw[arrow] (executing) -- (failed);
+
+    % --- Estados de Objetivo ---
+    \node[font=\bfseries, below=2.5cm of t1] (t2) {Estados de Objetivo};
+    \node[objstate, below=0.5cm of t2] (pending) {PENDING};
+    \node[objstate, right=2cm of pending] (inprog) {IN\_PROGRESS};
+    \node[objstate, above right=0cm and 2cm of inprog] (objcomp) {COMPLETED};
+    \node[objstate, below right=0cm and 2cm of inprog] (objfail) {FAILED};
+    \node[objstate, below=1cm of inprog] (await) {AWAITING\_AUTH};
+
+    \draw[arrow] (pending) -- (inprog);
+    \draw[arrow] (inprog) -- (objcomp);
+    \draw[arrow] (inprog) -- (objfail);
+    \draw[arrow] (inprog) -- (await);
+    \draw[arrow] (await) -- (inprog);
+    \end{tikzpicture}
+    \caption{M\'{a}quina de estados de misiones y objetivos.}
+    \label{fig:mission_states}
+\end{figure}
 
 \begin{enumerate}
     \item \textbf{PLANNING:} El LLM crea la misión con \texttt{manage\_mission(action=``create'')}, definiendo el objetivo global y una lista de objetivos específicos.
@@ -1537,44 +1691,79 @@ Se ha elegido \textbf{Zustand} como librería de gestión de estado por las sigu
 
 El frontend sigue una arquitectura basada en \textbf{componentes funcionales} con separación clara de responsabilidades. La estructura de carpetas refleja esta organización:
 
-% TO-DO: Insertar diagrama de árbol de componentes
-% Descripción:
-% app/
-%   └── page.tsx (MainLayout)
-%         ├── ChatSidebar (historial)
-%         ├── ChatArea
-%         │     ├── MessageBubble (x N)
-%         │     │     └── CodeBlock (syntax highlight)
-%         │     └── ChatInput
-%         ├── MissionPanel
-%         │     ├── ObjectivesList
-%         │     └── ApprovalBanner
-%         ├── TerminalPanel
-%         └── ModelSelector
+\begin{figure}[H]
+    \centering
+    \begin{adjustbox}{max width=\textwidth, max height=0.85\textheight, keepaspectratio}
+    \begin{tikzpicture}[
+        node distance=0.5cm and 0.8cm,
+        font=\small\sffamily,
+        root/.style={rectangle, rounded corners, draw=black, fill=orange!20, minimum width=3cm, minimum height=0.7cm, text centered, font=\small\bfseries\sffamily},
+        comp/.style={rectangle, rounded corners, draw=black, fill=blue!10, minimum width=2.5cm, minimum height=0.6cm, text centered, font=\footnotesize\sffamily},
+        leaf/.style={rectangle, rounded corners, draw=black, fill=green!10, minimum width=2.2cm, minimum height=0.5cm, text centered, font=\footnotesize\sffamily},
+        arrow/.style={thick, ->, >=Stealth}
+    ]
+    \node[root] (main) {page.tsx (MainLayout)};
+    \node[comp, below left=1cm and 4cm of main] (sidebar) {ChatSidebar};
+    \node[comp, below left=1cm and 0.5cm of main] (chat) {ChatArea};
+    \node[comp, below right=1cm and 1.5cm of main] (mission) {MissionPanel};
+    \node[comp, below right=1cm and 4.5cm of main] (terminal) {TerminalPanel};
 
-%TO-DO: Insertar estructura de carpetas del frontend
-%\begin{verbatim}
-%LLM/frontend/
-%├── app/                    # Punto de entrada Next.js
-%│   └── page.tsx            # Página principal
-%├── components/
-%│   ├── chat/               # Área de conversación
-%│   │   ├── ChatArea.tsx    # Contenedor principal (~1000 líneas)
-%│   │   ├── MessageBubble.tsx # Renderizado de mensajes
-%│   │   └── BranchIndicator.tsx # Navegación de ramas
-%│   ├── mission/            # Panel de misiones
-%│   │   ├── MissionPanel.tsx
-%│   │   ├── ObjectivesList.tsx
-%│   │   └── ApprovalDialog.tsx
-%│   ├── sidebar/            # Historial de conversaciones
-%│   │   └── ChatSidebar.tsx
-%│   ├── terminal/           # Terminal integrado
-%│   │   └── TerminalPanel.tsx
-%│   └── ui/                 # Componentes base (shadcn/ui)
-%├── services/               # Comunicación con backend
-%├── store/                  # Estados Zustand
-%└── hooks/                  # Hooks personalizados
-%\end{verbatim}
+    \node[leaf, below left=0.8cm and 0.5cm of chat] (bubble) {MessageBubble};
+    \node[leaf, below right=0.8cm and 0.5cm of chat] (input) {ChatInput};
+    \node[leaf, below=0.8cm of bubble] (code) {CodeBlock};
+    \node[leaf, below left=0.8cm and 0.3cm of mission] (objlist) {ObjectivesList};
+    \node[leaf, below right=0.8cm and 0.3cm of mission] (approval) {ApprovalBanner};
+
+    \node[comp, left=0.5cm of sidebar] (model) {ModelSelector};
+
+    \draw[arrow] (main) -- (sidebar);
+    \draw[arrow] (main) -- (chat);
+    \draw[arrow] (main) -- (mission);
+    \draw[arrow] (main) -- (terminal);
+    \draw[arrow] (main) -- (model);
+    \draw[arrow] (chat) -- (bubble);
+    \draw[arrow] (chat) -- (input);
+    \draw[arrow] (bubble) -- (code);
+    \draw[arrow] (mission) -- (objlist);
+    \draw[arrow] (mission) -- (approval);
+    \end{tikzpicture}
+    \end{adjustbox}
+    \caption{Jerarquía de componentes React del frontend.}
+    \label{fig:component_tree}
+\end{figure}
+
+% Lo metemos en un entorno de texto para que no se rompa el formato del documento
+
+\begin{figure}[H]
+    \centering
+    \renewcommand*\DTstylecomment{\rmfamily\color{gray}\textsc}
+    \begin{minipage}{0.9\textwidth} % Minipage para que no se rompa
+    \dirtree{%
+    .1 LLM/frontend/.
+        .2 app/ \ldots{} Punto de entrada Next.js.
+        .3 page.tsx \ldots{} P\'{a}gina principal.
+        .2 components/.
+        .3 chat/ \ldots{} \'{A}rea de conversaci\'{o}n.
+            .4 ChatArea.tsx.
+            .4 MessageBubble.tsx.
+            .4 BranchIndicator.tsx.
+        .3 mission/ \ldots{} Panel de misiones.
+            .4 MissionPanel.tsx.
+            .4 ObjectivesList.tsx.
+            .4 ApprovalDialog.tsx.
+        .3 sidebar/ \ldots{} Historial.
+            .4 ChatSidebar.tsx.
+        .3 terminal/ \ldots{} Terminal integrado.
+            .4 TerminalPanel.tsx.
+        .3 ui/ \ldots{} Componentes base (shadcn/ui).
+        .2 services/ \ldots{} Comunicaci\'{o}n con backend.
+        .2 store/ \ldots{} Estados Zustand.
+        .2 hooks/ \ldots{} Hooks personalizados.
+    }
+    \end{minipage}
+    \caption{Estructura de directorios del sistema}
+    \label{fig:directorios}
+\end{figure}
 
 \subsubsection{Jerarquía de Componentes}
 
@@ -1618,12 +1807,49 @@ El estado de la aplicación se distribuye en \textbf{siete stores} especializado
 \label{tab:stores_zustand}
 \end{table}
 
-% TO-DO: Insertar diagrama de relaciones entre stores
-% Descripción:
-% ConfigStore ← usado por → ChatStore, ModelsStore
-% ChatStore ← usado por → MissionStore, TerminalStore
-% ConversationsStore ← sincronizado con → ChatStore
-% UIStore ← controla → todos los componentes visuales
+\begin{figure}[H]
+    \begin{adjustbox}{max width=\textwidth, max height=0.85\textheight, keepaspectratio}
+    \centering
+    \begin{tikzpicture}[
+        node distance=1.2cm and 2.5cm,
+        font=\small\sffamily,
+        store/.style={rectangle, rounded corners, draw=black, fill=blue!15, minimum width=3cm, minimum height=0.8cm, text centered, font=\footnotesize\bfseries\sffamily},
+        central/.style={rectangle, rounded corners, draw=black, fill=orange!20, minimum width=3cm, minimum height=0.8cm, text centered, font=\footnotesize\bfseries\sffamily},
+        arrow/.style={thick, ->, >=Stealth},
+        sync/.style={thick, <->, >=Stealth, dashed, blue!60}
+    ]
+    % Stores centrales
+    \node[central] (config) {ConfigStore};
+    \node[central, right=3.5cm of config] (chat) {ChatStore};
+
+    % Stores dependientes de Config
+    \node[store, below left=1.5cm and 0.5cm of config] (models) {ModelsStore};
+
+    % Stores dependientes de Chat
+    \node[store, below left=1.5cm and 0.5cm of chat] (mission) {MissionStore};
+    \node[store, below right=1.5cm and 0.5cm of chat] (terminal) {TerminalStore};
+
+    % ConversationsStore sincronizado
+    \node[store, above right=1.5cm and 0.5cm of chat] (convs) {ConversationsStore};
+
+    % UIStore independiente
+    \node[store, above left=1.5cm and 0.5cm of config] (ui) {UIStore};
+
+    % Flechas de dependencia
+    \draw[arrow] (config) -- node[left, font=\tiny] {apiKeys} (models);
+    \draw[arrow] (config) -- node[above, font=\tiny] {config} (chat);
+    \draw[arrow] (chat) -- node[left, font=\tiny] {messages} (mission);
+    \draw[arrow] (chat) -- node[right, font=\tiny] {context} (terminal);
+    \draw[sync] (chat) -- node[right, font=\tiny] {sync} (convs);
+    \draw[arrow, dashed, gray] (ui) -- node[above, font=\tiny] {visual} (config);
+
+    % Etiqueta
+    \node[font=\tiny\itshape, below=3cm of config, text=gray] {Las flechas indican dependencia de datos};
+    \end{tikzpicture}
+    \end{adjustbox}
+    \caption{Relaciones entre stores de Zustand.}
+    \label{fig:store_relations}
+\end{figure}
 
 \subsubsection{Persistencia en localStorage}
 
@@ -1723,14 +1949,6 @@ El componente \texttt{ChatArea} (~1000 líneas) coordina:
     \item \textbf{Indicador de carga:} Animación mientras el LLM procesa la petición.
 \end{itemize}
 
-% TO-DO: Insertar captura de pantalla del ChatArea
-% Descripción:
-% - Área de mensajes con burbujas alternadas (usuario/asistente)
-% - Mensaje del asistente con Markdown renderizado
-% - Bloque de código con syntax highlighting
-% - Input de texto en la parte inferior
-% - Indicador de streaming activo
-
 \subsubsection{MessageBubble: Renderizado de Mensajes}
 
 Cada mensaje se renderiza mediante \texttt{MessageBubble}, que gestiona:
@@ -1752,11 +1970,6 @@ Cuando el usuario edita un mensaje anterior, se crea una nueva rama en el árbol
     \item Al cambiar de rama, se actualiza \texttt{activeLeafId} en el backend y se recarga el thread correspondiente.
 \end{itemize}
 
-% TO-DO: Insertar captura de pantalla del indicador de ramas
-% Descripción:
-% - Mensaje con indicador "2/3" y flechas ◀ ▶
-% - Tooltip explicando "Rama 2 de 3"
-
 \subsection{Panel de Misiones}
 
 El panel de misiones proporciona visibilidad sobre el estado de las tareas autónomas del agente. Se muestra en el panel derecho cuando hay una misión activa.
@@ -1771,13 +1984,6 @@ El componente \texttt{MissionPanel} muestra:
     \item \textbf{Barra de progreso:} Porcentaje de objetivos completados.
     \item \textbf{Lista de objetivos:} Delegada al componente \texttt{ObjectivesList}.
 \end{itemize}
-
-% TO-DO: Insertar captura de pantalla del MissionPanel
-% Descripción:
-% - Header: "🎯 Misión Activa" con badge "IN_PROGRESS"
-% - Goal: "Realizar auditoría completa de DVWA"
-% - Progress bar: 40% completado
-% - Lista de objetivos con checkboxes/estados
 
 \subsubsection{ObjectivesList: Checklist de Tareas}
 
@@ -1800,14 +2006,6 @@ Cuando un comando requiere autorización humana, se muestra un diálogo modal co
     \item \textbf{Botones:} ``Aprobar'' (ejecuta el comando) y ``Rechazar'' (notifica al LLM que busque alternativa).
 \end{itemize}
 
-% TO-DO: Insertar captura de pantalla del ApprovalDialog
-% Descripción:
-% - Modal con título "⚠️ Comando requiere aprobación"
-% - Código: "hydra -l admin -P /usr/share/wordlists/rockyou.txt 10.10.0.3 http-post-form"
-% - Badge: "HIGH" en amarillo
-% - Razón: "Brute-force de credenciales"
-% - Botones: [Rechazar] [Aprobar]
-
 \subsection{Terminal Integrado}
 
 El panel de terminal permite al usuario ejecutar comandos directamente en el sandbox sin pasar por el LLM, útil para operaciones manuales o depuración.
@@ -1822,13 +2020,6 @@ El componente \texttt{TerminalPanel} implementa:
     \item \textbf{Ejecución asíncrona:} Los comandos se envían al sandbox y el output se muestra progresivamente.
     \item \textbf{Indicador de job activo:} Si hay un comando en background, se muestra su job\_id y un botón para detenerlo.
 \end{itemize}
-
-% TO-DO: Insertar captura de pantalla del TerminalPanel
-% Descripción:
-% - Fondo negro con texto verde/blanco
-% - Prompt: "root@kali:/workspace# "
-% - Output de un comando nmap
-% - Input para nuevo comando
 
 \subsubsection{Sincronización con el Chat}
 
@@ -1847,16 +2038,42 @@ Esta sección documenta los flujos end-to-end que atraviesan todos los component
 
 El caso de uso más básico ---enviar un mensaje y recibir una respuesta--- involucra la coordinación de frontend, backend y proveedor LLM.
 
-% TO-DO: Insertar diagrama de secuencia del flujo de chat
-% Participantes: Usuario, ChatArea, ChatStore, api.ts, Backend /chat, Provider API
-% Descripción:
-% 1. Usuario escribe mensaje y presiona Enter
-% 2. ChatArea → ChatStore.addMessage(user)
-% 3. ChatArea → api.sendMessageStream()
-% 4. api.ts → EventSource a /chat
-% 5. Backend → stream chunks al frontend
-% 6. ChatStore.appendToCurrentChunk() por cada token
-% 7. EventSource 'done' → ChatStore.finalizeMessage()
+\begin{figure}[H]
+    \centering
+    \resizebox{\textwidth}{!}{
+    \begin{sequencediagram}
+        \newthread{usr}{Usuario}
+        \newinst[1.5]{ca}{ChatArea}
+        \newinst[1.5]{cs}{ChatStore}
+        \newinst[1.5]{api}{api.ts}
+        \newinst[1.5]{be}{Backend /chat}
+        \newinst[1.5]{llm}{Provider API}
+
+        \begin{call}{usr}{Enter mensaje}{ca}{}
+            \begin{call}{ca}{addMessage(user)}{cs}{}
+            \end{call}
+            \begin{call}{ca}{sendMessageStream()}{api}{}
+                \begin{call}{api}{EventSource /chat}{be}{}
+                    \begin{call}{be}{create\_completion}{llm}{tokens}
+                    \end{call}
+                \end{call}
+            \end{call}
+            \begin{sdblock}{Loop}{Por cada token}
+                \begin{messcall}{api}{event:message}{ca}
+                \end{messcall}
+                \begin{call}{ca}{appendToCurrentChunk()}{cs}{}
+                \end{call}
+            \end{sdblock}
+            \begin{messcall}{api}{event:done}{ca}
+            \end{messcall}
+            \begin{call}{ca}{finalizeMessage()}{cs}{}
+            \end{call}
+        \end{call}
+    \end{sequencediagram}
+    }
+    \caption{Secuencia del flujo de chat simple.}
+    \label{fig:chat_flow}
+\end{figure}
 
 \subsubsection{Secuencia Detallada}
 
@@ -1913,9 +2130,42 @@ function parseErrorMessage(error: string): string {
 
 Cuando el LLM decide ejecutar un comando en el sandbox, se activa un flujo más complejo que involucra análisis de seguridad y comunicación con el contenedor Docker.
 
-% TO-DO: Insertar diagrama de secuencia del flujo de comando
-% Participantes: LLM, Backend /chat, analyze_command(), KaliSandbox /execute, JobMonitor
-% Decisiones: ¿requiere autorización? ¿timeout?
+\begin{figure}[H]
+    \centering
+    \resizebox{\textwidth}{!}{
+    \begin{sequencediagram}
+        \newthread{llm}{LLM}
+        \newinst[4]{be}{Backend /chat}
+        \newinst[2]{sec}{analyze\_command()}
+        \newinst[2]{sb}{KaliSandbox}
+        \newinst[0.8]{mon}{JobMonitor}
+
+        \begin{call}{llm}{tool\_call: execute\_command}{be}{tool\_result}
+            \begin{call}{be}{analyze(cmd)}{sec}{risk\_level}
+            \end{call}
+
+            \begin{sdblock}{Alt}{[risk < HIGH]}
+                \begin{call}{be}{POST /execute}{sb}{output}
+                \end{call}
+            \end{sdblock}
+
+            \begin{sdblock}{Alt}{[risk >= HIGH]}
+                \begin{messcall}{be}{AWAITING\_AUTH}{llm}
+                \end{messcall}
+            \end{sdblock}
+
+            \begin{sdblock}{Opt}{[background=true]}
+                \begin{call}{be}{POST /execute (bg)}{sb}{job\_id}
+                \end{call}
+                \begin{call}{be}{poll(job\_id)}{mon}{output}
+                \end{call}
+            \end{sdblock}
+        \end{call}
+    \end{sequencediagram}
+    }
+    \caption{Secuencia de ejecución de comando con análisis de seguridad.}
+    \label{fig:command_flow}
+\end{figure}
 
 \subsubsection{Secuencia Detallada}
 
@@ -1987,9 +2237,70 @@ Para comandos que exceden el timeout (ej: hydra, nikto), el flujo se bifurca:
 
 El modo agéntico representa el flujo más complejo del sistema, involucrando planificación, ejecución iterativa y supervisión humana.
 
-% TO-DO: Insertar diagrama de flujo completo de misión
-% Estados: PLANNING → IN_PROGRESS → (bucle de objetivos) → COMPLETED/FAILED
-% Incluir puntos de aprobación humana
+\begin{figure}[H]
+    \centering
+    \begin{adjustbox}{max width=\textwidth, max height=0.85\textheight, keepaspectratio}
+    \begin{tikzpicture}[
+        node distance=0.8cm,
+        font=\small\sffamily,
+        startstop/.style={rectangle, rounded corners, draw=black, fill=gray!20, minimum width=3.2cm, minimum height=0.7cm, text centered},
+        process/.style={rectangle, draw=black, fill=blue!10, minimum width=3.2cm, minimum height=0.7cm, text centered, text width=3cm},
+        decision/.style={diamond, draw=black, fill=yellow!15, minimum width=1cm, minimum height=0.5cm, text centered, font=\footnotesize\sffamily, inner sep=1pt, aspect=2.5},
+        state/.style={rectangle, rounded corners, draw=black, fill=orange!15, minimum width=3cm, minimum height=0.7cm, text centered, font=\small\bfseries\sffamily},
+        ok/.style={rectangle, rounded corners, draw=black!60!green, fill=green!15, minimum width=2.5cm, minimum height=0.7cm, text centered},
+        fail/.style={rectangle, rounded corners, draw=red, fill=red!10, minimum width=2.5cm, minimum height=0.7cm, text centered},
+        arrow/.style={thick, ->, >=Stealth}
+    ]
+    % --- NODOS ---
+    \node[startstop] (start) {Prompt del usuario};
+    \node[process, below=of start] (detect) {Detecci\'{o}n intenci\'{o}n ag\'{e}ntica};
+    \node[state, below=of detect] (planning) {PLANNING};
+    \node[process, below=of planning] (create) {create\_mission(goal, objectives)};
+    \node[state, below=of create] (exec) {EXECUTING};
+    
+    \node[decision, below=1.2cm of exec] (objq) {Objetivos pendientes?};
+    \node[process, right=3.5cm of objq] (inprog) {Objetivo -> IN PROGRESS};
+    
+    \node[decision, below=1.5cm of inprog] (authq) {Necesita aprobaci\'{o}n?};
+    \node[process, right=2cm of authq, yshift=-1cm] (await) {AWAITING\_AUTH};
+    \node[process, below=1.5cm of authq] (execobj) {Ejecutar comandos};
+    \node[process, below=of execobj] (complete) {Marcar COMPLETED o FAILED};
+    
+    \node[ok, below left=1.5cm and 0.2cm of objq] (done) {Misi\'{o}n COMPLETED};
+    \node[fail, below=3.5cm of done] (failed) {Misi\'{o}n FAILED};
+
+    % --- FLECHAS ---
+    \draw[arrow] (start) -- (detect);
+    \draw[arrow] (detect) -- (planning);
+    \draw[arrow] (planning) -- (create);
+    \draw[arrow] (create) -- (exec);
+    \draw[arrow] (exec) -- (objq);
+    
+    % Decision: Objetivos pendientes
+    \draw[arrow] (objq) -- node[above, pos=0.6] {S\'{i}} (inprog);
+    \draw[arrow] (objq) -- node[left, xshift=-0.1cm, yshift=0.2cm] {No} (done);
+    
+    \draw[arrow] (inprog) -- (authq);
+    
+    % Decision: Necesita aprobación
+    \draw[arrow] (authq) -| node[above, pos=0.25] {S\'{i}} (await);
+    \draw[arrow] (authq) -- node[left, yshift=0.2cm] {No} (execobj);
+    
+    \draw[arrow] (await.south) |- (execobj.east);
+    \draw[arrow] (execobj) -- (complete);
+    
+    % RETORNO AL BUCLE (Corregido para que apunte al vértice inferior)
+    \draw[arrow] (complete.west) -| (objq.south);
+    
+    % FLECHA FALLO (Roja, corregida para entrar por el medio-abajo)
+    % Bajamos desde complete, vamos a la izquierda y subimos a failed.south
+    \draw[arrow, dashed, red] (complete.south) -- ++(0,-1.2) -| (failed.south);
+
+    \end{tikzpicture}
+    \end{adjustbox}
+    \caption{Flujo completo de una misión autónoma.}
+    \label{fig:mission_flow}
+\end{figure}
 
 \subsubsection{Fase 1: Detección e Inicialización}
 
@@ -2114,119 +2425,97 @@ Cuando un comando de alto riesgo necesita ejecutarse:
 
 
 % ----------------------------------------------------------------------------
-% 5.7 DESPLIEGUE Y CONFIGURACIÓN
+% 5.7 INTERFAZ DE USUARIO: TOUR VISUAL
 % ----------------------------------------------------------------------------
-\section{Despliegue y Configuración}
-\label{sec:despliegue}
+\section{Interfaz de Usuario: Tour Visual}
+\label{sec:tour_visual}
 
-Esta sección documenta los requisitos, procedimientos y configuraciones necesarias para desplegar el sistema en un entorno de producción o desarrollo.
+A lo largo de las secciones anteriores se han descrito en detalle los componentes internos del sistema. Para cerrar el capítulo de implementación, esta sección presenta la interfaz de usuario final tal como la experimenta el operador, proporcionando una visión integrada de todos los elementos descritos.
 
-\subsection{Requisitos del Sistema}
+\subsection{Vista General}
 
-\subsubsection{Software Necesario}
+La interfaz se organiza en tres paneles redimensionables que el usuario puede adaptar a su flujo de trabajo. La distribución por defecto asigna el panel izquierdo al historial de conversaciones, el panel central al área de chat y el panel derecho al contexto operativo (misiones o terminal).
 
-\begin{itemize}
-    \item \textbf{Docker:} Versión 24.0+ con Docker Compose v2.
-    \item \textbf{Node.js:} Versión 20+ (solo si se ejecuta el frontend fuera de Docker).
-    \item \textbf{Python:} Versión 3.11+ (solo si se ejecuta el backend fuera de Docker).
-    \item \textbf{Git:} Para clonación del repositorio.
-\end{itemize}
 
-\subsection{Proceso de Despliegue}
 
-\subsubsection{Despliegue con Docker Compose (Recomendado)}
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=0.88\textwidth]{pictures/Examples/1-Interfaz.jpeg}}
+    \caption{Interfaz de usuario}
+    \label{fig:ui_overview}
+\end{figure}
 
-El método más sencillo utiliza Docker Compose para orquestar todos los servicios:
-% TO-DO: Actualizar link con el nombre real del repositorio y en general toda la instalación
-\begin{minted}[linenos=false]{bash}
-# 1. Clonar el repositorio
-git clone https://github.com/usuario/cerebro-security.git
-cd cerebro-security
+\subsection{Área de Chat}
 
-# 2. Configurar variables de entorno
-cp .env.example .env
-# Editar .env con API keys y configuración
+El panel central constituye el espacio principal de interacción. Los mensajes del usuario y del asistente se muestran en burbujas diferenciadas, con soporte completo para Markdown, bloques de código con \textit{syntax highlighting} y visualización de tool calls con sus resultados.
 
-# 3. Construir y arrancar todos los servicios
-docker-compose up --build -d
 
-# 4. Verificar que todos los contenedores están corriendo
-docker-compose ps
-\end{minted}
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=0.88\textwidth]{pictures/Examples/chatTalk.jpeg}}
+    \caption{Área de chat con mensajes renderizados y input de texto.}
+    \label{fig:chat_area}
+\end{figure}
 
-\subsubsection{Scripts de Arranque y Parada}
+\subsection{Navegación de Ramas}
 
-El proyecto incluye scripts auxiliares para simplificar la operación:
+Cuando el usuario edita un mensaje anterior, el sistema crea una nueva rama en el árbol de conversación sin destruir el historial previo. El indicador de ramas permite navegar entre las distintas bifurcaciones.
 
-\begin{itemize}
-    \item \textbf{\texttt{start.sh}:} Arranca todos los servicios en orden, verificando dependencias.
-    \item \textbf{\texttt{stop.sh}:} Detiene todos los servicios gracefully, preservando datos.
-\end{itemize}
 
-% TO-DO: Insertar diagrama de puertos y servicios
-% Descripción:
-% - Frontend: localhost:3000
-% - Backend: localhost:4000
-% - KaliSandbox: localhost:5000 (interno)
-% - DVWA: localhost:8080 (target de prueba)
 
-\subsubsection{Puertos y Servicios}
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=0.88\textwidth]{pictures/Examples/threadActive.jpeg}}
+    \caption{Indicador de ramas en un mensaje con múltiples bifurcaciones.}
+    \label{fig:branch_indicator}
+\end{figure}
 
-\begin{table}[H]
-\centering
-\renewcommand{\arraystretch}{1.2}
-\begin{tabular}{|l|l|l|p{4.5cm}|}
-\hline
-\rowcolor[gray]{0.85}
-\textbf{Servicio} & \textbf{Puerto} & \textbf{Acceso} & \textbf{Descripción} \\
-\hline
-Frontend & 3000 & Público & Interfaz web del usuario \\
-\hline
-Backend & 4000 & Público & API REST y SSE \\
-\hline
-KaliSandbox & 5000 & Interno & API de ejecución de comandos \\
-\hline
-\end{tabular}
-\caption{Mapeo de puertos de los servicios.}
-\label{tab:puertos_servicios}
-\end{table}
+\subsection{Panel de Misiones}
 
-\subsection{Configuración de API Keys}
+Durante la ejecución de una misión autónoma, el panel derecho muestra el progreso del agente en tiempo real: objetivo global, barra de progreso, lista de objetivos con sus estados y resúmenes de resultados parciales.
 
-Las API keys de los proveedores LLM pueden configurarse de dos formas:
 
-\subsubsection{Opción 1: Variables de Entorno}
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=0.28\textwidth]{pictures/Examples/mission.jpeg}}
+    \caption{Panel de misiones mostrando el progreso del agente.}
+    \label{fig:mission_panel}
+\end{figure}
 
-\begin{minted}[linenos=false]{bash}
-# En archivo .env
-OPENAI_API_KEY=sk-proj-xxxxx
-GOOGLE_API_KEY=AIzaSyxxxxx
-ANTHROPIC_API_KEY=sk-ant-xxxxx
-OPENROUTER_API_KEY=sk-or-xxxxx
-\end{minted}
+\subsection{Diálogo de Aprobación}
 
-\subsubsection{Opción 2: Interfaz de Usuario}
+Cuando el agente solicita ejecutar un comando de alto riesgo, se presenta al usuario un diálogo modal que muestra el comando, su nivel de riesgo y la justificación del análisis de seguridad, permitiéndole aprobar o rechazar la acción.
 
-El frontend permite configurar las API keys desde la interfaz:
 
-\begin{enumerate}
-    \item Hacer clic en el icono de configuración (engranaje) en la barra lateral.
-    \item Seleccionar el proveedor deseado.
-    \item Introducir la API key en el campo correspondiente.
-    \item Las keys se almacenan en \texttt{localStorage} del navegador.
-\end{enumerate}
 
-\textbf{Nota de seguridad:} Las API keys configuradas en el frontend se envían al backend en cada petición. Es importante asegurar que el backend esté protegido y no expuesto públicamente.
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=0.68\textwidth]{pictures/Examples/approval.jpeg}}
+    \caption{Diálogo de aprobación para comandos de alto riesgo.}
+    \label{fig:approval_dialog}
+\end{figure}
 
-\subsection{Configuración de Seguridad}
+\subsection{Configuración}
+El menú de configuración, accesible desde el icono de engranaje en la esquina superior derecha, permite al usuario gestionar sus API keys, seleccionar ajustes internos de LLM, personalizar el system prompt y cambiar el tema de la interfaz.
 
-\subsubsection{Aislamiento de Red}
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=0.30\textwidth]{pictures/Examples/config.jpeg}}
+    \hfill
+    \fbox{\includegraphics[width=0.30\textwidth]{pictures/Examples/config2.jpeg}}
+    \hfill
+    \fbox{\includegraphics[width=0.30\textwidth]{pictures/Examples/config3.jpeg}}
+    \caption{Pestañas del menú de configuración.}
+    \label{fig:config_menu}
+\end{figure}
 
-El sandbox Kali se ejecuta en una red Docker aislada. Por defecto, solo puede comunicarse con:
+\subsection{Selector de Modelos}
 
-\begin{itemize}
-    \item El backend LLM (para recibir comandos).
-    \item Los targets definidos en la red \texttt{pentest-net} (DVWA, Metasploitable, etc.).
-\end{itemize}
+El selector de modelos presenta los proveedores disponibles con sus puntuaciones ELO del leaderboard de LMArena, facilitando al usuario la elección del modelo más adecuado para cada tarea.
 
-En caso de querer permitir acceso externo al sandbox, se puede alterar la configuración de red en el archivo \texttt{docker-compose.yml}, esto no es recomendado por razones de seguridad pero dota al Agente de mayor flexibilidad permitiendole instalar herramientas adicionales o descargar ficheros desde Internet.
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=0.88\textwidth]{pictures/Examples/selector.jpeg}}
+    \caption{Selector de modelos con puntuaciones ELO.}
+    \label{fig:model_selector}
+\end{figure}

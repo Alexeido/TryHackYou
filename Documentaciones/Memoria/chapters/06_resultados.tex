@@ -24,7 +24,6 @@ Las pruebas se han ejecutado en tres configuraciones de cómputo diferenciadas, 
 \textbf{Nivel} & \textbf{Hardware} & \textbf{Modelos Evaluados} & \textbf{Características} \\
 \hline
 \textbf{Local (Doméstico)} & 
-% TO-DO: Especificar el hardware del computaex xd (GPU, RAM, CPU)
 GPU RTX 3050, 16GB RAM, Ryzen 5-5600H & 
 llama3.2:3b
 qwen3:4b
@@ -32,7 +31,7 @@ granite4:3b &
 Latencia variable, coste cero, privacidad total \\
 \hline
 \textbf{HPC (COMPUTAEX)} & 
-2x NVIDIA RTX A4500 (20GB VRAM c/u), 128GB RAM & 
+2x NVIDIA RTX A4500 (20GB VRAM c/u), 252GB RAM, Intel Xeon E5-2667 & 
 Qwen 3-Coder 30B, gpt-oss 20b, nemotron 3 nano 30b & 
 Modelos completos con mínima cuantización, privacidad garantizada \\
 \hline
@@ -46,9 +45,6 @@ Mínima latencia, coste por token, datos en servidores externos \\
 \end{table}
 
 \subsection{Modelos Evaluados}
-
-% TO-DO: Ajustar esta tabla con los modelos EXACTOS que vayas a probar
-% Para cada modelo necesitas documentar: nombre exacto, versión, tamaño, si soporta tool calling
 
 \begin{table}[H]
 \centering
@@ -169,9 +165,14 @@ granite4:3b & 0 & 88\% & 7 min & 2 & No & 79K \\
 \label{tab:resultados_dvwa}
 \end{table}
 
-% TO-DO: Imagen - Captura de pantalla mostrando una auditoría exitosa contra DVWA
-% Debe mostrar: el chat con el agente identificando una vulnerabilidad SQLi,
-% el terminal ejecutando sqlmap, y el panel de misión con objetivos completados
+
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=0.88\textwidth]{pictures/dvwa.jpeg}}
+    \caption{Agente reportando vulnerabilidades críticas en DVWA.}
+    \label{fig:ui_dvwa}
+\end{figure}
+
 
 \subsubsection{Análisis Cualitativo}
 
@@ -217,8 +218,14 @@ granite4:3b & -- & -- & No & No & 9 min & 37K \\
 \label{tab:resultados_metasploitable}
 \end{table}
 
-% TO-DO: Imagen - Captura mostrando enumeración de servicios con nmap
-% y posterior explotación de un servicio vulnerable
+
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=0.88\textwidth]{pictures/metasploit.jpeg}}
+    \caption{Agente reportando vulnerabilidades críticas en Metasploitable2.}
+    \label{fig:ui_metasploit}
+\end{figure}
+
 
 \subsubsection{Análisis Cualitativo}
 
@@ -264,8 +271,15 @@ granite4:3b & -- & No & No & 8 min & 37K \\
 \label{tab:resultados_juiceshop}
 \end{table}
 
-% TO-DO: Imagen - Captura mostrando el agente resolviendo un challenge de Juice Shop
-% Idealmente mostrando bypass de autenticación o extracción de datos
+
+
+\begin{figure}[H]
+    \centering
+    \fbox{\includegraphics[width=0.88\textwidth]{pictures/juice.jpeg}}
+    \caption{Agente reportando vulnerabilidades críticas en Juice Shop.}
+    \label{fig:ui_juice}
+\end{figure}
+
 
 \subsubsection{Análisis Cualitativo}
 

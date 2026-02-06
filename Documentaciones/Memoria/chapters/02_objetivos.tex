@@ -10,18 +10,18 @@ El propósito central de este proyecto es diseñar, implementar y evaluar un eco
 \section{Objetivos específicos}
 \label{sec:objetivos_especificos}
 
-Para alcanzar la meta principal, me he propuesto cumplir los siguientes hitos:
+Para alcanzar la meta principal, se han establecido los siguientes hitos:
 
 \begin{itemize}
     \item \textbf{Desarrollar una arquitectura de ejecución aislada y persistente:} Establecer un entorno de ejecución basado en virtualización que garantice la independencia total respecto al sistema anfitrión. El objetivo es proporcionar al agente un espacio donde pueda interactuar con redes y sistemas vulnerables sin comprometer la integridad de la infraestructura de origen, permitiendo además la gestión multisesión mediante sistemas de control de versiones para cada auditoría.
     
     \item \textbf{Implementar un motor de razonamiento y toma de decisiones agéntico:} Diseñar un sistema que no solo envíe instrucciones a un modelo, sino que gestione el ciclo de vida completo de un agente autónomo. Esto implica que el sistema sea capaz de trazar planes de misión dinámicos, interpretar la salida de las herramientas en tiempo real y pivotar su estrategia en función de los hallazgos encontrados, emulando el proceso de pensamiento de un auditor humano.
     
-    \item \textbf{Establecer un sistema de evaluación y selección de modelos:} Crear un marco comparativo que permita analizar el desempeño de diferentes motores lingüísticos frente a retos de seguridad. Mi intención es dotar al sistema de una capacidad de \textit{ranking} que identifique qué modelos son más aptos para tareas de \textit{scripting}, análisis de vulnerabilidades o redacción de informes, asegurando que la herramienta sea evolutiva y adaptable a nuevos modelos que surjan en el futuro.
+    \item \textbf{Establecer un sistema de evaluación y selección de modelos:} Crear un marco comparativo que permita analizar el desempeño de diferentes motores lingüísticos frente a retos de seguridad. El objetivo es dotar al sistema de una capacidad de \textit{ranking} que identifique qué modelos son más aptos para tareas de \textit{scripting}, análisis de vulnerabilidades o redacción de informes, asegurando que la herramienta sea evolutiva y adaptable a nuevos modelos que surjan en el futuro.
     
     \item \textbf{Diseñar una interfaz de control y supervisión humana (Human-in-the-loop):} Desarrollar un panel de control avanzado que permita visualizar en todo momento el ``hilo de pensamiento'' del agente. Este objetivo busca equilibrar la autonomía con el control de seguridad, implementando un sistema de gestión de permisos donde el usuario pueda auditar y autorizar los comandos de mayor riesgo antes de su ejecución.
     
-    \item \textbf{Analizar la viabilidad y rendimiento según la estructura de cómputo} Investigar el desempeño del agente en diferentes niveles de potencia. Mi objetivo es medir la eficiencia del sistema en tres escenarios: hardware doméstico limitado, infraestructura empresarial de alto rendimiento, utilizando para ello el acceso cedido a un nodo del centro \textbf{COMPUTAEX} equipado con dos GPUs \textbf{NVIDIA RTX A4500 (20GB VRAM c/u)} y servicios masivos en la nube mediante API. Esto me permitirá comparar métricas de latencia, coste operativo y precisión de los modelos según el entorno.
+    \item \textbf{Analizar la viabilidad y rendimiento según la estructura de cómputo} Investigar el desempeño del agente en diferentes niveles de potencia. El objetivo es medir la eficiencia del sistema en tres escenarios: hardware doméstico limitado, infraestructura empresarial de alto rendimiento, utilizando para ello el acceso cedido a un nodo del centro \textbf{COMPUTAEX} equipado con dos GPUs \textbf{NVIDIA RTX A4500 (20GB VRAM c/u)} y servicios masivos en la nube mediante API. Esto permitirá comparar métricas de latencia, coste operativo y precisión de los modelos según el entorno.
     
     \item \textbf{Validar el sistema en entornos de vulnerabilidad controlados:} Someter al agente a una batería de pruebas en laboratorios de seguridad representativos de escenarios reales. El objetivo es medir la eficacia del sistema detectando fallos de configuración, inyecciones de código y escaladas de privilegios en sistemas estándar, documentando su tasa de éxito y sus limitaciones.
     
@@ -31,14 +31,14 @@ Para alcanzar la meta principal, me he propuesto cumplir los siguientes hitos:
 \section{Alcance del proyecto}
 \label{sec:alcance}
 
-El alcance de este trabajo abarca el desarrollo integral de la plataforma de auditoría y su validación técnica. Para acotar el proyecto de manera realista, he definido las siguientes fronteras:
+El alcance de este trabajo abarca el desarrollo integral de la plataforma de auditoría y su validación técnica. Para acotar el proyecto de manera realista, se han definido las siguientes fronteras:
 
 \begin{itemize}
     \item \textbf{Foco en redes internas y aplicaciones web:} El proyecto se centrará principalmente en la detección de vulnerabilidades en servicios de red y entornos web, utilizando para ello el arsenal de herramientas estándar de la industria (reconocimiento, \textit{fuzzing}, escaneo de puertos, etc.).
     
     \item \textbf{Versatilidad de infraestructura} El proyecto abarca desde la ejecución en local (modelos pequeños/cuantizados) hasta el despliegue en entornos de supercomputación y APIs comerciales. El alcance técnico incluye la optimización de los modelos para aprovechar la aceleración gráfica doméstica, la profesional y la comparativa con el rendimiento en la nube.
     
-    \item \textbf{Integración de herramientas existentes:} Mi labor no consiste en desarrollar nuevas herramientas de auditoría, sino en lograr la integración inteligente de las utilidades de referencia (como el \textit{toolkit} de Kali Linux) dentro del flujo agéntico.
+    \item \textbf{Integración de herramientas existentes:} El trabajo no consiste en desarrollar nuevas herramientas de auditoría, sino en lograr la integración inteligente de las utilidades de referencia (como el \textit{toolkit} de Kali Linux) dentro del flujo agéntico.
     
     \item \textbf{Aislamiento y Seguridad:} La ejecución de las pruebas quedará restringida a redes internas diseñadas para tal fin dentro de un entorno de \textit{sandboxing}. El acceso a internet por parte del agente será opcional y estará estrictamente controlado para evitar acciones no deseadas fuera del laboratorio.
     

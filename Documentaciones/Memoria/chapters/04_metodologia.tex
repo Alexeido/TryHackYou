@@ -15,7 +15,7 @@ Para este Trabajo de Fin de Grado se ha optado por un marco de trabajo ágil bas
 
 La elección de Scrum se justifica por la necesidad de realizar entregas funcionales e incrementales, este enfoque es ideal para el desarrollo de un trabajo de fin de grado donde en cada reunión con el tutor se pueden revisar los avances y ajustar el rumbo según los hallazgos técnicos.
 
-Dado que se trata de un proyecto individual, se ha realizado una adaptación de los roles tradicionales, donde yo, el autor del proyecto, asumo prácticamente todos los roles. Esto implica que soy responsable tanto de la definición de los requisitos y la priorización del backlog, como de la ejecución técnica y la autoorganización del trabajo.
+Dado que se trata de un proyecto individual, se ha realizado una adaptación de los roles tradicionales, donde el autor del proyecto asume prácticamente todos los roles. Esto implica responsabilidad tanto de la definición de los requisitos y la priorización del backlog, como de la ejecución técnica y la autoorganización del trabajo.
 
 Para la gestión operativa, se ha hecho uso de la herramienta \textbf{GitHub Projects}, permitiendo un seguimiento detallado de más de cien subtareas mediante un tablero \textit{Kanban}. Esto ha facilitado la trazabilidad del proyecto y ha permitido que las tutorías actúen como \textit{Sprint Reviews} externas.
 
@@ -149,7 +149,8 @@ El ciclo inicial se centró en la cimentación teórica y logística. Se realiz�
 
 Este sprint transformó los requisitos de aislamiento en una infraestructura real. Se construyó una imagen Docker personalizada basada en \texttt{kali-rolling}, equipada con un arsenal completo de herramientas de auditoría (reconocimiento, escaneo, explotación y análisis de aplicaciones web). El hito técnico principal fue el desarrollo de una API REST mediante \textbf{Flask} dentro del contenedor, permitiendo la ejecución asíncrona de comandos y la gestión de procesos en segundo plano.
 
-La fase concluyó con la orquestación de una red \textit{bridge} aislada que interconectaba al agente con tres entornos víctimas (\textit{DVWA, Metasploitable2 y Juice Shop}). Se implementaron los primeros mecanismos de compresión de salida de terminal (busqueda de patrones repetitivos) para optimizar el consumo de \textit{tokens} y se validó la conectividad mediante pruebas de escaneo básico, garantizando que el agente tuviera un ``cuerpo'' operativo sobre el que ejecutar sus decisiones.
+La fase concluyó con la orquestación de una red \textit{bridge} aislada que interconectaba al agente con tres entornos víctimas (\textit{DVWA, Metasploitable2 y Juice Shop}). % TO-DO: Citar repositorios oficiales o documentación: DVWA (Damn Vulnerable Web App), Metasploitable2 (Rapid7), OWASP Juice Shop
+Se implementaron los primeros mecanismos de compresión de salida de terminal (busqueda de patrones repetitivos) para optimizar el consumo de \textit{tokens} y se validó la conectividad mediante pruebas de escaneo básico, garantizando que el agente tuviera un ``cuerpo'' operativo sobre el que ejecutar sus decisiones.
 
 \subsection*{Sprint 3: Integración del LLM y Abstracción del ``Cerebro''}
 
@@ -336,9 +337,9 @@ La validación de un agente autónomo de ciberseguridad requiere un marco de eva
 Para garantizar la reproducibilidad y seguridad de las evaluaciones, se han seleccionado tres entornos de vulnerabilidad reconocidos en la industria:
 
 \begin{itemize}
-    \item \textbf{DVWA (Damn Vulnerable Web Application):} Aplicación web que incorpora vulnerabilidades comunes del OWASP Top 10, incluyendo inyección SQL, XSS y escalada de privilegios.
-    \item \textbf{Metasploitable2:} Sistema Linux intencionalmente vulnerable que incluye servicios de red desactualizados, configuraciones débiles y múltiples vectores de acceso.
-    \item \textbf{OWASP Juice Shop:} Aplicación de comercio electrónico moderna que presenta vulnerabilidades web contemporáneas en un entorno realista.
+    \item \textbf{DVWA (Damn Vulnerable Web Application):} Aplicación web que incorpora vulnerabilidades comunes del OWASP Top 10, incluyendo inyección SQL, XSS y escalada de privilegios. % TO-DO: Citar repositorio oficial de DVWA y documentación OWASP Top 10
+    \item \textbf{Metasploitable2:} Sistema Linux intencionalmente vulnerable que incluye servicios de red desactualizados, configuraciones débiles y múltiples vectores de acceso. % TO-DO: Citar documentación oficial de Metasploitable2 (Rapid7)
+    \item \textbf{OWASP Juice Shop:} Aplicación de comercio electrónico moderna que presenta vulnerabilidades web contemporáneas en un entorno realista. % TO-DO: Citar repositorio oficial de OWASP Juice Shop
 \end{itemize}
 
 Cada entorno opera dentro de la red aislada Docker, eliminando cualquier riesgo para la infraestructura anfitrión.
@@ -381,9 +382,9 @@ Se evaluarán las siguientes configuraciones:
 
 \subsubsection{Fase 3: Evaluación de Robustez}
 \begin{itemize}
-    \item \textbf{Pruebas de Estrés:} Ejecución de 10+ jobs simultáneos en segundo plano
+    \item \textbf{Pruebas de Estrés:} Ejecución de trabajos simultáneos en segundo plano
     \item \textbf{Gestión de Fallos:} Inyección de errores en comandos para evaluar capacidad de recuperación
-    \item \textbf{Gestión del Contexto:} Validación del comportamiento ante conversaciones largas (>32K tokens)
+    \item \textbf{Gestión del Contexto:} Validación del comportamiento ante conversaciones largas
 \end{itemize}
 
 \subsubsection{Metodología de Análisis de Resultados}
