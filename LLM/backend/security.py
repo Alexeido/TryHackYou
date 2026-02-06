@@ -19,7 +19,7 @@ from enum import Enum
 # =============================================================================
 # Cambiar a False para desactivar TODAS las solicitudes de aprobación
 # Útil para pruebas de autonomía completa del agente
-REQUIRE_APPROVAL_ENABLED = False  # ← CAMBIAR AQUÍ PARA ACTIVAR/DESACTIVAR
+REQUIRE_APPROVAL_ENABLED = True  # ← CAMBIAR AQUÍ PARA ACTIVAR/DESACTIVAR
 # =============================================================================
 
 
