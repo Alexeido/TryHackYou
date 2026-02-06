@@ -1,5 +1,133 @@
 \chapter{\conclusionsname}
 
-Las conclusiones deben responder principalmente al alcance y los objetivos marcados al inicio del proyecto. Del mismo modo, también resumirán las limitaciones encontradas durante su ejecución.
+Este capítulo cierra el ciclo del proyecto, evaluando el grado de cumplimiento de los objetivos planteados inicialmente y reflexionando sobre las lecciones aprendidas durante el desarrollo. A partir de los resultados obtenidos en las pruebas de validación, se identifican tanto los logros alcanzados como las limitaciones que abren camino a futuras líneas de investigación.
 
-Esta línea únicamente incluye referencias de ejemplo: \cite{texbook}, \cite{latex:companion}, \cite{latex2e}, \cite{knuth:1984}, \cite{web:lang:stats} o \cite{lesk:1977}
+El código fuente del proyecto, junto con la documentación técnica y los ficheros de configuración necesarios para su despliegue, se encuentra disponible públicamente en el repositorio de GitHub:
+
+\begin{center}
+\url{https://github.com/Alexeido/TryHackYou}
+\end{center}
+
+% ============================================================================
+% 7.1 CUMPLIMIENTO DE OBJETIVOS
+% ============================================================================
+
+\section{Cumplimiento de Objetivos}
+\label{sec:cumplimiento_objetivos}
+
+Al iniciar este proyecto, se plantearon siete objetivos específicos que debían guiar el desarrollo del sistema agéntico de ciberseguridad. Tras meses de implementación, pruebas y validación experimental, es momento de realizar un balance honesto sobre lo conseguido.
+
+La mayor parte de los objetivos han sido alcanzados satisfactoriamente. Se ha logrado construir una arquitectura de microservicios completamente funcional, con aislamiento de seguridad efectivo y capacidades de persistencia mediante control de versiones. El motor de razonamiento agéntico opera según lo esperado cuando dispone de modelos con suficiente capacidad, y el sistema de evaluación comparativa ha permitido identificar con precisión qué configuraciones resultan más efectivas para cada escenario. La interfaz de supervisión humana está operativa y ha demostrado su utilidad, aunque con margen de mejora que se detallará más adelante.
+
+Sin embargo, no todo lo planificado pudo completarse dentro del marco temporal del proyecto. El análisis de seguridad adversaria, concebido inicialmente como un objetivo central, tuvo que posponerse debido a que la optimización del sistema y la gestión eficiente del contexto en modelos locales demandaron más recursos de los previstos. Esta decisión refleja una lección valiosa: en proyectos de investigación aplicada, la priorización es inevitable cuando surgen desafíos técnicos no anticipados.
+
+Observando con mayor detalle los puntos planteados en el Capítulo~\ref{sec:objetivos}, el grado de consecución específico es el siguiente:
+
+\subsection{Arquitectura de Ejecución Aislada y Persistente}
+
+\textbf{Estado: Cumplido.}
+
+Se ha desarrollado una arquitectura basada en contenedores Docker que proporciona aislamiento total respecto al sistema anfitrión. El componente KaliSandbox, implementado sobre una imagen de Kali Linux, permite al agente interactuar con herramientas de pentesting sin comprometer la infraestructura de origen. La integración de Git como sistema de control de versiones para cada auditoría posibilita la gestión multisesión, permitiendo navegar entre ramas del árbol de conversación y restaurar estados anteriores del sistema de archivos. La red Docker aislada con tres máquinas víctimas preconfiguradas (DVWA, Metasploitable2 y Juice Shop) ha demostrado ser un entorno robusto para las pruebas de validación.
+
+\subsection{Motor de Razonamiento y Toma de Decisiones Agéntico}
+
+\textbf{Estado: Cumplido.}
+
+El backend FastAPI implementa un orquestador completo que gestiona el ciclo de vida del agente autónomo. El sistema es capaz de trazar planes de misión dinámicos mediante el panel de objetivos, interpretar la salida de las herramientas en tiempo real y adaptar su estrategia según los hallazgos. Los resultados de las auditorías confirman esta capacidad: los modelos cloud completaron el 100\% de los escenarios, demostrando comportamiento agéntico coherente. Incluso en el nivel HPC, \texttt{gpt-oss 20b} logró completar auditorías complejas en Metasploitable2, incluyendo obtención de shell y escalada de privilegios, evidenciando que el motor de razonamiento es funcional cuando el modelo subyacente posee suficiente capacidad.
+
+\subsection{Sistema de Evaluación y Selección de Modelos}
+
+\textbf{Estado: Cumplido.}
+
+Se ha implementado un marco comparativo exhaustivo que ha permitido evaluar 8 modelos diferentes en tres niveles de infraestructura. El sistema de ranking basado en métricas ponderadas (eficacia, velocidad, coste y autonomía) proporciona una puntuación objetiva que identifica los modelos más aptos para cada escenario. La arquitectura agnóstica del backend, compatible con la especificación OpenAI, garantiza que el sistema sea evolutivo y adaptable a nuevos modelos. Durante el proyecto se han integrado proveedores tan diversos como Google (Gemini), DeepSeek, OpenAI y modelos locales via Ollama, validando la flexibilidad del diseño.
+
+\subsection{Interfaz de Control y Supervisión Humana}
+
+\textbf{Estado: Cumplido con matices.}
+
+El frontend Next.js proporciona un panel de control completo que permite visualizar el hilo de pensamiento del agente, auditar comandos propuestos y autorizar aquellos de mayor riesgo antes de su ejecución. El sistema de clasificación por niveles de riesgo (SAFE, LOW, MEDIUM, HIGH, CRITICAL) ha demostrado una precisión del 92.8\% en las 14 auditorías ejecutadas. Sin embargo, el análisis de falsos positivos y negativos revela margen de mejora: se identificaron 5 falsos negativos críticos (0.78\%) donde comandos peligrosos evadieron la detección, principalmente debido a limitaciones del enfoque basado en expresiones regulares frente a sintaxis multilínea y contextos escapados.
+
+\subsection{Análisis de Viabilidad según Estructura de Cómputo}
+
+\textbf{Estado: Cumplido.}
+
+Se ha investigado el rendimiento del agente en los tres escenarios previstos: hardware doméstico (RTX 3050), infraestructura HPC (2x RTX A4500 en COMPUTAEX) y APIs comerciales en la nube. Los resultados son concluyentes: los modelos cloud alcanzan una eficacia del 100\% con autonomía superior al 94\%, mientras que los modelos locales cuantizados (<7B parámetros) presentan nulidad operativa debido a limitaciones de contexto. El nivel HPC muestra resultados intermedios, con \texttt{gpt-oss 20b} alcanzando un 36.6\% de eficacia global. La correlación entre tamaño del modelo, capacidad contextual y rendimiento agéntico queda claramente establecida, situando el umbral mínimo viable por encima de los 20B de parámetros para ejecución local.
+
+\subsection{Validación en Entornos de Vulnerabilidad Controlados}
+
+\textbf{Estado: Cumplido.}
+
+El sistema ha sido sometido a una batería de pruebas contra tres entornos representativos: DVWA (vulnerabilidades web clásicas), Metasploitable2 (servicios de red heredados) y OWASP Juice Shop (arquitectura SPA moderna). Se han ejecutado 14 auditorías completas con un total de 642 comandos monitorizados. Los resultados documentan tanto la tasa de éxito (identificación de vulnerabilidades, obtención de shells, exfiltración de datos) como las limitaciones específicas de cada nivel de infraestructura. La capacidad del sistema para detectar inyecciones SQL, explotar servicios desactualizados y realizar bypass de autenticación ha quedado validada para los modelos de mayor capacidad.
+
+\subsection{Análisis de Seguridad Adversaria}
+
+\textbf{Estado: No completado.}
+
+Este objetivo, orientado a estudiar vectores de ataque como \textit{prompt injection} o la ejecución inadvertida de comandos maliciosos durante el reconocimiento, no ha podido abordarse en el alcance temporal del proyecto. La mayor parte del tiempo de pruebas se ha dedicado a la optimización del sistema y al aprovechamiento eficiente del contexto limitado de los modelos, aspectos que resultaron más críticos de lo inicialmente previsto. La gestión del contexto en modelos locales, la implementación de estrategias de resumen dinámico y la resolución de problemas de degradación progresiva consumieron recursos que estaban originalmente asignados al análisis adversario. Esta línea queda pendiente como trabajo futuro prioritario.
+
+% ============================================================================
+% 7.2 REFLEXIONES Y LECCIONES APRENDIDAS
+% ============================================================================
+
+\section{Reflexiones y Lecciones Aprendidas}
+\label{sec:reflexiones}
+
+El desarrollo de este proyecto ha evidenciado la brecha existente entre las capacidades teóricas de los modelos de lenguaje y su aplicabilidad práctica en dominios técnicos especializados. Mientras que los modelos comerciales de última generación demuestran un comportamiento agéntico sorprendentemente competente, los modelos de menor escala colapsan ante la complejidad inherente a una auditoría de seguridad real.
+
+La gestión del contexto ha resultado ser el factor limitante principal. Los modelos locales, incluso aquellos con 30B de parámetros, experimentan degradación progresiva tras procesar salidas extensas de comandos como \texttt{nmap} o \texttt{sqlmap}. Esta pérdida de foco operativo se manifiesta en comportamientos no agénticos: solicitar confirmación manual innecesaria, ofrecer explicaciones didácticas en lugar de actuar, o entrar en bucles repetitivos. La implementación de estrategias de compresión y resumen dinámico ha mitigado parcialmente este problema, pero no lo ha resuelto por completo.
+
+Por otro lado, la arquitectura de microservicios ha demostrado ser una decisión acertada. La separación entre sandbox, backend y frontend ha facilitado el desarrollo iterativo, permitiendo modificar un componente sin afectar a los demás. El aislamiento de seguridad proporcionado por Docker ha sido fundamental para ejecutar comandos potencialmente destructivos con confianza, y la integración de Git como sistema de persistencia ha aportado una trazabilidad completa de las acciones del agente.
+
+Finalmente, el sistema Human-in-the-Loop, aunque funcional, ha revelado las limitaciones de un enfoque basado exclusivamente en expresiones regulares. Los falsos negativos detectados (shells reversos en heredocs, referencias a herramientas en documentación) subrayan la necesidad de técnicas de análisis más sofisticadas para entornos de producción.
+
+% ============================================================================
+% 7.3 TRABAJOS FUTUROS
+% ============================================================================
+
+\section{Trabajos Futuros}
+\label{sec:trabajos_futuros}
+
+A partir de las limitaciones identificadas y las oportunidades de mejora detectadas durante el proyecto, se proponen las siguientes líneas de trabajo futuro:
+
+\subsection{Mejora del Sistema de Detección Human-in-the-Loop}
+
+Los resultados del análisis de falsos positivos y negativos evidencian la necesidad de evolucionar el clasificador de riesgo. La implementación de un parser AST (Abstract Syntax Tree) para Python y Bash permitiría capturar sintaxis multilínea que actualmente evade las expresiones regulares. Además, integrar análisis contextual capaz de detectar heredocs, escapes de caracteres y diferencias entre menciones en documentación e invocaciones reales mejoraría significativamente la precisión del sistema. Una aproximación basada en modelos de lenguaje específicamente entrenados para clasificación de comandos podría complementar o sustituir el enfoque actual.
+
+\subsection{Optimización Dinámica del Contexto}
+
+Una de las principales limitaciones observadas en modelos locales es la degradación del rendimiento conforme crece el contexto de la conversación. Desarrollar estrategias de optimización dinámica que adapten automáticamente el nivel de compresión, resumen y priorización de información según la capacidad del modelo y el estado de la auditoría constituye una línea de investigación prometedora. Técnicas como la extracción selectiva de información relevante, el resumen incremental de salidas de comandos o la implementación de memoria a largo plazo mediante bases de datos vectoriales podrían extender significativamente la autonomía operativa de modelos con contexto limitado.
+
+\subsection{Validación en Entornos Reales de Mayor Complejidad}
+
+Las pruebas realizadas se han limitado a entornos de laboratorio diseñados específicamente para formación en ciberseguridad. Extender la validación a infraestructuras reales con mayor complejidad topológica, servicios heterogéneos y configuraciones de seguridad activas proporcionaría una evaluación más representativa de las capacidades del sistema. Escenarios como redes corporativas simuladas, entornos cloud híbridos o aplicaciones con defensas activas (WAF, IDS/IPS) permitirían medir la resiliencia del agente frente a contramedidas reales.
+
+\subsection{Desarrollo de Herramientas Personalizadas para el LLM}
+
+Actualmente, el agente utiliza el arsenal estándar de herramientas de Kali Linux. Diseñar herramientas específicamente optimizadas para su consumo por modelos de lenguaje, con salidas estructuradas, información contextualizada y formatos que minimicen el consumo de tokens, podría mejorar tanto la eficiencia como la precisión del sistema. Wrappers inteligentes que filtren información irrelevante o presenten resultados en formatos más compactos reducirían la carga cognitiva sobre el modelo.
+
+\subsection{Evaluación en Hardware de Alto Rendimiento Superior}
+
+Las pruebas en COMPUTAEX, aunque valiosas, se han realizado con hardware que limita la ejecución a modelos de hasta 30B parámetros con cuantización. Acceder a infraestructura con mayor capacidad de VRAM (80GB o superior) permitiría evaluar modelos de 70B+ parámetros sin cuantización agresiva, potencialmente cerrando la brecha de rendimiento observada entre modelos locales y APIs comerciales. Esta validación resulta especialmente relevante para organizaciones con requisitos estrictos de privacidad que no pueden utilizar servicios cloud.
+
+\subsection{Análisis de Seguridad Adversaria}
+
+Como objetivo no completado del proyecto original, el estudio de vectores de ataque específicos contra sistemas agénticos de IA constituye una prioridad pendiente. Investigar técnicas de \textit{prompt injection}, envenenamiento de contexto mediante salidas de comandos maliciosas o manipulación del agente a través de respuestas de servicios comprometidos permitiría identificar vulnerabilidades inherentes al paradigma agéntico y diseñar contramedidas específicas.
+
+\subsection{Containerización Completa y Facilidad de Despliegue}
+
+Aunque el sandbox opera en Docker, el backend y frontend requieren configuración manual de dependencias. Migrar toda la arquitectura a un despliegue unificado mediante Docker Compose, con imágenes preconfiguradas y scripts de instalación automatizados, facilitaría la adopción del sistema por parte de la comunidad. Un proceso de instalación que requiera únicamente clonar el repositorio y ejecutar un comando simplificaría significativamente la barrera de entrada para nuevos usuarios.
+
+% ============================================================================
+% 7.4 CONCLUSIÓN FINAL
+% ============================================================================
+
+\section{Conclusión Final}
+\label{sec:conclusion_final}
+
+Este Trabajo de Fin de Grado ha demostrado la viabilidad de construir un sistema agéntico autónomo capaz de realizar auditorías de ciberseguridad con un grado significativo de independencia. La arquitectura desarrollada, basada en microservicios con aislamiento de seguridad, integración de múltiples proveedores de IA y supervisión humana configurable, proporciona una base sólida para la automatización de tareas de pentesting.
+
+Los resultados experimentales confirman que los modelos de lenguaje de última generación, particularmente aquellos con capacidades de razonamiento avanzado como Gemini 3-Pro y DeepSeek-V3.2, pueden emular comportamientos propios de un auditor profesional: planificar estrategias de ataque, interpretar resultados de herramientas, adaptar tácticas según los hallazgos y documentar vulnerabilidades identificadas. La eficacia del 100\% alcanzada por estos modelos en los tres entornos de prueba valida el potencial del paradigma agéntico en el dominio de la ciberseguridad.
+
+Sin embargo, la investigación también ha puesto de manifiesto limitaciones importantes. La brecha de rendimiento entre modelos cloud y locales sigue siendo considerable, limitando la aplicabilidad del sistema en entornos con requisitos estrictos de privacidad. La gestión del contexto en modelos de menor capacidad requiere estrategias de optimización que aún no han sido completamente resueltas. Y el sistema de supervisión humana, aunque funcional, necesita evolucionar hacia técnicas de análisis más sofisticadas para garantizar la detección de comandos peligrosos en todos los escenarios posibles.
+
+En definitiva, este proyecto representa un paso significativo hacia la integración de inteligencia artificial avanzada en flujos de trabajo de ciberseguridad. Las herramientas y conocimientos generados sientan las bases para futuras investigaciones que continúen explorando los límites y posibilidades de los agentes autónomos en dominios técnicos especializados. La convergencia entre la potencia cognitiva de los modelos de lenguaje y las necesidades operativas del sector de la seguridad informática abre un horizonte de posibilidades que apenas comienza a vislumbrarse.

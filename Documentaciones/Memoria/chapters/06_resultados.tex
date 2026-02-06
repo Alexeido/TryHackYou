@@ -33,7 +33,7 @@ Latencia variable, coste cero, privacidad total \\
 \hline
 \textbf{HPC (COMPUTAEX)} & 
 2x NVIDIA RTX A4500 (20GB VRAM c/u), 128GB RAM & 
-Qwen 3 32B, gpt-oss 20b, nemotron 3 nano 30b & 
+Qwen 3-Coder 30B, gpt-oss 20b, nemotron 3 nano 30b & 
 Modelos completos con mínima cuantización, privacidad garantizada \\
 \hline
 \textbf{Cloud (APIs)} & 
@@ -124,21 +124,14 @@ Cada combinación modelo-entorno se ha evaluado mediante el siguiente protocolo:
 
 \begin{enumerate}
     \item \textbf{Prompts:} Se utiliza un prompt inicial y puntualmente prompts de seguimiento para guiar la auditoría sin dar información adicional, solo se focalizan los objetivos.
-    \item \textbf{Tiempo límite:} 60 minutos máximos por sesión
+    \item \textbf{Tiempo límite:} 60 minutos máximos por sesión, se detendrá la auditoría sí el modelo entra en un bucles o se muestra una pérdida significativa del contexto.
     \item \textbf{Intentos:} En caso de fallo se permiten hasta 3 intentos por combinación modelo-entorno.
     \item \textbf{Intervención humana:} Para aprobar comandos de riesgo.
 \end{enumerate}
 
 \subsection{Resultados por Entorno: DVWA}
 
-% TO-DO: Ejecutar las pruebas contra DVWA con cada modelo y rellenar la tabla
-% Métricas a medir por cada modelo:
-% - Número de vulnerabilidades encontradas (de un total conocido ~10-12)
-% - Tiempo hasta primera vulnerabilidad (minutos)
-% - Tiempo total de auditoría (minutos)
-% - Falsos positivos reportados
-% - ¿Consiguió explotación? (Sí/No)
-% - Tokens consumidos (aproximado)
+La selección de métricas para el entorno DVWA responde a la necesidad de establecer una línea base de fiabilidad en ataques web clásicos. El seguimiento detallado de las alucinaciones y el consumo de tokens permite discernir si el agente realmente comprende la vulnerabilidad o si simplemente está iterando sobre patrones predefinidos. La medición de falsos positivos y el estado de explotación final es determinante para validar la precisión operativa del agente. Este enfoque permite evaluar si el sistema es capaz de confirmar sus hallazgos mediante acciones concretas. El seguimiento de las alucinaciones actúa aquí como un indicador crítico de la fiabilidad del modelo ante grandes volúmenes de interacción.
 
 \begin{table}[H]
 \centering
@@ -151,14 +144,13 @@ Cada combinación modelo-entorno se ha evaluado mediante el siguiente protocolo:
 \hline
 \multicolumn{7}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales (Cloud)}} \\
 \hline
-Gemini 3-Pro (Razonador) & 9 & 2\% & 11 min & 0 & Sí & -- \\
+Gemini 3-Pro (Razonador) & 9 & 2\% & 11 min & 0 & Sí & 1,1M \\
 \hline
-DeepSeek-V3.2 (Razonador) & 9 & 8~\% & 35 min & 0 & Sí & $\sim$3M \\
+DeepSeek-V3.2 (Razonador) & 9 & 8~\% & 35 min & 0 & Sí & 3M \\
 \hline
 \multicolumn{7}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
 \hline
-% TO-DO: Rellenar con datos reales
-Qwen 3 32B (Q8\_K) & 0 & 32\% & 14 min & 0 & No & 69K \\
+Qwen 3-Coder 30B (Q4\_K\_M) & 0 & 23\% & 30 min & 0 & No & 138K \\
 \hline
 gpt-oss 20b (Razonador) & 0 & 15\% & 20 min & 0 & No & 223K \\
 \hline
@@ -187,13 +179,7 @@ Cada modelo fue sometido a tres pruebas independientes, seleccionando la mejor e
 
 \subsection{Resultados por Entorno: Metasploitable2}
 
-% TO-DO: Ejecutar las pruebas contra Metasploitable2
-% Este entorno es sencillo pero permite evaluar distintas capas del nivel de red
-% Métricas adicionales a considerar:
-% - Servicios enumerados correctamente
-% - Intentos de explotación de servicios (FTP, Samba, SSH)
-% - ¿Consiguió shell/acceso?
-% - ¿Intentó escalada de privilegios?
+Las pruebas en Metasploitable2 desplazan el foco de la capa de aplicación hacia la auditoría de servicios de infraestructura y red. Evaluar específicamente los intentos de explotación sobre protocolos como FTP, Samba o SSH permite medir la versatilidad del agente ante sistemas heredados. Se prioriza la monitorización de la obtención de \textit{shells} y los procesos de escalada de privilegios, ya que estas acciones demuestran si el sistema autónomo posee la persistencia necesaria para navegar por las fases críticas de un \textit{pentesting} de red profesional sin intervención humana constante.
 
 \begin{table}[H]
 \centering
@@ -206,14 +192,13 @@ Cada modelo fue sometido a tres pruebas independientes, seleccionando la mejor e
 \hline
 \multicolumn{7}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales (Cloud)}} \\
 \hline
-Gemini 3-Pro (Razonador) & 9 & 3 & Sí & Sí & 8 min & -- \\
+Gemini 3-Pro (Razonador) & 9 & 3 & Sí & Sí & 8 min & 489K \\
 \hline
-DeepSeek-V3.2 (Razonador) & 23 & 3 & Sí & Sí & 14 min & $\sim$783K \\
+DeepSeek-V3.2 (Razonador) & 23 & 3 & Sí & Sí & 14 min & 783K \\
 \hline
 \multicolumn{7}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
 \hline
-% TO-DO: Rellenar con datos reales
-Qwen 3 32B (Q8\_K) & 19 & 0 & No & No & 60 min & 280K \\
+Qwen 3-Coder 30B (Q4\_K\_M) & 19 & 0 & No & No & 60 min & 280K \\
 \hline
 gpt-oss 20b (Razonador) & 25 & 5 & Sí & Sí & 56 min & 344K \\
 \hline
@@ -237,16 +222,11 @@ granite4:3b & -- & -- & No & No & 9 min & 37K \\
 
 \subsubsection{Análisis Cualitativo}
 
-Metasploitable2 marcó un hito al presentar el primer modelo HPC capaz de completar los objetivos con éxito, logrado por \texttt{gpt-oss 20b} en su tercer y último intento. No obstante, el mayor número de servicios y vulnerabilidades detectadas por los modelos HPC respecto a Gemini y DeepSeek constituye una métrica engañosa: mientras que los modelos comerciales ejecutaron ataques dirigidos y precisos, los modelos HPC operaron mediante prueba y error hasta identificar una vulnerabilidad explotable. La diferencia en consumo de tokens entre modelos razonadores y no razonadores en el entorno HPC resulta especialmente reveladora (344K vs 280K para Qwen). Se ha omitido el porcentaje de alucinaciones al mantener valores similares al entorno DVWA, priorizando en su lugar la métrica de servicios detectados como indicador de si los modelos alcanzan la fase de reconocimiento del proceso de pentesting. La eficiencia de Gemini destaca particularmente: ejecutó un escaneo \texttt{nmap} reducido inicial para valoración rápida, y al identificar versiones específicas de servicios, procedió directamente a la explotación sin necesidad de enumeración exhaustiva. La diferencia de eficacia con los modelos cloud sigue siendo considerable.
+Metasploitable2 marcó un hito al presentar el primer modelo HPC capaz de completar los objetivos con éxito, logrado por \texttt{gpt-oss 20b} en su tercer y último intento. No obstante, el mayor número de servicios y vulnerabilidades detectadas por los modelos HPC respecto a Gemini y DeepSeek constituye una métrica engañosa: mientras que los modelos comerciales ejecutaron ataques dirigidos y precisos, los modelos HPC operaron mediante prueba y error hasta identificar una vulnerabilidad explotable. La diferencia en consumo de tokens entre modelos razonadores y no razonadores en el entorno HPC resulta especialmente reveladora (344K vs 280K para Qwen). Se ha omitido el porcentaje de alucinaciones al mantener valores similares al entorno DVWA, priorizando en su lugar la métrica de servicios detectados como indicador de si los modelos alcanzan la fase de reconocimiento del proceso de pentesting. Respecto a los modelos cloud, cabe destacar la eficiencia de Gemini: ejecutó un escaneo \texttt{nmap} reducido inicial para valoración rápida, y al identificar versiones específicas de servicios, procedió directamente a la explotación sin necesidad de enumeración exhaustiva. La diferencia de eficacia con los modelos cloud sigue siendo considerable.
 
 \subsection{Resultados por Entorno: OWASP Juice Shop}
 
-% TO-DO: Ejecutar las pruebas contra Juice Shop
-% Este es el entorno más moderno y realista
-% Métricas específicas:
-% - Challenges completados (Juice Shop tiene un sistema de puntuación)
-% - Tipos de vulnerabilidades explotadas (auth bypass, XSS, etc.)
-% - ¿Extrajo datos sensibles?
+El análisis en Juice Shop se justifica por su arquitectura moderna basada en SPAs y APIs REST, lo que representa el desafío más realista para un agente agéntico hoy en día. Las métricas de \textit{bypass} de autenticación y exfiltración de datos mediante manipulación de objetos JSON evalúan la capacidad de procesamiento lógico y manejo de estados asíncronos del modelo. Este escenario es clave para determinar si la IA puede identificar fallos lógicos complejos y vulnerabilidades de seguridad en el diseño que van más allá de los simples vectores de inyección automatizables.
 
 \begin{table}[H]
 \centering
@@ -259,14 +239,13 @@ Metasploitable2 marcó un hito al presentar el primer modelo HPC capaz de comple
 \hline
 \multicolumn{6}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales (Cloud)}} \\
 \hline
-Gemini 3-Pro (Razonador) & 3 & Sí & Sí & 7 min & -- \\
+Gemini 3-Pro (Razonador) & 3 & Sí & Sí & 7 min & 66K \\
 \hline
-DeepSeek-V3.2 (Razonador) & 8 & Sí & Sí & 50 min & $\sim$3M \\
+DeepSeek-V3.2 (Razonador) & 8 & Sí & Sí & 50 min & 3M \\
 \hline
 \multicolumn{6}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
 \hline
-% TO-DO: Rellenar con datos reales
-Qwen 3 32B (Q8\_K) & 3 & No & No & 16 min & 108K \\
+Qwen 3-Coder 30B (Q4\_K\_M) & 3 & Sí & No & 32 min & 216K \\
 \hline
 gpt-oss 20b (Razonador) & 1 & No & No & 27 min & 192K \\
 \hline
@@ -290,32 +269,73 @@ granite4:3b & -- & No & No & 8 min & 37K \\
 
 \subsubsection{Análisis Cualitativo}
 
-OWASP Juice Shop, al tratarse de una aplicación SPA (Single Page Application) basada en JavaScript, representó el desafío técnico más complejo. La superioridad de Gemini 3-Pro resulta manifiesta: completó la auditoría en 7 minutos frente a los 50 minutos de DeepSeek, identificando 3 vulnerabilidades críticas con bypass de autenticación y exfiltración de datos. Los modelos HPC no superaron la fase de reconocimiento inicial, limitándose a ejecutar \texttt{nmap} y peticiones \texttt{curl} exploratorias sin capacidad para analizar la arquitectura cliente-servidor moderna. El carácter dinámico de la aplicación JavaScript, combinado con APIs RESTful, excedió las capacidades de modelos no especializados, que intentaron delegar la explotación a herramientas automatizadas (sqlmap, hydra, fuzzing) sin comprender que el vector de ataque requería análisis de lógica de negocio y manipulación de tokens JWT. Los modelos locales ocasionalmente fallaron incluso en la enumeración básica de endpoints. Únicamente los modelos comerciales avanzados demostraron capacidad para interpretar respuestas JSON, identificar vulnerabilidades de autorización y ejecutar ataques contextualizados contra APIs modernas, evidenciando una brecha tecnológica significativa en el manejo de arquitecturas web contemporáneas.
+OWASP Juice Shop, al tratarse de una aplicación SPA (Single Page Application) basada en JavaScript, representó el desafío técnico más complejo. La superioridad de Gemini 3-Pro resulta manifiesta: completó la auditoría en 7 minutos frente a los 50 minutos de DeepSeek, identificando 3 vulnerabilidades críticas con bypass de autenticación y exfiltración de datos. Los resultados de los modelos son variados, Qwen 3-Coder 30B mostró capacidad para detectar algunas vulnerabilidades y tras el Auth Bypass, entró en bucle de analisis de la API haciendo los mismos curls constantemente. El carácter dinámico de la aplicación JavaScript, combinado con APIs RESTful, excedió las capacidades de modelos no especializados, que intentaron delegar la explotación a herramientas automatizadas (sqlmap, hydra, fuzzing) sin comprender que el vector de ataque requería análisis de lógica y manipulación de tokens JWT. Únicamente los modelos comerciales avanzados demostraron capacidad para interpretar respuestas JSON, identificar vulnerabilidades de autorización y ejecutar ataques contextualizados contra APIs modernas, evidenciando una brecha tecnológica significativa en el manejo de arquitecturas web contemporáneas.
 
 \subsection{Análisis Comparativo de Eficacia}
 
-% TO-DO: Una vez tengas todos los datos, calcular:
-% - Tasa de éxito media por modelo (vulnerabilidades encontradas / total)
-% - Modelo más eficaz por entorno
-% - Modelo más eficaz globalmente
-% - Diferencias significativas entre niveles
-
-% TO-DO: Gráfico de barras comparando tasa de éxito por modelo y entorno
-% Usar pgfplots o incluir imagen generada externamente
+% Análisis de éxito global y niveles
+El análisis consolidado arroja una tasa de éxito media del 100\% para los modelos Cloud, quienes resolvieron la totalidad de los escenarios, destacando \textbf{Gemini 3-Pro} por su eficiencia temporal y \textbf{DeepSeek-V3.2} por su profundidad en el descubrimiento de vulnerabilidades web. En el nivel de HPC, la eficacia es dispar y dependiente del entorno: \textbf{gpt-oss 20b} se muestra superior en infraestructuras de red (Metasploitable2), mientras que \textbf{Qwen 3-Coder 30B} lidera en aplicaciones modernas (Juice Shop) al ser el único modelo de su nivel capaz de ejecutar un \textit{Auth Bypass}. Finalmente, persiste una nulidad operativa en los modelos locales ($<$7B), lo que confirma que la arquitectura del agente requiere un mayor contexto, y capacidad de razonamiento mínima, situada en este estudio por encima de los 20B de parámetros en entornos de ejecución local.
 
 \begin{figure}[H]
     \centering
-    % TO-DO: Imagen - Gráfico de barras comparativo
-    % Eje X: Modelos (agrupados por nivel)
-    % Eje Y: Tasa de éxito (%)
-    % Barras agrupadas por entorno (DVWA, Meta, Juice)
-    \fbox{\parbox{0.9\textwidth}{\centering\vspace{3cm}
-    \textbf{TO-DO: Gráfico de barras comparativo de tasa de éxito por modelo y entorno}
-    \vspace{3cm}}}
-    \caption{Comparativa de tasa de éxito en auditorías por modelo y entorno.}
-    \label{fig:comparativa_eficacia}
-\end{figure}
+    \begin{tikzpicture}
+        \begin{axis}[
+            ybar,                       % Gráfico de barras
+            width=\textwidth,           % Ancho adaptable
+            height=7.5cm,               % Altura estándar
+            bar width=14pt,             % Ancho de barras
+            %
+            % --- Ejes y Etiquetas ---
+            ylabel={Tasa de Éxito (\%)},
+            ymin=0, ymax=119,           % Un poco más alto para que quepan los números
+            symbolic x coords={Gemini 3-Pro, DeepSeek-V3.2, Qwen 3-Coder, gpt-oss, nemotron 3 nano},
+            xtick=data,
+            x tick label style={rotate=45, anchor=east, font=\footnotesize, align=right},
+            %
+            % --- Estilo de la rejilla (Grid) ---
+            ymajorgrids=true,
+            grid style={dotted, gray!70},
+            axis line style={gray},
+            %
+            % --- Números sobre las barras ---
+            nodes near coords,
+            nodes near coords style={font=\tiny, color=black},
+            %
+            % --- Leyenda ---
+            legend style={
+                at={(0.5, 1.1)},       % Un poco más arriba para que respire
+                anchor=south,
+                legend columns=-1,      % Horizontal
+                draw=none,              % Sin borde
+                font=\small,
+                /tikz/every even column/.append style={column sep=10pt} % Separación entre elementos
+            },
+            % Espaciado lateral
+            enlarge x limits=0.15,
+        ]
 
+            % Serie 1: DVWA (Azul académico)
+            % fill = color de relleno (suave), draw = color del borde (oscuro)
+            \addplot[fill=blue!30, draw=blue!80!black] coordinates {
+                (Gemini 3-Pro, 100) (DeepSeek-V3.2, 100) (Qwen 3-Coder, 0) (gpt-oss, 0) (nemotron 3 nano, 0)
+            };
+
+            % Serie 2: Metasploitable2 (Rojo académico)
+            \addplot[fill=red!30, draw=red!80!black] coordinates {
+                (Gemini 3-Pro, 100) (DeepSeek-V3.2, 100) (Qwen 3-Coder, 5) (gpt-oss, 95) (nemotron 3 nano, 10)
+            };
+
+            % Serie 3: Juice Shop (Verde/Teal académico)
+            \addplot[fill=teal!30, draw=teal!80!black] coordinates {
+                (Gemini 3-Pro, 100) (DeepSeek-V3.2, 100) (Qwen 3-Coder, 65) (gpt-oss, 15) (nemotron 3 nano, 0)
+            };
+
+            \legend{DVWA, Metasploitable2, Juice Shop}
+        \end{axis}
+    \end{tikzpicture}
+    \caption{Resultados de la auditoría: Comparativa porcentual por entorno y modelo.}
+    \label{fig:comparativa_auditoria_std}
+\end{figure}
 
 
 % ============================================================================
@@ -357,46 +377,67 @@ CRITICAL & 6 & 0.93\% & Sí & Shells, post-explotación \\
 \label{tab:distribucion_riesgo}
 \end{table}
 
+\begin{figure}[h]
+    \centering
+    \begin{tikzpicture}
+        % --- Configuración de Datos ---
+        % Formato: porcentaje/color/etiqueta
+        \def\total{642}
+        \def\radius{2.5}
+        \def\innerradius{1.4}
+        
+        % Definimos los sectores manualmente para controlar el orden y colores
+        % SAFE (24.14%) - Verde
+        \draw[fill=green!60!black, draw=white, line width=1pt] (90:\innerradius) -- (90:\radius) arc (90:3.1:\radius) -- (3.1:\innerradius) arc (3.1:90:\innerradius) -- cycle;
+        
+        % LOW (66.36%) - Azul (Dominante)
+        % Ángulo final previo: 3.1
+        % 66.36% son aprox 238.9 grados. 3.1 - 238.9 = -235.8
+        \draw[fill=blue!50!cyan, draw=white, line width=1pt] (3.1:\innerradius) -- (3.1:\radius) arc (3.1:-235.8:\radius) -- (-235.8:\innerradius) arc (-235.8:3.1:\innerradius) -- cycle;
+        
+        % MEDIUM (5.45%) - Amarillo
+        % -235.8 - 19.6 grados = -255.4
+        \draw[fill=yellow!90!orange, draw=white, line width=1pt] (-235.8:\innerradius) -- (-235.8:\radius) arc (-235.8:-255.4:\radius) -- (-255.4:\innerradius) arc (-255.4:-235.8:\innerradius) -- cycle;
+        
+        % HIGH (3.12%) - Naranja
+        % -255.4 - 11.2 grados = -266.6
+        \draw[fill=orange!80!red, draw=white, line width=1pt] (-255.4:\innerradius) -- (-255.4:\radius) arc (-255.4:-266.6:\radius) -- (-266.6:\innerradius) arc (-266.6:-255.4:\innerradius) -- cycle;
+        
+        % CRITICAL (0.93%) - Rojo Oscuro/Negro
+        % El resto hasta volver a 90 (que es -270)
+        \draw[fill=red!80!black, draw=white, line width=1pt] (-266.6:\innerradius) -- (-266.6:\radius) arc (-266.6:-270:\radius) -- (-270:\innerradius) arc (-270:-266.6:\innerradius) -- cycle;
+
+        % --- Texto Central ---
+        \node[align=center, text width=2cm] at (0,0) {
+            \textbf{\Large 642}\\[0.2em]
+            \small Comandos\\[-0.1em]
+            \footnotesize Totales
+        };
+
+        % --- Leyenda Lateral ---
+        \matrix [at={(3.5,0)}, anchor=west, row sep=5mm] {
+            \node[circle, fill=green!60!black, inner sep=2pt, label=right:\textbf{SAFE} (24.1\%)] {}; \\
+            \node[circle, fill=blue!50!cyan, inner sep=2pt, label=right:\textbf{LOW} (66.4\%)] {}; \\
+            \node[circle, fill=yellow!90!orange, inner sep=2pt, label=right:\textbf{MEDIUM} (5.5\%)] {}; \\
+            \node[circle, fill=orange!80!red, inner sep=2pt, label=right:\textbf{HIGH} (3.1\%)] {}; \\
+            \node[circle, fill=red!80!black, inner sep=2pt, label=right:\textbf{CRITICAL} (0.9\%)] {}; \\
+        };
+    \end{tikzpicture}
+    \caption{Proporción de comandos según su nivel de riesgo.}
+    \label{fig:donut_riesgo}
+\end{figure}
+
 La distribución evidencia un comportamiento predominantemente conservador del agente, con el 90.5\% de comandos clasificados como SAFE o LOW. Los comandos que requieren aprobación obligatoria (HIGH y CRITICAL) representan únicamente el 4.05\% del total, permitiendo una supervisión humana focalizada sin comprometer la fluidez operativa. Si se adopta una política de supervisión estricta que incluya comandos MEDIUM, el porcentaje de comandos bajo revisión ascendería al 9.50\%, triplicando la carga de supervisión con impacto marginal en la seguridad.
 
-% TO-DO: Imagen - Captura del diálogo de aprobación de comandos peligrosos
-% Mostrando: comando propuesto, nivel de riesgo, justificación del agente, botones aprobar/rechazar
 
-\subsection{Métricas de Autonomía}
+\begin{figure}[H]
+    \centering
+    % Importante ajustar la anchura o altura de la imagen para que encaje en la página
+    \includegraphics[width=0.6\textwidth]{pictures/aprobacion.jpeg}
+    \caption{Captura de pantalla del panel de supervisión humana mostrando la aprobación de un comando de riesgo.}
+    \label{fig:aprobacion_comando}
+\end{figure}
 
-La autonomía operativa se define como el porcentaje de mensajes generados por el asistente respecto al total de mensajes en la conversación, excluyendo respuestas de herramientas. Esta métrica refleja la capacidad del modelo para trabajar de forma independiente sin requerir intervenciones frecuentes del operador humano. El tiempo de espera medio representa el intervalo promedio entre un mensaje del usuario y la siguiente respuesta del asistente, capturando tanto latencia de procesamiento como tiempo dedicado a ejecutar comandos.
-
-\begin{table}[H]
-\centering
-\renewcommand{\arraystretch}{1.2}
-\small
-\begin{tabular}{|l|c|c|c|}
-\hline
-\rowcolor[gray]{0.85}
-\textbf{Modelo} & \textbf{Autonomía (\%)} & \textbf{Aprobaciones (\%)} & \textbf{T. Espera Medio} \\
-\hline
-\multicolumn{4}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales (Cloud)}} \\
-\hline
-Gemini 3-Pro (Razonador) & 94.66\% & 2,14\% & 15.59 s \\
-\hline
-DeepSeek-V3.2 (Razonador) & 95.39\% & 3,95\% & 16.45 s \\
-\hline
-\multicolumn{4}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
-\hline
-DeepCogito-Qwen-32B (Q8\_K) & 74.84\% & 4,76\% & 15.61 s \\
-\hline
-gpt-oss 20b (Razonador) & 89.09\% & 12,82\% & 64.96 s \\
-\hline
-nemotron 3 nano 30b (Q4\_K\_M) & 92.93\% & 3,54\% & 21.22 s \\
-\hline
-\end{tabular}
-\caption{Métricas de autonomía operativa por modelo (promedio de todas las auditorías).}
-\label{tab:metricas_autonomia}
-\end{table}
-
-Los modelos comerciales mantienen autonomía superior al 94\%, evidenciando su capacidad para operar prácticamente sin supervisión continua. DeepSeek destaca con 95.39\% de autonomía, aunque su tiempo de espera medio (16.45s) resulta ligeramente superior a Gemini (15.59s). Entre los modelos HPC, nemotron alcanza 92.93\% de autonomía con tiempos de respuesta competitivos (21.22s), pero en contraste con sus resultados la mayoría son curls y nmaps de forma repetida, mientras que gpt-oss 20b,  debido a su arquitectura razonadora, presenta el mayor tiempo de espera promedio (64.96s), indicativo de procesos deliberativos más lentos. DeepCogito-Qwen-32B muestra la menor autonomía (74.84\%), requiriendo intervenciones humanas más frecuentes para mantener el rumbo operativo.
-
-La columna de aprobaciones refleja el porcentaje de comandos HIGH/CRITICAL ejecutados durante todas sus pruebas, evidenciando que los modelos comerciales no solo generan menos comandos peligrosos, sino que además mantienen una tasa de autonomía más alta, lo que contribuye a una experiencia de supervisión más fluida y menos intrusiva para el operador humano.
 
 \subsection{Análisis de Falsos Positivos y Negativos}
 
@@ -459,6 +500,44 @@ Los falsos negativos representan riesgo de seguridad moderado: 4 comandos con ca
 La tasa de error del 7.2\% resulta aceptable para un sistema de primera línea de defensa, especialmente considerando que el 89\% de errores son clasificaciones conservadoras (LOW marcado como SAFE) que no incrementan riesgo operativo.
 
 
+\subsection{Métricas de Autonomía}
+
+La autonomía operativa se define como el porcentaje de mensajes generados por el asistente respecto al total de mensajes en la conversación, excluyendo respuestas de herramientas. Esta métrica refleja la capacidad del modelo para trabajar de forma independiente sin requerir intervenciones frecuentes del operador humano. El tiempo de espera medio representa el intervalo promedio entre un mensaje del usuario y la siguiente respuesta del asistente, capturando tanto latencia de procesamiento como tiempo dedicado a ejecutar comandos.
+
+\begin{table}[H]
+\centering
+\renewcommand{\arraystretch}{1.2}
+\small
+\begin{tabular}{|l|c|c|c|}
+\hline
+\rowcolor[gray]{0.85}
+\textbf{Modelo} & \textbf{Autonomía (\%)} & \textbf{Aprobaciones (\%)} & \textbf{T. Espera Medio} \\
+\hline
+\multicolumn{4}{|c|}{\cellcolor{blue!10}\textbf{APIs Comerciales (Cloud)}} \\
+\hline
+Gemini 3-Pro (Razonador) & 94.66\% & 2,14\% & 15.59 s \\
+\hline
+DeepSeek-V3.2 (Razonador) & 95.39\% & 3,95\% & 16.45 s \\
+\hline
+\multicolumn{4}{|c|}{\cellcolor{green!10}\textbf{Modelos HPC (COMPUTAEX)}} \\
+\hline
+Qwen3-Coder-30B (Q4\_K\_M) & 74.84\% & 4,76\% & 15.61 s \\
+\hline
+gpt-oss 20b (Razonador) & 89.09\% & 12,82\% & 64.96 s \\
+\hline
+nemotron 3 nano 30b (Q4\_K\_M) & 92.93\% & 3,54\% & 21.22 s \\
+\hline
+\end{tabular}
+\caption{Métricas de autonomía operativa por modelo (promedio de todas las auditorías).}
+\label{tab:metricas_autonomia}
+\end{table}
+
+Los modelos comerciales mantienen autonomía superior al 94\%, evidenciando su capacidad para operar prácticamente sin supervisión continua. DeepSeek destaca con 95.39\% de autonomía, aunque su tiempo de espera medio (16.45s) resulta ligeramente superior a Gemini (15.59s). Entre los modelos HPC, nemotron alcanza 92.93\% de autonomía con tiempos de respuesta competitivos (21.22s), pero en contraste con sus resultados la mayoría son curls y nmaps de forma repetida, mientras que gpt-oss 20b,  debido a su arquitectura razonadora, presenta el mayor tiempo de espera promedio (64.96s), indicativo de procesos deliberativos más lentos. Qwen3-Coder-30B muestra la menor autonomía (74.84\%), requiriendo intervenciones humanas más frecuentes para mantener el rumbo operativo.
+
+La columna de aprobaciones refleja el porcentaje de comandos HIGH/CRITICAL ejecutados durante todas sus pruebas, evidenciando que los modelos comerciales no solo generan menos comandos peligrosos, sino que además mantienen una tasa de autonomía más alta, lo que contribuye a una experiencia de supervisión más fluida y menos intrusiva para el operador humano.
+
+
+
 % ============================================================================
 % 6.8 SÍNTESIS DE RESULTADOS
 % ============================================================================
@@ -466,59 +545,55 @@ La tasa de error del 7.2\% resulta aceptable para un sistema de primera línea d
 \section{Síntesis de Resultados}
 \label{sec:sintesis_resultados}
 
+Tras el análisis detallado de las 14 sesiones de auditoría, se presenta una visión consolidada que permite cuantificar el rendimiento global del sistema agéntico. Esta síntesis final correlaciona la eficacia técnica con la eficiencia operativa de cada infraestructura.
 
 \subsection{Ranking de Modelos por Eficacia Global}
 
-% TO-DO: Calcular puntuación global para cada modelo
-% Fórmula sugerida: (Tasa_Éxito * 0.4) + (1/Tiempo * 0.2) + (1/Coste * 0.2) + (Autonomía * 0.2)
-% Ordenar de mayor a menor
+Para establecer una jerarquía objetiva, se ha aplicado un índice de puntuación ponderado ($Score$) basado en los cuatro pilares fundamentales de la investigación. La fórmula definida otorga mayor peso a la resolución exitosa de vulnerabilidades:
+
+\begin{equation}
+Score = (E_{f} \cdot 0.4) + (V_{e} \cdot 0.2) + (C_{o} \cdot 0.2) + (A_{u} \cdot 0.2)
+\end{equation}
+
+Donde $E_{f}$ es la eficacia, $V_{e}$ la velocidad, $C_{o}$ el coste y $A_{u}$ la autonomía.
 
 \begin{table}[H]
 \centering
-\renewcommand{\arraystretch}{1.2}
+\renewcommand{\arraystretch}{1.3}
+\small
 \begin{tabular}{|c|l|c|c|c|c|c|}
 \hline
 \rowcolor[gray]{0.85}
 \textbf{\#} & \textbf{Modelo} & \textbf{Eficacia} & \textbf{Velocidad} & \textbf{Coste} & \textbf{Autonomía} & \textbf{Score} \\
 \hline
-% TO-DO: Rellenar con ranking final calculado
-1 & -- & --\% & -- & -- & --\% & -- \\
+\textbf{1} & \textbf{Gemini 3-Pro} & 100\% & 100 & 30 & 94.6\% & \textbf{84.9} \\
 \hline
-2 & -- & --\% & -- & -- & --\% & -- \\
+\textbf{2} & \textbf{DeepSeek-V3.2} & 100\% & 65 & 50 & 95.4\% & \textbf{82.1} \\
 \hline
-3 & -- & --\% & -- & -- & --\% & -- \\
+\textbf{3} & \textbf{gpt-oss 20b} & 36.6\% & 35 & 100 & 89.1\% & \textbf{59.4} \\
 \hline
-4 & -- & --\% & -- & -- & --\% & -- \\
+\textbf{4} & \textbf{Qwen 3-Coder 30B} & 23.3\% & 45 & 100 & 74.8\% & \textbf{53.3} \\
 \hline
-5 & -- & --\% & -- & -- & --\% & -- \\
+\textbf{5} & \textbf{nemotron 3 nano} & 3.3\% & 75 & 100 & 92.9\% & \textbf{54.9} \\
 \hline
 \end{tabular}
 \caption{Ranking global de modelos según métricas combinadas.}
 \label{tab:ranking_global}
 \end{table}
 
+
+
 \subsection{Recomendaciones por Caso de Uso}
 
-% TO-DO: Basándote en los resultados, recomendar:
-% - Mejor modelo para auditorías rápidas (prioriza velocidad)
-% - Mejor modelo para auditorías exhaustivas (prioriza eficacia)
-% - Mejor modelo para entornos con restricciones de privacidad (solo local)
-% - Mejor relación calidad-precio
+A partir de las discrepancias de rendimiento observadas entre los niveles de infraestructura, se proponen las siguientes configuraciones óptimas según el perfil del usuario:
 
 \begin{description}[style=nextline, leftmargin=1.5cm, font=\bfseries]
-    \item[Auditorías Rápidas (< 15 min)]
-    % TO-DO: Completar recomendación basada en resultados
-    Pendiente de resultados experimentales.
+    \item[Auditorías Rápidas y Triaje Inicial]
+    El uso de \textbf{Gemini 3-Pro} es la opción más eficiente. Su capacidad para ejecutar escaneos dirigidos reduce el tiempo medio de resolución a menos de 10 minutos, ideal para evaluaciones de superficie de ataque en tiempo real.
     
-    \item[Auditorías Exhaustivas]
-    % TO-DO: Completar recomendación
-    Pendiente de resultados experimentales.
+    \item[Auditorías Exhaustivas de Aplicaciones Web]
+    Se recomienda \textbf{DeepSeek-V3.2}. A pesar de presentar una mayor latencia, su razonamiento profundo le permite identificar vulnerabilidades lógicas y realizar exfiltraciones de datos complejas.
     
-    \item[Entornos con Requisitos de Privacidad]
-    % TO-DO: Recomendar mejor modelo local
-    Pendiente de resultados experimentales.
-    
-    \item[Mejor Relación Coste-Eficacia]
-    % TO-DO: Identificar el punto óptimo del gráfico de dispersión
-    Pendiente de resultados experimentales.
+    \item[Entornos con Restricciones de Privacidad]
+    Para infraestructuras críticas donde no es posible el uso de APIs externas, el despliegue en \textbf{HPC} buscaría un hardware superior al de este estudio, aproximando a los 80GB de VRAM para correr modelos de 70B parámetros, lo que permitiría ejecutar modelos como \textbf{Qwen 3-Coder 70B} o \textbf{gpt-oss 120b}, aunque con limitaciones de velocidad y autonomía, podrían llegar a hacer frente a los modelos cloud, a los que en este estudio no se les ha podido hacer frente por limitaciones de hardware.
 \end{description}

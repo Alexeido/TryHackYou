@@ -14,6 +14,9 @@
 \usepackage{dirtree}
 \usepackage{adjustbox}
 \usepackage{multirow}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+
 \newcommand{\mycomment}[1]{\hfill \textcolor{gray}{\textit{\small #1}}}
 
 \definecolor{ontime}{RGB}{66, 133, 244}    % Azul - a tiempo
@@ -24,7 +27,7 @@
 % Rellenar con los datos del estudiante y el trabajo
 \estudiante{Alejandro Barrena Millán}{Grado}{Grado en Ingeniería Informática en Ingeniería del Software}
 \title{Diseño y análisis de un agente LLM autónomo para auditorías de ciberseguridad en entornos aislados}
-\keywords{Palabras más importantes o descriptivas\and separadas por comas\and para facilitar la búsqueda si se deposita en repositorio}
+\keywords{Agente autónomo\and LLM\and Ciberseguridad\and Pentesting\and Human-in-the-Loop\and Docker\and Auditoría automatizada}
 
 \begin{document}
 \sloppy 
@@ -58,14 +61,22 @@
 % Dedicatorias del trabajo, pueden ser en español o inglés dependiendo de lo que se considere más apropiado
 
 \chapter*{Resumen}
-EL RESUMEN EN ESPAÑOL
+Este Trabajo de Fin de Grado presenta el diseño, implementación y evaluación de un sistema agéntico autónomo basado en LLMs orientado a la realización de auditorías de ciberseguridad. La plataforma, se articula mediante una arquitectura de microservicios compuesta por tres componentes: un sandbox aislado de Linux para la ejecución segura de herramientas de pentesting, un backend orquestador que gestiona la comunicación con múltiples proveedores de inteligencia artificial, y un frontend web que ofrece una interfaz de supervisión humana con sistema de aprobación de comandos peligrosos.
+
+El sistema ha sido validado a través de auditorías contra tres entornos de vulnerabilidad controlados, evaluando 8 modelos de lenguaje en tres niveles de infraestructura: hardware doméstico, computación de alto rendimiento (COMPUTAEX) y APIs comerciales en la nube. Los resultados demuestran que los modelos cloud de última generación alcanzan una gran eficacia en escenarios de pentesting, mientras que los modelos locales presentan limitaciones significativas asociadas a la capacidad de contexto y razonamiento. El mecanismo Human-in-the-Loop implementado clasifica comandos por nivel de riesgo con una precisión del 92.8\%, permitiendo una supervisión focalizada sin comprometer la fluidez operativa del agente.
+
+El código fuente del proyecto se encuentra disponible en \url{https://github.com/Alexeido/TryHackYou}.
 
 \noindent\textbf{Palabras clave}: \printkeywords.
 
 \chapter*{Abstract}
-EL RESUMEN EN INGLÉS
+This Bachelor's Thesis presents the design, implementation and evaluation of an autonomous agentic system based on Large Language Models (LLMs) aimed at performing cybersecurity audits. The platform, named TryHackYou, is built on a microservices architecture comprising three components: an isolated sandbox based on Kali Linux for the secure execution of pentesting tools, a backend orchestrator built with FastAPI that manages communication with multiple AI providers, and a frontend developed in Next.js that provides a human supervision interface with a dangerous command approval system.
 
-\noindent\textbf{Keywords}: Most important or descriptive words, separated by commas.
+The system has been validated through 14 audits against three controlled vulnerability environments (DVWA, Metasploitable2 and OWASP Juice Shop), evaluating 8 language models across three infrastructure levels: consumer hardware, high-performance computing (COMPUTAEX) and commercial cloud APIs. Results demonstrate that state-of-the-art cloud models achieve 100\% effectiveness in solving pentesting scenarios, while local models exhibit significant limitations related to context capacity and reasoning ability. The implemented Human-in-the-Loop mechanism classifies commands by risk level with 92.8\% accuracy, enabling focused supervision without compromising the agent's operational fluency.
+
+The project source code is available at \url{https://github.com/Alexeido/TryHackYou}.
+
+\noindent\textbf{Keywords}: Autonomous agent, LLM, Cybersecurity, Pentesting, Human-in-the-Loop, Docker, Automated auditing.
 
 % Índices con enlaces de las secciones, tablas y figuras
 \newpage
