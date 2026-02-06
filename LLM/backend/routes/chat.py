@@ -15,6 +15,11 @@ from datetime import datetime
 from models import ChatRequest, ChatResponse, ERROR_CODES
 import database as db
 
+# =============================================================================
+# DEBUG FLAG: Activar para logging detallado de Ollama thinking
+# =============================================================================
+DEBUG_OLLAMA_THINKING = True  # CAMBIAR A False EN PRODUCCIÓN
+
 # Logger de tokens para Ollama
 from ollama_logger import (
     log_ollama_tokens,
@@ -113,6 +118,7 @@ def clean_ollama_thinking_from_args(args_str: str) -> str:
     if not args_str or not args_str.strip():
         return '{}'
     
+    original_args = args_str  # Guardar para debug
     args_str = args_str.strip()
     
     # Intento rápido: si ya es JSON válido, retornar
@@ -122,29 +128,52 @@ def clean_ollama_thinking_from_args(args_str: str) -> str:
     except json.JSONDecodeError:
         pass
     
-    # Buscar el primer '{' que inicia un JSON válido
-    # El thinking suele estar ANTES del JSON
-    first_brace = args_str.find('{')
-    if first_brace == -1:
-        print(f"⚠️ OLLAMA THINKING: No se encontró JSON en argumentos: {args_str[:100]}...")
-        return '{}'  # No hay JSON
+    # ================================================================
+    # ESTRATEGIA 1: Buscar JSON desde el ÚLTIMO '{' hacia atrás
+    # El thinking suele estar ANTES, así que el JSON suele estar al final
+    # ================================================================
+    # Encontrar todos los índices de '{'
+    brace_indices = [i for i, c in enumerate(args_str) if c == '{']
     
-    # Intentar parsear desde el primer '{'
-    potential_json = args_str[first_brace:]
-    try:
-        json.loads(potential_json)
-        if first_brace > 0:
-            thinking_part = args_str[:first_brace].strip()
-            print(f"🧠 OLLAMA THINKING LIMPIADO: '{thinking_part[:80]}...' removido de argumentos")
-        return potential_json
-    except json.JSONDecodeError:
-        pass
+    # Probar desde cada '{', empezando por el último (más probable que sea el JSON real)
+    for start_idx in reversed(brace_indices):
+        potential_json = args_str[start_idx:]
+        try:
+            json.loads(potential_json)
+            if start_idx > 0:
+                thinking_part = args_str[:start_idx].strip()
+                print(f"🧠 OLLAMA THINKING LIMPIADO (estrategia 1): '{thinking_part[:80]}...' removido")
+            return potential_json
+        except json.JSONDecodeError:
+            continue
     
-    # Approach más robusto: encontrar el JSON completo usando balance de llaves
+    # ================================================================
+    # ESTRATEGIA 2: Usar regex para encontrar un objeto JSON completo
+    # Buscar patrones como {"key": ... } al final del string
+    # ================================================================
+    import re
+    json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}$'
+    match = re.search(json_pattern, args_str)
+    if match:
+        potential_json = match.group(0)
+        try:
+            json.loads(potential_json)
+            thinking_part = args_str[:match.start()].strip()
+            if thinking_part:
+                print(f"🧠 OLLAMA THINKING LIMPIADO (estrategia 2): '{thinking_part[:80]}...' removido")
+            return potential_json
+        except json.JSONDecodeError:
+            pass
+    
+    # ================================================================
+    # ESTRATEGIA 3: Balance de llaves, buscando JSON completo
+    # ================================================================
     depth = 0
     json_start = -1
     in_string = False
     escape_next = False
+    last_valid_json = None
+    last_valid_start = -1
     
     for i, char in enumerate(args_str):
         if escape_next:
@@ -169,21 +198,28 @@ def clean_ollama_thinking_from_args(args_str: str) -> str:
         elif char == '}':
             depth -= 1
             if depth == 0 and json_start >= 0:
-                # Encontramos un JSON completo
+                # Encontramos un JSON potencialmente completo
                 json_obj = args_str[json_start:i+1]
                 try:
                     json.loads(json_obj)
-                    if json_start > 0:
-                        thinking_part = args_str[:json_start].strip()
-                        print(f"🧠 OLLAMA THINKING LIMPIADO: '{thinking_part[:80]}...' removido")
-                    return json_obj
+                    # Guardamos el último JSON válido encontrado
+                    last_valid_json = json_obj
+                    last_valid_start = json_start
                 except json.JSONDecodeError:
-                    # Seguir buscando
-                    json_start = -1
+                    pass
+                json_start = -1
+    
+    # Retornar el último JSON válido encontrado (el más probable de ser el correcto)
+    if last_valid_json:
+        if last_valid_start > 0:
+            thinking_part = args_str[:last_valid_start].strip()
+            print(f"🧠 OLLAMA THINKING LIMPIADO (estrategia 3): '{thinking_part[:80]}...' removido")
+        return last_valid_json
     
     # No pudimos extraer JSON válido
-    print(f"⚠️ OLLAMA THINKING: No se pudo extraer JSON válido de: {args_str[:150]}...")
-    return args_str  # Retornar original, el validador lo rechazará
+    print(f"⚠️ OLLAMA THINKING: No se pudo extraer JSON válido de: {args_str[:200]}...")
+    print(f"⚠️ OLLAMA THINKING: Retornando JSON vacío para evitar errores de API")
+    return '{}'  # Retornar JSON vacío en lugar del string corrupto
 
 # URL del sandbox para ejecutar comandos
 SANDBOX_URL = "http://localhost:5000"
@@ -1384,6 +1420,31 @@ async def chat_completion(req: ChatRequest):
     messages_for_llm = db.get_conversation_for_llm(user_msg_id)
     
     # ==========================================================================
+    # 4.0 OLLAMA THINKING FIX: Limpiar argumentos de tool_calls cargados de BD
+    # Esto es CRÍTICO para evitar error 500 cuando Ollama intenta parsear JSON
+    # ==========================================================================
+    if DEBUG_OLLAMA_THINKING:
+        print(f"🔍 Revisando {len(messages_for_llm)} mensajes cargados de BD...")
+    
+    corrupted_count = 0
+    for msg in messages_for_llm:
+        if msg.get('role') == 'assistant' and msg.get('tool_calls'):
+            for tc in msg['tool_calls']:
+                func_args = tc.get('function', {}).get('arguments', '{}')
+                if func_args and isinstance(func_args, str):
+                    try:
+                        json.loads(func_args)
+                    except json.JSONDecodeError:
+                        cleaned_args = clean_ollama_thinking_from_args(func_args)
+                        tc['function']['arguments'] = cleaned_args
+                        corrupted_count += 1
+                        if DEBUG_OLLAMA_THINKING:
+                            print(f"🧹 LIMPIADO tool_call {tc.get('id')}: '{func_args[:60]}...' -> '{cleaned_args[:60]}...'")
+    
+    if corrupted_count > 0:
+        print(f"⚠️ Se limpiaron {corrupted_count} tool_calls con argumentos corruptos de la BD")
+    
+    # ==========================================================================
     # 4.1 GEMINI 3 FIX: Añadir thought_signature a tool_calls cargados de BD
     # Gemini 3 REQUIERE thought_signature en todos los tool_calls
     # ==========================================================================
@@ -1661,13 +1722,41 @@ async def stream_chat_response(
             if is_ollama_logging_enabled():
                 params["stream_options"] = {"include_usage": True}
             
-            # IMPORTANTE: Desactivar thinking mode para modelos que lo soporten
-            # cuando usamos tools, porque el thinking interfiere con la respuesta
-            # El thinking se envía en un campo separado que no capturamos correctamente
-            # Añadir extra_body con think=false para Ollama
+            # =================================================================
+            # OLLAMA THINKING: Activar siempre para que el modelo razone
+            # Si falla con "error parsing tool call", se reintentará sin thinking
+            # =================================================================
             params["extra_body"] = {"options": {"think": True}}
+            
+            if DEBUG_OLLAMA_THINKING:
+                print(f"🧠 OLLAMA: thinking=True (el modelo debe razonar)")
         
-        stream = await client.chat.completions.create(**params)
+        # ================================================================
+        # OLLAMA THINKING RETRY: Si falla con "error parsing tool call",
+        # reintentar automáticamente sin thinking
+        # ================================================================
+        max_ollama_retries = 2 if provider == "ollama" else 1
+        ollama_retry_count = 0
+        
+        while ollama_retry_count < max_ollama_retries:
+            try:
+                stream = await client.chat.completions.create(**params)
+                break  # Éxito, salir del while
+            except Exception as ollama_err:
+                ollama_retry_count += 1
+                error_str = str(ollama_err)
+                
+                # Detectar error específico de Ollama thinking
+                if "error parsing tool call" in error_str and ollama_retry_count < max_ollama_retries:
+                    print(f"⚠️ OLLAMA THINKING ERROR detectado, reintentando SIN thinking...")
+                    print(f"   Error: {error_str[:200]}")
+                    
+                    # Desactivar thinking y reintentar
+                    params["extra_body"] = {"options": {"think": False}}
+                    continue
+                else:
+                    # Error no recuperable, propagar
+                    raise
         
         chunk_count = 0  # DEBUG: contador de chunks
         async for chunk in stream:
@@ -1848,6 +1937,23 @@ async def stream_chat_response(
         # Incluir reasoning_content como metadata si existe (DeepSeek reasoning mode)
         # Lo guardamos en el JSON de tool_calls para no modificar la BD
         tool_calls_data = tool_calls_accumulator.copy() if tool_calls_accumulator else []
+        
+        # ================================================================
+        # OLLAMA THINKING FIX: Limpiar argumentos ANTES de guardar
+        # Esto asegura que no guardamos thinking en la BD
+        # ================================================================
+        for tc in tool_calls_data:
+            if isinstance(tc, dict) and 'function' in tc:
+                func_args = tc.get('function', {}).get('arguments', '')
+                if func_args and isinstance(func_args, str):
+                    try:
+                        json.loads(func_args)
+                    except json.JSONDecodeError:
+                        # Argumentos corruptos, limpiar
+                        cleaned_args = clean_ollama_thinking_from_args(func_args)
+                        tc['function']['arguments'] = cleaned_args
+                        print(f"🧹 Limpiando tool_call antes de guardar: {tc.get('id')}")
+        
         if reasoning_content:
             # Guardar reasoning_content como primer elemento especial del array
             tool_calls_data.insert(0, {
@@ -2292,7 +2398,7 @@ async def stream_chat_response(
             # Reconstruir mensajes para el siguiente llamado
             # OPTIMIZACIÓN: Limitar el contexto pero con margen suficiente para loops agénticos
             # 50 mensajes permite ~15-20 iteraciones de tool calls antes de truncar
-            MAX_MESSAGES_IN_LOOP = 30
+            MAX_MESSAGES_IN_LOOP = 50
             current_messages = messages.copy()
             
             # Debug: mostrar los tool_calls que vamos a enviar
@@ -2371,6 +2477,23 @@ async def stream_chat_response(
                     if msg.get('content') is None:
                         msg['content'] = ""
                 
+                # ============================================================
+                # OLLAMA THINKING FIX: Limpiar argumentos de tool_calls en historial
+                # Antes de enviar a la API, asegurar que los arguments son JSON válido
+                # ============================================================
+                for msg in current_messages:
+                    if msg.get('role') == 'assistant' and msg.get('tool_calls'):
+                        for tc in msg['tool_calls']:
+                            func_args = tc.get('function', {}).get('arguments', '{}')
+                            if func_args and isinstance(func_args, str):
+                                # Intentar parsear, si falla, limpiar
+                                try:
+                                    json.loads(func_args)
+                                except json.JSONDecodeError:
+                                    cleaned_args = clean_ollama_thinking_from_args(func_args)
+                                    tc['function']['arguments'] = cleaned_args
+                                    print(f"🧹 Limpiando tool_call en historial: {tc.get('id')}")
+                
                 # Debug: mostrar secuencia de roles
                 roles_seq = [m.get('role', '?') for m in current_messages[:5]]
                 roles_seq_end = [m.get('role', '?') for m in current_messages[-3:]]
@@ -2396,8 +2519,25 @@ async def stream_chat_response(
                     # Incluir usage en streaming para logging de tokens
                     if is_ollama_logging_enabled():
                         loop_params["stream_options"] = {"include_usage": True}
-                    # Desactivar thinking mode
-                    loop_params["extra_body"] = {"options": {"think": True}}
+                    # ================================================================
+                    # OLLAMA THINKING: Activar para que el modelo razone en cada paso
+                    # Si falla con "error parsing tool call", se reintentará sin thinking
+                    # ================================================================
+                    # OLLAMA THINKING: Activar para que el modelo razone en cada paso
+                    # Si el historial tiene tool_calls con argumentos potencialmente
+                    # corruptos (detectados en iteraciones anteriores), desactivamos
+                    # ================================================================
+                    use_thinking_this_iteration = True  # Por defecto, activar thinking
+                    loop_params["extra_body"] = {"options": {"think": use_thinking_this_iteration}}
+                    
+                    if DEBUG_OLLAMA_THINKING:
+                        print(f"🧠 OLLAMA LOOP: thinking={use_thinking_this_iteration}")
+                        print(f"📤 OLLAMA LOOP: Enviando {len(current_messages)} mensajes")
+                        for i, msg in enumerate(current_messages[-3:]):
+                            role = msg.get('role', '?')
+                            content_preview = str(msg.get('content', ''))[:80].replace('\n', ' ')
+                            tc_count = len(msg.get('tool_calls', []))
+                            print(f"   [{len(current_messages)-3+i}] {role}: '{content_preview}...' tool_calls={tc_count}")
                 
                 # Streaming de esta iteración
                 loop_content = ""
@@ -2405,7 +2545,38 @@ async def stream_chat_response(
                 loop_reasoning_content = ""  # DeepSeek reasoning mode
                 loop_ollama_usage = None  # Para logging de tokens Ollama
                 
-                loop_stream = await client.chat.completions.create(**loop_params)
+                # ================================================================
+                # OLLAMA THINKING RETRY: Si falla con "error parsing tool call",
+                # reintentar automáticamente sin thinking
+                # ================================================================
+                max_ollama_retries = 2
+                ollama_retry_count = 0
+                
+                while ollama_retry_count < max_ollama_retries:
+                    try:
+                        loop_stream = await client.chat.completions.create(**loop_params)
+                        break  # Éxito, salir del while
+                    except Exception as ollama_err:
+                        ollama_retry_count += 1
+                        error_str = str(ollama_err)
+                        
+                        # Detectar error específico de Ollama thinking
+                        if "error parsing tool call" in error_str and ollama_retry_count < max_ollama_retries:
+                            print(f"⚠️ OLLAMA THINKING ERROR detectado, reintentando SIN thinking...")
+                            print(f"   Error: {error_str[:200]}")
+                            
+                            # Desactivar thinking y reintentar
+                            loop_params["extra_body"] = {"options": {"think": False}}
+                            
+                            # Limpiar variables para el retry
+                            loop_content = ""
+                            loop_tool_calls = []
+                            loop_reasoning_content = ""
+                            continue
+                        else:
+                            # Error no recuperable, propagar
+                            raise
+                
                 async for chunk in loop_stream:
                     # OLLAMA TOKEN LOGGING: Capturar usage del chunk ANTES de verificar choices
                     # El chunk final de Ollama tiene usage pero choices=[] (array vacío)
@@ -2501,6 +2672,21 @@ async def stream_chat_response(
                 
                 # Guardar reasoning_content con tool_calls si existe
                 loop_tool_calls_data = loop_tool_calls.copy() if loop_tool_calls else []
+                
+                # ================================================================
+                # OLLAMA THINKING FIX: Limpiar argumentos ANTES de guardar (loop)
+                # ================================================================
+                for tc in loop_tool_calls_data:
+                    if isinstance(tc, dict) and 'function' in tc:
+                        func_args = tc.get('function', {}).get('arguments', '')
+                        if func_args and isinstance(func_args, str):
+                            try:
+                                json.loads(func_args)
+                            except json.JSONDecodeError:
+                                cleaned_args = clean_ollama_thinking_from_args(func_args)
+                                tc['function']['arguments'] = cleaned_args
+                                print(f"🧹 Loop: Limpiando tool_call antes de guardar: {tc.get('id')}")
+                
                 if loop_reasoning_content:
                     loop_tool_calls_data.insert(0, {"_metadata": {"reasoning_content": loop_reasoning_content}})
                     print(f"🧠 Loop iteration {iteration}: reasoning capturado ({len(loop_reasoning_content)} chars)")
@@ -2968,6 +3154,28 @@ async def stream_chat_response(
         elif "500" in error_msg or "503" in error_msg:
             code = "PROVIDER_ERROR"
             friendly_msg = "Error del proveedor (Google/OpenAI). Intenta de nuevo en unos segundos."
+            
+            # =============================================================
+            # OLLAMA THINKING DEBUG: Logging detallado para error 500
+            # =============================================================
+            if DEBUG_OLLAMA_THINKING and "error parsing tool call" in error_msg:
+                print("=" * 80)
+                print("🔴 OLLAMA THINKING BUG DETECTADO - DUMP COMPLETO:")
+                print("=" * 80)
+                print(f"Error original: {error_msg}")
+                print("-" * 40)
+                print("ÚLTIMOS 5 MENSAJES ENVIADOS A OLLAMA:")
+                for i, msg in enumerate(messages[-5:]):
+                    role = msg.get('role', '?')
+                    content = str(msg.get('content', ''))[:100].replace('\n', ' ')
+                    tc = msg.get('tool_calls', [])
+                    print(f"  [{len(messages)-5+i}] {role}: {content}... tool_calls={len(tc)}")
+                    if tc:
+                        for j, t in enumerate(tc):
+                            args = t.get('function', {}).get('arguments', '')
+                            print(f"       TC[{j}]: {t.get('function', {}).get('name')} args={args[:80]}...")
+                print("=" * 80)
+                friendly_msg = "Error de Ollama: El modelo mezcló thinking con argumentos. Reintentando..."
         else:
             code = "STREAM_ERROR"
             friendly_msg = error_msg[:150]
