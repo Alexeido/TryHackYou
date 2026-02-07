@@ -59,6 +59,63 @@
 \pagenumbering{gobble}
 %\chapter*{Agradecimientos} % Apartado opcional, descomentar si se quiere añadir
 % Dedicatorias del trabajo, pueden ser en español o inglés dependiendo de lo que se considere más apropiado
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% DEDICATORIA
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% AGRADECIMIENTOS
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\newpage
+\thispagestyle{empty}
+\pagenumbering{gobble} 
+
+% Truco 1: Reducir el espacio muerto antes del título
+\begin{center}
+    \vspace*{-2cm} % Sube el título hacia arriba
+    \Huge \textbf{Agradecimientos}
+    \vspace*{1cm}  % Espacio tras el título
+\end{center}
+
+% Truco 2: Ganar un par de líneas extra al final de la página
+\enlargethispage{2cm}
+
+\noindent En primer lugar, quiero expresar mi más profundo agradecimiento a mis padres, por todas las oportunidades que me han brindado y por haberme formado como la persona que soy hoy, apoyándome incondicionalmente en cada decisión. A mi madre, por ser quien más me ha apoyado día tras día, dándome la fuerza necesaria para no rendirme nunca. A mi padre, por haberme transmitido siempre su cariño e ilusión; hoy más que nunca podrá decir, por fin, que soy "su ingeniero".
+
+\vspace{0.4cm} % Espacio controlado entre bloques
+
+\noindent A toda mi familia, por estar siempre ahí. Especialmente a mi abuela Pili y a mi tía Mari, por su cariño inmenso y por haber sido un apoyo constante en cada etapa de mi vida. También quiero agradecer de forma muy especial a mi tío Manolo. Gracias por ayudarme a remontar el vuelo tras aquel difícil primer año; gracias por enseñarme a volver a aprender y por demostrarme que un mal comienzo no define el final del camino si se tiene la constancia necesaria para levantarse.
+
+\vspace{0.4cm}
+
+\noindent Por último, quiero dar las gracias a todos los amigos y compañeros con los que he compartido estos años de estudio. Hemos formado un auténtico equipo, afrontando cada examen como una batalla conjunta y apoyándonos mutuamente para hacer este trayecto mucho más ameno. En especial a Lete y Natera, por vuestro apoyo constante durante todo el desarrollo y por esa paciencia infinita al no quejaros cuando Robe traspasaba las paredes de mi habitación durante el desarrollo del trabajo; gracias por ser un apoyo fundamental en cada momento de bloqueo. También a Elena, por estar siempre ahí, escucharme en todo momento y por su apoyo incondicional a lo largo de todo el proceso. Gracias a todos por estar ahí, de verdad.
+
+\chapter*{Dedicatoria}
+\thispagestyle{empty}
+\pagenumbering{gobble}
+
+\begin{flushright}
+    \textit{A mi abuelo Antonio, con quien tanto compartí \\ 
+    y de quien guardo los mejores recuerdos. \\ 
+    Gracias por contagiarme esa curiosidad \\ 
+    y ese ingenio que llevamos los Barrena; \\ 
+    casi sin darte cuenta, me dejaste esa forma de ver las cosas \\ 
+    que hoy me ha traído hasta aquí.}
+
+    \vspace{0.8cm}
+
+    \textit{A mis abuelos Francisco y Santa, por haberme cuidado tanto \\ 
+    y por ser una parte tan importante de mi infancia. \\ 
+    Abuela, gracias por tu cariño inmenso que siempre llevo conmigo. \\ 
+    Abuelo, todavía resuena tu voz en mi cabeza, \\ 
+    con aquel acento granaino, diciendo ese “estuuudia” \\ 
+    que tanto me repetías; espero que estés orgulloso de este resultado.}
+
+    \vspace{0.8cm}
+
+    \textit{Gracias por todo lo que habéis dejado en mí; \\ 
+    vuestra huella es mi mejor guía.}
+\end{flushright}
 
 \chapter*{Resumen}
 Este Trabajo de Fin de Grado presenta el diseño, implementación y evaluación de un sistema agéntico autónomo basado en LLMs orientado a la realización de auditorías de ciberseguridad. La plataforma, se articula mediante una arquitectura de microservicios compuesta por tres componentes: un sandbox aislado de Linux para la ejecución segura de herramientas de pentesting, un backend orquestador que gestiona la comunicación con múltiples proveedores de inteligencia artificial, y un frontend web que ofrece una interfaz de supervisión humana con sistema de aprobación de comandos peligrosos.
