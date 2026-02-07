@@ -5,7 +5,7 @@
 \usepackage{pgfgantt}
 \usepackage{tabularx}
 \usepackage{xcolor}
-\usepackage{lipsum} % Este paquete es para poner texto genérico en los capítulos, quitar cuando ya se hayan redactado
+%\usepackage{lipsum} % Eliminado para la versión final de impresión
 
 \usepackage{tikz}
 \usetikzlibrary{positioning, fit, backgrounds, shapes, arrows.meta, calc, babel, automata, er, matrix}
@@ -66,6 +66,7 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % AGRADECIMIENTOS
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\cleardoublepage
 \newpage
 \thispagestyle{empty}
 \pagenumbering{gobble} 
@@ -117,6 +118,7 @@
     vuestra huella es mi mejor guía.}
 \end{flushright}
 
+\cleardoublepage
 \chapter*{Resumen}
 Este Trabajo de Fin de Grado presenta el diseño, implementación y evaluación de un sistema agéntico autónomo basado en LLMs orientado a la realización de auditorías de ciberseguridad. La plataforma, se articula mediante una arquitectura de microservicios compuesta por tres componentes: un sandbox aislado de Linux para la ejecución segura de herramientas de pentesting, un backend orquestador que gestiona la comunicación con múltiples proveedores de inteligencia artificial, y un frontend web que ofrece una interfaz de supervisión humana con sistema de aprobación de comandos peligrosos.
 
@@ -126,6 +128,7 @@ El código fuente del proyecto se encuentra disponible en \url{https://github.co
 
 \noindent\textbf{Palabras clave}: \printkeywords.
 
+\cleardoublepage
 \chapter*{Abstract}
 This Bachelor's Thesis presents the design, implementation and evaluation of an autonomous agentic system based on Large Language Models (LLMs) aimed at performing cybersecurity audits. The platform, named TryHackYou, is built on a microservices architecture comprising three components: an isolated sandbox based on Kali Linux for the secure execution of pentesting tools, a backend orchestrator built with FastAPI that manages communication with multiple AI providers, and a frontend developed in Next.js that provides a human supervision interface with a dangerous command approval system.
 
@@ -136,6 +139,7 @@ The project source code is available at \url{https://github.com/Alexeido/TryHack
 \noindent\textbf{Keywords}: Autonomous agent, LLM, Cybersecurity, Pentesting, Human-in-the-Loop, Docker, Automated auditing.
 
 % Índices con enlaces de las secciones, tablas y figuras
+\cleardoublepage
 \newpage
 \pagestyle{plain}
 \pagenumbering{Roman}
@@ -143,11 +147,11 @@ The project source code is available at \url{https://github.com/Alexeido/TryHack
 \setcounter{tocdepth}{1}
 \tableofcontents
 %\pagebreak
-\newpage
+\cleardoublepage
 \listoftables
-\newpage
+\cleardoublepage
 \listoffigures
-\newpage
+\cleardoublepage
 
 
 %%%%%%% ESTRUCTURA DEL TFG %%%%%%%%%%%%%%
@@ -188,6 +192,7 @@ The project source code is available at \url{https://github.com/Alexeido/TryHack
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
+\cleardoublepage
 \pagenumbering{arabic}
 \pagestyle{fancy}
 \setcounter{page}{1}
@@ -223,6 +228,7 @@ The project source code is available at \url{https://github.com/Alexeido/TryHack
 %%%%%%%% ANEXO 1 %%%%%%%%
 % \import{appendices}{01_ejemplo_de_anexo.tex}
 
+\cleardoublepage
 \pagebreak
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%% AL FINAL %%%%%%%%%%%%%%

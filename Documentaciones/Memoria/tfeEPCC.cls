@@ -1,7 +1,7 @@
 \NeedsTeXFormat{LaTeX2e}[2021/11/15]
 \ProvidesClass{tfeEPCC}[2025/01/18 v1.0 LaTeX document class for Bachelor or Master's Theses in the School of Technology of Cáceres (UEx)]
 
-\LoadClass[12pt,a4paper,oneside]{book}
+\LoadClass[12pt,a4paper,twoside,openright]{book}
 
 \RequirePackage{etoolbox}
 \RequirePackage{appendix}
@@ -58,8 +58,9 @@
 \RequirePackage{geometry}
 \geometry{
     a4paper,
-    left=2.5cm,
-    right=2.5cm,
+    twoside,
+    inner=3.5cm,
+    outer=2.5cm,
     top=2.5cm,
     bottom=2.5cm,
     includefoot,
@@ -85,14 +86,27 @@
 
 %%%%%% HEADERS AND FOOTER %%%%%%
 \RequirePackage{fancyhdr}
-%\setlength{\headheight}{14.5pt}
+\setlength{\headheight}{15pt}
 \RequirePackage{adjustbox}
 
+% Redefinir plain para twoside: número de página en margen exterior
+\fancypagestyle{plain}{
+    \fancyhf{}
+    \fancyfoot[RE,LO]{\thepage}
+    \renewcommand{\headrulewidth}{0pt}
+    \renewcommand{\footrulewidth}{0pt}
+}
+
 \fancypagestyle{fancy}{
-    \fancyhead[L]{\small\nouppercase{\leftmark \hfill \rightmark}}
-    % Sets the corresponding right head depending on the selected option
+    \fancyhf{} % Limpiar todo
+    % Cabeceras: capítulo en par-derecha, sección en impar-izquierda
+    \fancyhead[RE]{\small\nouppercase{\leftmark}}
+    \fancyhead[LO]{\small\nouppercase{\rightmark}}
+    % Números de página en margen exterior
+    \fancyfoot[RE,LO]{\thepage}
+    % Sets the corresponding head logo depending on the selected option
     \ifdefined\@headlogo
-        \rhead{
+        \fancyhead[LE,RO]{
             \begin{picture}(0,0)
                 \put(0,0){
                     \adjustbox{trim={.1\width} {.11\height} {0.1\width} {.0\height},clip}
@@ -102,8 +116,6 @@
                 }
             \end{picture}
         }
-    \else
-        \rhead{}
     \fi
 }
 
