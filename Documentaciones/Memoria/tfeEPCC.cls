@@ -41,6 +41,17 @@
 
 \ProcessOptions\relax
 
+% Redefinir \cleardoublepage para que las páginas en blanco antes de capítulos 
+% (insertadas por openright) no tengan cabecera ni pie
+\renewcommand{\cleardoublepage}{%
+  \clearpage
+  \ifodd\c@page\else
+    \thispagestyle{empty}%
+    \hbox{}%
+    \newpage
+  \fi
+}
+
 \RequirePackage[utf8]{inputenc}
 \RequirePackage{xurl}
 \RequirePackage[table]{xcolor} % to set color for tables
@@ -92,21 +103,21 @@
 % Redefinir plain para twoside: número de página en margen exterior
 \fancypagestyle{plain}{
     \fancyhf{}
-    \fancyfoot[RE,LO]{\thepage}
+    \fancyfoot[LE,RO]{\thepage}
     \renewcommand{\headrulewidth}{0pt}
     \renewcommand{\footrulewidth}{0pt}
 }
 
 \fancypagestyle{fancy}{
     \fancyhf{} % Limpiar todo
-    % Cabeceras: capítulo en par-derecha, sección en impar-izquierda
-    \fancyhead[RE]{\small\nouppercase{\leftmark}}
-    \fancyhead[LO]{\small\nouppercase{\rightmark}}
+    % Cabeceras: capítulo en par-izquierda, sección en impar-derecha
+    \fancyhead[LE]{\small\nouppercase{\leftmark}}
+    \fancyhead[RO]{\small\nouppercase{\rightmark}}
     % Números de página en margen exterior
-    \fancyfoot[RE,LO]{\thepage}
+    \fancyfoot[LE,RO]{\thepage}
     % Sets the corresponding head logo depending on the selected option
     \ifdefined\@headlogo
-        \fancyhead[LE,RO]{
+        \fancyhead[RE,LO]{
             \begin{picture}(0,0)
                 \put(0,0){
                     \adjustbox{trim={.1\width} {.11\height} {0.1\width} {.0\height},clip}
@@ -265,8 +276,11 @@
 % Example: \contraportadaTFE{studentGender=m, tutor={John Doe}, tutorGender=m, cotutor={Jane Smith}, cotutorGender=f}
 \newcommand{\contraportadaTFE}[1]{
     \pgfkeys{/contraportadaTFE, default, #1}
-    \begin{titlepage}
-        \begin{adjustwidth}{0cm}{0cm}
+    % No usar titlepage para evitar cleardoublepage en twoside
+    % Así la contraportada queda en el reverso de la portada (página par/verso)
+    \newpage
+    \thispagestyle{empty}
+    \begin{adjustwidth}{0cm}{0cm}
             \begin{tikzpicture}[remember picture, overlay]
                 \usetikzlibrary{calc}
                 \ifdefined\@framedcover
@@ -312,7 +326,7 @@
                 }
             \end{center}
         \end{adjustwidth}
-    \end{titlepage}
+    \newpage
 }
 
 % Set language-specific names for various document parts
