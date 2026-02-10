@@ -276,11 +276,8 @@
 % Example: \contraportadaTFE{studentGender=m, tutor={John Doe}, tutorGender=m, cotutor={Jane Smith}, cotutorGender=f}
 \newcommand{\contraportadaTFE}[1]{
     \pgfkeys{/contraportadaTFE, default, #1}
-    % No usar titlepage para evitar cleardoublepage en twoside
-    % Así la contraportada queda en el reverso de la portada (página par/verso)
-    \newpage
-    \thispagestyle{empty}
-    \begin{adjustwidth}{0cm}{0cm}
+    \begin{titlepage}
+        \begin{adjustwidth}{0cm}{0cm}
             \begin{tikzpicture}[remember picture, overlay]
                 \usetikzlibrary{calc}
                 \ifdefined\@framedcover
@@ -326,8 +323,9 @@
                 }
             \end{center}
         \end{adjustwidth}
-    \newpage
+    \end{titlepage}
 }
+
 
 % Set language-specific names for various document parts
 \AtBeginDocument{%
