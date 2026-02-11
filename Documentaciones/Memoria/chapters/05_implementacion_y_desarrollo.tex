@@ -364,10 +364,12 @@ Control de Versiones FS & GitPython & 3.x & Snapshots del sandbox por mensaje \\
 \label{tab:stack_completo}
 \end{table}
 
+\clearpage
 
 % ----------------------------------------------------------------------------
 % 5.3 KALISANDBOX: ENTORNO DE EJECUCIÓN AISLADO
 % ----------------------------------------------------------------------------
+
 \section{KaliSandbox: Entorno de Ejecución Aislado}
 \label{sec:kalisandbox}
 
@@ -381,114 +383,9 @@ La infraestructura del laboratorio se define mediante un archivo \texttt{docker-
 
 Se ha configurado una red Docker de tipo \textit{bridge} con el rango \texttt{10.10.0.0/24}, completamente aislada del sistema anfitrión y sin acceso a Internet. Esta configuración replica un escenario de laboratorio de pentesting donde el agente puede ejecutar escaneos y ataques sin riesgo de afectar infraestructura real.
 
-\begin{figure}[H]
-    \centering
-    \begin{tikzpicture}[
-        % Estilos generales
-        node distance=2cm and 4cm,
-        font=\small\sffamily,
-        % Estilo para los contenedores (nodos)
-        docker/.style={
-            rectangle, 
-            draw=blue!50, 
-            thick, 
-            rounded corners, 
-            align=center,
-            minimum size=1.5cm,
-            inner sep=10pt,
-            fill=white
-        },
-        % Estilo destacado para el Agente (Kali)
-        attacker/.style={
-            docker,
-            draw=red!80,
-            line width=1.5pt,
-            fill=red!5
-        },
-        % Estilo para la red (caja contenedora)
-        netbox/.style={
-            draw=gray,
-            dashed,
-            fill=gray!10,
-            inner sep=20pt,
-            rounded corners,
-            label={[anchor=north west, font=\bfseries\color{gray}]north west:hacking\_net (10.10.0.0/24)}
-        }
-    ]
-
-    % --- 1. DEFINICIÓN DE NODOS ---
-
-    % Nodo Agente (Izquierda)
-    \node[attacker] (agent) {
-        \includegraphics[width=1cm]{pictures/icons/kali.png}\\ % <--- Icono Kali
-        \textbf{Agente}\\
-        10.10.0.2
-    };
-
-    % Nodos Víctimas (Columna derecha)
-    % Usamos positioning para colocarlos uno debajo del otro
-    
-    % DVWA (Centro)
-    \node[docker, right=of agent] (dvwa) {
-        \includegraphics[width=0.8cm]{pictures/icons/web_server.png}\\ % <--- Icono Web
-        \textbf{DVWA}\\
-        10.10.0.3
-    };
-
-    % Metasploitable (Arriba)
-    \node[docker, above=of dvwa] (meta) {
-        \includegraphics[width=0.8cm]{pictures/icons/linux_server.png}\\ % <--- Icono Linux
-        \textbf{Metasploitable}\\
-        10.10.0.4
-    };
-
-    % Juice Shop (Abajo)
-    \node[docker, below=of dvwa] (juice) {
-        \includegraphics[width=0.8cm]{pictures/icons/juice_shop.png}\\ % <--- Icono App
-        \textbf{Juice Shop}\\
-        10.10.0.5
-    };
-
-    % --- 2. FONDO DE RED (Caja Hacking Net) ---
-    % Usamos la librería 'fit' para englobar todos los nodos
-    \begin{scope}[on background layer]
-        \node[netbox, fit=(agent) (meta) (juice)] (network) {};
-    \end{scope}
-
-    % --- 3. CONEXIONES INTERNAS ---
-    % Flechas bidireccionales del Agente a las víctimas
-    \draw[<->, thick, color=blue!60] (agent) -- (meta);
-    \draw[<->, thick, color=blue!60] (agent) -- (dvwa);
-    \draw[<->, thick, color=blue!60] (agent) -- (juice);
-
-    % --- 4. INDICADOR "SIN INTERNET" ---
-    % Dibujamos un símbolo de prohibido Internet
-    \node[anchor=south east, color=red] at (network.south east) {
-        \begin{tikzpicture}[scale=0.3, baseline]
-            \draw[thick] (0,0) circle (1);
-            \draw[thick] (-0.7,-0.7) -- (0.7,0.7);
-        \end{tikzpicture}
-        \textbf{Sin Acceso a Internet}
-    };
-
-    % --- 5. PUERTOS EXPUESTOS (HOST) ---
-    % Flechas saliendo de la caja de red
-    
-    % Coordenada ficticia fuera de la red (Host)
-    \coordinate (host) at ($(network.east) + (2,0)$);
-
-    % Etiquetas de mapeo de puertos
-    \draw[->, dotted, thick] (agent.west) -- ++(-1.5,0) node[midway, above, font=\tiny] {localhost:5000};
-    \draw[->, dotted, thick] (meta.east) -- ++(1.5,0) node[right, font=\tiny] {localhost:8020};
-    \draw[->, dotted, thick] (dvwa.east) -- ++(1.5,0) node[right, font=\tiny] {localhost:8010};
-    \draw[->, dotted, thick] (juice.east) -- ++(1.5,0) node[right, font=\tiny] {localhost:8030};
-
-    \end{tikzpicture}
-    \caption{Topología de Red del Entorno de Hacking (Docker)}
-\end{figure}
-
 \begin{table}[H]
 \centering
+\begin{adjustbox}{max width=\textwidth, max height=0.85\textheight, keepaspectratio}
 \renewcommand{\arraystretch}{1.3}
 \begin{tabular}{|l|l|c|c|p{3cm}|}
 \hline
@@ -504,6 +401,7 @@ Se ha configurado una red Docker de tipo \textit{bridge} con el rango \texttt{10
 \texttt{juice\_victim} & \texttt{bkimminich/juice-shop} & 10.10.0.5 & 8020 & OWASP Juice Shop: aplicación web moderna \\
 \hline
 \end{tabular}
+\end{adjustbox}
 \caption{Servicios Docker del laboratorio de pruebas.}
 \label{tab:servicios_docker}
 \end{table}

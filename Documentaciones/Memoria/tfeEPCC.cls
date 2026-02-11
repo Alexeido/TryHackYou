@@ -201,12 +201,6 @@
 \newcommand{\portadaTFE}[1]{
     \begin{titlepage}
         \begin{adjustwidth}{0cm}{0cm}
-            \begin{tikzpicture}[remember picture, overlay]
-                \usetikzlibrary{calc}
-                \ifdefined\@framedcover
-                    \draw[line width = 1.5pt] ($(current page.north west) + (1in,-1in)$) rectangle ($(current page.south east) + (-1in,1in)$);
-                \fi
-            \end{tikzpicture}
 
             {
                 \parskip=0pt
@@ -276,8 +270,11 @@
 % Example: \contraportadaTFE{studentGender=m, tutor={John Doe}, tutorGender=m, cotutor={Jane Smith}, cotutorGender=f}
 \newcommand{\contraportadaTFE}[1]{
     \pgfkeys{/contraportadaTFE, default, #1}
-    \begin{titlepage}
-        \begin{adjustwidth}{0cm}{0cm}
+    % No usar titlepage para evitar cleardoublepage en twoside
+    % Así la contraportada queda en el reverso de la portada (página par/verso)
+    \newpage
+    \thispagestyle{empty}
+    \begin{adjustwidth}{0cm}{0cm}
             \begin{tikzpicture}[remember picture, overlay]
                 \usetikzlibrary{calc}
                 \ifdefined\@framedcover
@@ -323,7 +320,7 @@
                 }
             \end{center}
         \end{adjustwidth}
-    \end{titlepage}
+    \newpage
 }
 
 
