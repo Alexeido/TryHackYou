@@ -1,0 +1,4 @@
+# La memoria y los informes son documentación: que GitHub no cuente el LaTeX como lenguaje del proyecto
+Documentaciones/** linguist-documentation
+*.tex linguist-documentation
+*.cls linguist-documentation
